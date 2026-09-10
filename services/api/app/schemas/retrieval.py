@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -75,7 +77,7 @@ class IncidentRetrievalConfig(RetrievalConfigModel):
 
 class IncidentDocument(RetrievalConfigModel):
     incident_id: str
-    occurred_at: str
+    occurred_at: datetime
     asset_tag: str
     plant_id: str
     title: str
@@ -96,7 +98,7 @@ class IncidentDocument(RetrievalConfigModel):
 class RetrievalQuery(RetrievalConfigModel):
     query_id: str
     alert_id: str
-    as_of: str
+    as_of: datetime
     asset_id: str
     asset_tag: str
     plant_id: str
@@ -114,7 +116,7 @@ class IncidentRetrievalResult(RetrievalConfigModel):
     query_id: str
     rank: int = Field(ge=1)
     incident_id: str
-    occurred_at: str
+    occurred_at: datetime
     asset_tag: str
     title: str
     equipment_family: str
