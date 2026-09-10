@@ -1,0 +1,50 @@
+retriever_id: "ko-3201-hybrid-incident-retriever-v1"
+retriever_version: "1.0.0"
+input_alert_policy_id: "ko-3201-alert-policy-v1"
+top_k: 8
+minimum_hybrid_score: 0.10
+
+word_vectorizer:
+  analyzer: "word"
+  ngram_range: [1, 2]
+  sublinear_tf: true
+
+character_vectorizer:
+  analyzer: "char_wb"
+  ngram_range: [3, 5]
+  sublinear_tf: true
+
+weights:
+  word_similarity: 0.35
+  character_similarity: 0.15
+  equipment_family: 0.20
+  discipline: 0.05
+  component_overlap: 0.10
+  symptom_overlap: 0.10
+  plant: 0.05
+
+eligibility:
+  exclude_incident_ids:
+    - "incident-0002"
+  require_occurred_before_alert_open: true
+
+diversity:
+  maximum_per_failure_mechanism: 2
+
+signal_mappings:
+  radial_vibration:
+    symptom: "HIGH_RADIAL_VIBRATION"
+    component: "BEARING"
+    narrative: "drive-end radial vibration exceeded its alarm limit"
+  water_in_oil:
+    symptom: "HIGH_WATER_IN_OIL"
+    component: "LUBE_OIL_SYSTEM"
+    narrative: "lube-oil water content exceeded its alarm limit"
+  lube_oil_pressure:
+    symptom: "LOW_LUBE_OIL_PRESSURE"
+    component: "LUBE_OIL_SYSTEM"
+    narrative: "lube-oil pressure fell below its alarm limit"
+  bearing_temperature:
+    symptom: "HIGH_BEARING_TEMPERATURE"
+    component: "BEARING"
+    narrative: "bearing metal temperature exceeded its alarm limit"
