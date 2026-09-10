@@ -1,0 +1,91 @@
+scenario_id: "ko-3201-six-month-v1"
+scenario_version: "1.0.0"
+generation_version: "ko_3201_scenario_generator_v1.0.0"
+anchor_dataset_version: "1.0.0"
+random_seed: 3201
+timezone: "Asia/Jakarta"
+start_time: "2025-12-10T00:00:00+07:00"
+end_time_exclusive: "2026-06-10T00:00:00+07:00"
+frequency: "1h"
+
+primary_signals:
+  radial_vibration_de:
+    signal_id: "sig-ko-vibration-synthetic-hourly"
+    unit: "micron"
+    measurement_type: "vibration_displacement"
+    direction_of_concern: "HIGH"
+    noise_standard_deviation: 0.45
+    daily_amplitude: 0.18
+    hard_min: 20.0
+    hard_max: 78.0
+    restart_value: 28.9
+  water_in_oil:
+    signal_id: "sig-ko-water-oil-synthetic-hourly"
+    unit: "ppm"
+    measurement_type: "concentration"
+    direction_of_concern: "HIGH"
+    noise_standard_deviation: 6.0
+    daily_amplitude: 1.5
+    hard_min: 180.0
+    hard_max: 1550.0
+    restart_value: 325.0
+  lube_oil_pressure:
+    signal_id: "sig-ko-oil-pressure-synthetic-hourly"
+    unit: "barg"
+    measurement_type: "pressure"
+    direction_of_concern: "LOW"
+    noise_standard_deviation: 0.006
+    daily_amplitude: 0.003
+    hard_min: 1.0
+    hard_max: 1.9
+    restart_value: 1.70
+  bearing_metal_temperature:
+    signal_id: "sig-ko-bearing-temp-synthetic-hourly"
+    unit: "degC"
+    measurement_type: "temperature"
+    direction_of_concern: "HIGH"
+    noise_standard_deviation: 0.28
+    daily_amplitude: 0.16
+    hard_min: 68.0
+    hard_max: 113.0
+    restart_value: 78.0
+
+phases:
+  - phase: "HEALTHY_BASELINE"
+    start: "2025-12-10T00:00:00+07:00"
+    end: "2026-02-11T00:00:00+07:00"
+  - phase: "EARLY_DEGRADATION"
+    start: "2026-02-11T00:00:00+07:00"
+    end: "2026-03-18T00:00:00+07:00"
+  - phase: "PERSISTENT_ALARM"
+    start: "2026-03-18T00:00:00+07:00"
+    end: "2026-04-27T00:00:00+07:00"
+  - phase: "ACUTE_ESCALATION"
+    start: "2026-04-27T00:00:00+07:00"
+    end: "2026-04-29T07:00:00+07:00"
+  - phase: "TRIP_AND_SHUTDOWN"
+    start: "2026-04-29T07:00:00+07:00"
+    end: "2026-04-30T14:00:00+07:00"
+  - phase: "REPAIR_INTERVENTION"
+    start: "2026-04-30T14:00:00+07:00"
+    end: "2026-04-30T15:00:00+07:00"
+  - phase: "RESTART"
+    start: "2026-04-30T15:00:00+07:00"
+    end: "2026-04-30T16:00:00+07:00"
+  - phase: "POST_REPAIR_MONITORING"
+    start: "2026-04-30T16:00:00+07:00"
+    end: "2026-05-06T00:00:00+07:00"
+  - phase: "STABLE_RECOVERY"
+    start: "2026-05-06T00:00:00+07:00"
+    end: "2026-06-10T00:00:00+07:00"
+
+minor_events:
+  - event_marker: "STARTUP_TRANSIENT"
+    start: "2026-01-05T08:00:00+07:00"
+    end: "2026-01-05T12:00:00+07:00"
+  - event_marker: "SHORT_LOAD_TRANSIENT"
+    start: "2026-01-26T14:00:00+07:00"
+    end: "2026-01-26T17:00:00+07:00"
+
+intervention_anchor:
+  timestamp: "2026-04-30T15:00:00+07:00"

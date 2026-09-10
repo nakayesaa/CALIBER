@@ -75,6 +75,18 @@ class HealthState(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class ScenarioPhase(StrEnum):
+    HEALTHY_BASELINE = "HEALTHY_BASELINE"
+    EARLY_DEGRADATION = "EARLY_DEGRADATION"
+    PERSISTENT_ALARM = "PERSISTENT_ALARM"
+    ACUTE_ESCALATION = "ACUTE_ESCALATION"
+    TRIP_AND_SHUTDOWN = "TRIP_AND_SHUTDOWN"
+    REPAIR_INTERVENTION = "REPAIR_INTERVENTION"
+    RESTART = "RESTART"
+    POST_REPAIR_MONITORING = "POST_REPAIR_MONITORING"
+    STABLE_RECOVERY = "STABLE_RECOVERY"
+
+
 class WorkflowStatus(StrEnum):
     NEW_REGISTERED = "NEW_REGISTERED"
     RCA_PROCESS = "RCA_PROCESS"
@@ -182,6 +194,10 @@ class SignalObservation(CanonicalModel):
     source_reference: str
     source_cadence: str
     scenario_id: str | None = None
+    scenario_phase: ScenarioPhase | None = None
+    anchor_before_observation_id: str | None = None
+    anchor_after_observation_id: str | None = None
+    generation_version: str | None = None
     quality_flag: QualityFlag
     timezone_assumption: str | None = None
     ingestion_version: str
@@ -366,3 +382,32 @@ class QualityIssue(CanonicalModel):
     resolution_status: str
     blocks_scoring: bool
 
+
+class ScenarioManifest(CanonicalModel):
+    scenario_id: str
+    scenario_version: str
+    generation_version: str
+    anchor_asset_id: str
+    anchor_dataset_version: str
+    random_seed: int
+    start_time: AwareDatetime
+    end_time_exclusive: AwareDatetime
+    frequency: str
+    timestamp_count: int
+    primary_signals: list[str]
+    process_context_signals: list[str]
+    intended_use: list[str]
+    training_policy: str
+    source_type_policy: str
+
+
+class ScenarioTimelinePoint(CanonicalModel):
+    scenario_id: str
+    timestamp: AwareDatetime
+    scenario_phase: ScenarioPhase
+    operating_mode: OperatingMode
+    health_state: HealthState
+    condition_source_type: SourceType
+    process_source_type: SourceType
+    training_eligible: bool
+    event_marker: str | None = None

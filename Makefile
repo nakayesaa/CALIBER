@@ -1,4 +1,4 @@
-.PHONY: help install web-dev web-build api-install api-dev canonical db-seed test check
+.PHONY: help install web-dev web-build api-install api-dev canonical scenario db-seed test check
 
 help:
 	@echo "CALIBER development commands"
@@ -8,6 +8,7 @@ help:
 	@echo "  make api-install  Create API virtualenv and install dependencies"
 	@echo "  make api-dev      Start the FastAPI development server"
 	@echo "  make canonical    Rebuild and validate KO-3201 canonical data"
+	@echo "  make scenario     Build the six-month KO-3201 hourly scenario"
 	@echo "  make db-seed      Rebuild canonical data and seed SQLite"
 	@echo "  make test         Run backend/data tests"
 	@echo "  make check        Run currently available checks"
@@ -30,6 +31,9 @@ api-dev:
 
 canonical:
 	.venv/bin/python scripts/ingest_ko_3201.py
+
+scenario: canonical
+	.venv/bin/python scripts/generate_ko_3201_scenario.py
 
 db-seed: canonical
 	.venv/bin/python scripts/seed_database.py
