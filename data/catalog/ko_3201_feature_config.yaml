@@ -71,6 +71,13 @@ process_signals:
     delta_periods: [1]
     rolling_windows: [6]
 
+eligibility:
+  training_operating_modes: ["RUNNING_STEADY"]
+  scoring_operating_modes: ["RUNNING_STEADY"]
+  required_run_status: "ON"
+  training_requires_source_eligibility: true
+  training_requires_below_alarm: true
+
 output:
   metadata_columns:
     - "timestamp"

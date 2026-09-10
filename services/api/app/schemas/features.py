@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
 class FeatureConfigModel(BaseModel):
@@ -67,6 +67,14 @@ class FeatureOutputConfig(FeatureConfigModel):
     label_columns: list[str] = Field(min_length=1)
 
 
+class EligibilityConfig(FeatureConfigModel):
+    training_operating_modes: list[str] = Field(min_length=1)
+    scoring_operating_modes: list[str] = Field(min_length=1)
+    required_run_status: str
+    training_requires_source_eligibility: bool = True
+    training_requires_below_alarm: bool = True
+
+
 class FeaturePipelineConfig(FeatureConfigModel):
     pipeline_id: str
     pipeline_version: str
@@ -74,6 +82,7 @@ class FeaturePipelineConfig(FeatureConfigModel):
     expected_frequency: str
     condition_signals: dict[str, ConditionSignalConfig]
     process_signals: dict[str, ProcessSignalConfig]
+    eligibility: EligibilityConfig
     output: FeatureOutputConfig
 
     @model_validator(mode="after")
@@ -105,3 +114,35 @@ class FeatureCatalogEntry(FeatureConfigModel):
     window_hours: int | None = None
     unit: str
     description: str
+
+
+class FeatureManifest(FeatureConfigModel):
+    pipeline_id: str
+    pipeline_version: str
+    input_scenario_id: str
+    input_sha256: str
+    generated_at: AwareDatetime
+    row_count: int
+    complete_row_count: int
+    training_row_count: int
+    scoring_row_count: int
+    lookback_hours: int
+    model_feature_columns: list[str]
+    explanation_feature_columns: list[str]
+    metadata_columns: list[str]
+    label_columns: list[str]
+    eligibility_columns: list[str]
+    leakage_policy: str
+    training_policy: str
+
+
+class FeatureQualityCheck(FeatureConfigModel):
+    name: str
+    status: str
+    actual: int | float | str | bool | dict[str, int]
+
+
+class FeatureQualityReport(FeatureConfigModel):
+    status: str
+    pipeline_id: str
+    checks: list[FeatureQualityCheck]
