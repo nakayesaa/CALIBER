@@ -1,0 +1,17 @@
+{
+  "name": "caliber",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@caliber/web",
+    "build": "npm run build --workspace=@caliber/web",
+    "preview": "npm run preview --workspace=@caliber/web",
+    "check": "npm run check --workspace=@caliber/web"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}

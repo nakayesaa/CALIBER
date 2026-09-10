@@ -1,0 +1,49 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Internal planning, reports, and local agent state
+*.md
+*.typ
+*.drawio
+*.pdf
+docs/
+artifacts/
+.agents/
+.codex/
+
+# JavaScript
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+logs/
+
+# Source and generated data stay local; README files document each zone
+data/raw/
+data/normalized/
+data/synthetic/
+data/fixtures/
+
+# Local tooling
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

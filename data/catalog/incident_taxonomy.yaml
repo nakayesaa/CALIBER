@@ -1,0 +1,56 @@
+taxonomy_version: "1.0.0"
+equipment_type_map:
+  BL: BLOWER
+  CO: COMPRESSOR
+  EM: ELECTRIC_MOTOR
+  FA: FAN
+  HB: HEAT_EXCHANGER
+  PU: PUMP
+  RX: REACTOR
+  TK: TANK
+  VA: VALVE
+  TX: TRANSMITTER
+  TR: TRANSFORMER_OR_ROTATING_ASSET
+  CD: CODE_CD
+  PZ: CODE_PZ
+  SW: CODE_SW
+  SX: CODE_SX
+
+discipline_map:
+  ROT: ROTATING
+  STA: STATIC
+  INS: INSTRUMENTATION
+  ELE: ELECTRICAL
+
+failure_families:
+  - label: BEARING_LUBRICATION_THERMAL
+    keywords: [journal bearing, motor bearing, bearing, lubrication, lube oil, oil contamination, overheat]
+  - label: VIBRATION_ALIGNMENT
+    keywords: [high radial vibration, high vibration, vibration, misalignment, imbalance, coupling, loose]
+  - label: LEAKAGE_LOSS_OF_CONTAINMENT
+    keywords: [mechanical seal, oil seal, gasket, leakage, leaking, leak, seal]
+  - label: FOULING_PERFORMANCE_DEGRADATION
+    keywords: [fouling, duty loss, low performance, high dp]
+  - label: ELECTRICAL_INSTRUMENTATION_MALFUNCTION
+    keywords: [transmitter, solenoid, error, malfunction, stuck]
+  - label: STRUCTURAL_WEAR_DAMAGE
+    keywords: [worn out, crack, breakage, corrosion, erosion, blade, impeller, shaft, rotor]
+
+ko_3201_override:
+  equipment_family: COMPRESSOR
+  component: JOURNAL_BEARING
+  related_components: [LUBE_OIL_SYSTEM, OIL_COOLER]
+  observed_symptoms:
+    - HIGH_RADIAL_VIBRATION
+    - HIGH_WATER_IN_OIL
+    - LOW_LUBE_OIL_PRESSURE
+    - HIGH_BEARING_TEMPERATURE
+  failure_mechanism: BEARING_DISTRESS
+  probable_cause_family: WATER_INGRESS_AND_LUBRICATION_DEGRADATION
+  source_reported_root_cause: LEAKING_OIL_COOLER_TUBE
+  business_consequences:
+    - EQUIPMENT_TRIP
+    - PRODUCTION_LOSS
+    - DOWNTIME
+    - FINANCIAL_LOSS
+

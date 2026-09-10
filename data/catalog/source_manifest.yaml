@@ -1,0 +1,65 @@
+manifest_version: "1.0.0"
+retrieved_at: "2026-09-10T00:00:00+07:00"
+retrieval_method: "Google Drive public-view source, downloaded without content modification"
+scope: "KO-3201 canonical vertical slice plus full historical incident corpus"
+sources:
+  - source_key: production_ko_3201
+    title: "Production Data - RCA2 KO-3201.xlsx"
+    drive_file_id: "1xHVQZcSJZg0-Tknd2PjZ8mJVByQsFDMr"
+    drive_url: "https://drive.google.com/file/d/1xHVQZcSJZg0-Tknd2PjZ8mJVByQsFDMr"
+    local_path: "data/raw/ko_3201/production_data_ko_3201.xlsx"
+    mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    size_bytes: 49828
+    modified_time: "2026-09-05T13:30:24.388Z"
+    sha256: "df0b595e889afd34e7e420f6766de0291e00f0ff43590f83590456a9a9b292e3"
+    parser: "production_workbook_v1"
+    role: "Hourly PI/production context, shutdown, and restart"
+
+  - source_key: equipment_performance_ko_3201
+    title: "Equipment Performance - RCA2 KO-3201.xlsx"
+    drive_file_id: "1JbDwEz1q3NRxW4OVrJR9q9M7ec2Nn0Ch"
+    drive_url: "https://drive.google.com/file/d/1JbDwEz1q3NRxW4OVrJR9q9M7ec2Nn0Ch"
+    local_path: "data/raw/ko_3201/equipment_performance_ko_3201.xlsx"
+    mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    size_bytes: 22418
+    modified_time: "2026-08-18T17:43:30.000Z"
+    sha256: "73f16cd575d51af260103bfce4a902adccd7629d72f5dd264842f816f7b940a5"
+    parser: "equipment_performance_workbook_v1"
+    role: "Weekly degradation, engineering limits, asset metadata, and recovery"
+
+  - source_key: rca_ko_3201
+    title: "RCA2 - KO-3201 High Radial Vibration Trip.pptx"
+    drive_file_id: "1Fwbx5RIeBsHEftLaVNbYgFUDSEcvB9iX"
+    drive_url: "https://drive.google.com/file/d/1Fwbx5RIeBsHEftLaVNbYgFUDSEcvB9iX"
+    local_path: "data/raw/ko_3201/rca_ko_3201_high_radial_vibration_trip.pptx"
+    mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    size_bytes: 79400
+    modified_time: "2026-08-18T17:43:30.000Z"
+    sha256: "7db64c0b6e9492713b461d26397aa08392c7c071032d0a610e5844245f13baa9"
+    parser: "rca_presentation_ko_3201_v1"
+    role: "Reported chronology, root-cause statements, actions, and impact"
+
+  - source_key: incident_database
+    title: "Incident Database.xlsx"
+    drive_file_id: "12zoQhytgMpmOlR-cKeF-WPmw-Tn5fk6Z"
+    drive_url: "https://drive.google.com/file/d/12zoQhytgMpmOlR-cKeF-WPmw-Tn5fk6Z"
+    local_path: "data/raw/ko_3201/incident_database.xlsx"
+    mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    size_bytes: 80668
+    modified_time: "2026-08-18T17:43:30.000Z"
+    sha256: "5b6d42937bc03f92ab65aaecc6aa7188130e883d603c8f3d338fb531045c6c03"
+    parser: "incident_database_v1"
+    role: "KO-3201 incident plus 380-record historical retrieval corpus"
+
+  - source_key: dataset_explanation
+    title: "Data Set Explanation for Case 2 Intelligence Manufacturing.pptx"
+    drive_file_id: "1rqNUoIS8yZHPj5d9UywWe66-cCfgO2i2"
+    drive_url: "https://drive.google.com/file/d/1rqNUoIS8yZHPj5d9UywWe66-cCfgO2i2"
+    local_path: "data/raw/ko_3201/dataset_explanation_case_2.pptx"
+    mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    size_bytes: 71175
+    modified_time: "2026-08-18T17:43:30.000Z"
+    sha256: "a378b769f36cbee095812eb8a2d428e2fcbd2a6082e2dba504dce47cb18f3a62"
+    parser: "metadata_only"
+    role: "Dataset relationship and business-scope reference"
+

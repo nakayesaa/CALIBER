@@ -1,0 +1,6 @@
+source_system,source_tag,asset_id,canonical_tag,asset_name,plant_id,plant_name,equipment_family,equipment_type,equipment_class,discipline,criticality,active
+production_ko_3201,KO3201,asset-ko-3201,KO-3201,Cracked Gas Compressor KO-3201,ZCU,Zeta Cracker Unit,COMPRESSOR,Centrifugal Compressor,A,ROTATING,HIGH,true
+equipment_performance_ko_3201,KO-3201,asset-ko-3201,KO-3201,Cracked Gas Compressor KO-3201,ZCU,Zeta Cracker Unit,COMPRESSOR,Centrifugal Compressor,A,ROTATING,HIGH,true
+incident_database,KO-3201,asset-ko-3201,KO-3201,Cracked Gas Compressor KO-3201,ZCU,Zeta Cracker Unit,COMPRESSOR,Centrifugal Compressor,A,ROTATING,HIGH,true
+rca_ko_3201,KO-3201,asset-ko-3201,KO-3201,Cracked Gas Compressor KO-3201,ZCU,Zeta Cracker Unit,COMPRESSOR,Centrifugal Compressor,A,ROTATING,HIGH,true
+

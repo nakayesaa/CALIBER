@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#cdd7d8" />
+    <title>CALIBER — Reliability Intelligence</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%23151c1b%22/><path d=%22M17 18h30v9H27v20H17z%22 fill=%22%23e7f1ec%22/><circle cx=%2242%22 cy=%2242%22 r=%225%22 fill=%22%23a9cc37%22/></svg>" />
+  </head>
+  <body>
+    <svg class="svg-defs" aria-hidden="true">
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="m4 11 8-7 8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></symbol>
+      <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3M8 15h8"/></symbol>
+      <symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="6" r="3"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="m10 9-2.5 5M14 9l2.5 5M9 17h6"/></symbol>
+      <symbol id="i-trend" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M7 15l4-5 3 3 5-7"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-4 2.2-6 5.5-6s5.1 2 5.5 6M16 5a3 3 0 0 1 0 6M17 13c2.2.5 3.3 2.5 3.5 5"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><path d="m4 9 8-5 8 5-8 5zM4 13l8 5 8-5M4 17l8 5 8-5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z"/></symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 5h16l-2 14H6zM4.5 14h5l1.5 2h2l1.5-2h5"/></symbol>
+      <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4zM12 9v5M12 17h.01"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14 8.5 15.5a3.5 3.5 0 1 1-5-5L7 7M14 10l1.5-1.5a3.5 3.5 0 1 1 5 5L17 17M8 12h8"/></symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></symbol>
+    </svg>
+
+    <main class="page">
+      <section class="app-shell">
+        <aside class="rail">
+          <button class="brand" aria-label="CALIBER home"><span></span><span></span></button>
+          <nav aria-label="Primary navigation">
+            <button class="nav-btn active" data-label="Overview" aria-label="Overview"><svg><use href="#i-home"/></svg></button>
+            <button class="nav-btn" data-label="Laboratory" aria-label="Condition monitoring"><svg><use href="#i-flask"/></svg></button>
+            <button class="nav-btn" data-label="Assets" aria-label="Assets"><svg><use href="#i-network"/></svg></button>
+            <button class="nav-btn" data-label="Trends" aria-label="Trends"><svg><use href="#i-trend"/></svg></button>
+            <button class="nav-btn" data-label="Teams" aria-label="Teams"><svg><use href="#i-users"/></svg></button>
+            <button class="nav-btn" data-label="Data sources" aria-label="Data sources"><svg><use href="#i-layers"/></svg></button>
+          </nav>
+          <div class="rail-bottom">
+            <button class="add-button" aria-label="Add view">+</button>
+            <div class="avatar avatar-small">NA</div>
+          </div>
+        </aside>
+
+        <div class="workspace">
+          <header class="topbar">
+            <div class="breadcrumbs"><span>Reliability ops</span><b>/</b><span>ZCU</span><b>/</b><strong>Overview</strong></div>
+            <div class="top-actions">
+              <label class="search"><svg><use href="#i-search"/></svg><input id="assetSearch" placeholder="Search asset, incident, or owner" /></label>
+              <button class="round-button" aria-label="Plant location"><svg><use href="#i-pin"/></svg></button>
+              <button class="round-button notification" aria-label="Notifications"><svg><use href="#i-inbox"/></svg><i></i></button>
+            </div>
+          </header>
+
+          <section class="dashboard-grid">
+            <article class="health-card panel">
+              <div class="panel-head">
+                <div class="title-group"><span class="title-icon"><svg><use href="#i-pulse"/></svg></span><h1>Health trajectory</h1></div>
+                <select id="timeRange" class="soft-select" aria-label="Time range"><option>Last 30 days</option><option>Last 14 days</option><option>Last 7 days</option></select>
+              </div>
+              <div class="divider"></div>
+              <button class="asset-picker" id="assetPicker"><span>KO-3201 · Cracked gas compressor</span><i><svg><use href="#i-chevron"/></svg></i></button>
+
+              <div class="health-visual">
+                <div class="bar-chart" aria-label="KO-3201 weekly vibration trend">
+                  <div class="threshold-line"><span>45 µm alert</span></div>
+                  <div class="bar-column"><div class="bar" style="--h:31%"><span></span></div><small>Apr 01</small></div>
+                  <div class="bar-column"><div class="bar" style="--h:43%"><span></span></div><small>Apr 08</small></div>
+                  <div class="bar-column"><div class="bar" style="--h:57%"><span></span></div><small>Apr 15</small></div>
+                  <div class="bar-column"><div class="bar" style="--h:76%"><span></span></div><small>Apr 22</small></div>
+                  <div class="bar-column incident"><div class="bar" style="--h:94%"><span class="bar-label">76.5 µm</span><i></i></div><small>Apr 29</small></div>
+                </div>
+
+                <div class="machine-wrap" aria-label="Stylized KO-3201 compressor">
+                  <div class="machine-status"><span></span> Degradation detected</div>
+                  <svg class="machine" viewBox="0 0 390 260" role="img" aria-label="KO-3201 compressor illustration">
+                    <defs>
+                      <linearGradient id="bodyG" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#477e70"/><stop offset="1" stop-color="#17493f"/></linearGradient>
+                      <linearGradient id="lightG" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e8f0b3"/><stop offset="1" stop-color="#a9cb3c"/></linearGradient>
+                      <filter id="shadow"><feDropShadow dx="0" dy="16" stdDeviation="10" flood-opacity=".18"/></filter>
+                    </defs>
+                    <ellipse cx="204" cy="229" rx="144" ry="18" fill="#b9c4c1" opacity=".35"/>
+                    <g filter="url(#shadow)" transform="translate(25 14)">
+                      <polygon points="48,162 186,102 325,150 188,217" fill="#9ebf37"/>
+                      <polygon points="48,162 188,217 188,230 48,175" fill="#67872a"/>
+                      <polygon points="188,217 325,150 325,164 188,230" fill="#b8d84e"/>
+                      <g transform="translate(63 69)">
+                        <polygon points="0,56 65,27 130,51 66,82" fill="#6ca08f"/>
+                        <polygon points="0,56 66,82 66,137 0,110" fill="url(#bodyG)"/>
+                        <polygon points="66,82 130,51 130,107 66,137" fill="#236052"/>
+                        <ellipse cx="65" cy="28" rx="30" ry="13" fill="#dce5a0"/>
+                        <rect x="35" y="27" width="60" height="31" fill="#bed75a"/>
+                        <ellipse cx="65" cy="58" rx="30" ry="13" fill="#97b634"/>
+                        <ellipse cx="65" cy="27" rx="22" ry="9" fill="#213a36"/>
+                      </g>
+                      <g transform="translate(176 81)">
+                        <polygon points="0,48 59,22 112,42 54,71" fill="#568e7e"/>
+                        <polygon points="0,48 54,71 54,121 0,99" fill="#275d50"/>
+                        <polygon points="54,71 112,42 112,92 54,121" fill="#17473d"/>
+                        <rect x="45" y="6" width="24" height="39" rx="4" fill="#dce99c"/>
+                        <polygon points="45,6 60,0 82,8 69,14" fill="#eff4c7"/>
+                      </g>
+                      <g transform="translate(281 102)">
+                        <polygon points="0,27 31,13 52,21 22,36" fill="#dfe9a1"/>
+                        <polygon points="0,27 22,36 22,80 0,70" fill="#aacb3a"/>
+                        <polygon points="22,36 52,21 52,66 22,80" fill="#789c2c"/>
+                      </g>
+                      <path d="M112 74c39-34 95-42 139-17" fill="none" stroke="#203e38" stroke-width="12" stroke-linecap="round"/>
+                      <path d="M112 74c39-34 95-42 139-17" fill="none" stroke="#dfe8b0" stroke-width="7" stroke-linecap="round"/>
+                      <g fill="#ecf3be"><rect x="55" y="192" width="13" height="35" rx="3"/><rect x="156" y="214" width="13" height="29" rx="3"/><rect x="282" y="177" width="13" height="29" rx="3"/></g>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+              <div class="headline-metric"><strong>28<span> days</span></strong><p>visible degradation<br/>before trip</p></div>
+              <div class="evidence-pill"><i></i><span>4 signals correlated</span><b>92% confidence</b></div>
+            </article>
+
+            <section class="timeline-panel">
+              <div class="section-heading"><h2>Event timeline</h2><button>View RCA <svg><use href="#i-arrow"/></svg></button></div>
+              <div class="timeline">
+                <div class="time-mark"><span>06:00</span></div>
+                <article class="event-card expanded">
+                  <button class="event-toggle" aria-expanded="true">
+                    <div><h3>Rapid vibration escalation</h3><p>Multi-signal anomaly moved to critical.</p></div><span><svg><use href="#i-chevron"/></svg></span>
+                  </button>
+                  <div class="event-detail">
+                    <div class="event-chips"><b class="critical">Critical</b><em><svg><use href="#i-pulse"/></svg> 72.67 µm</em><em>4 signals</em></div>
+                    <p class="location"><svg><use href="#i-clock"/></svg> 29 Apr 2026, 06:00 <i></i> Owner: REL-05</p>
+                  </div>
+                </article>
+                <div class="now-line"><b>06:40</b><span></span></div>
+                <article class="event-card compact">
+                  <button class="event-toggle" aria-expanded="false">
+                    <div><h3>KO-3201 high-vibration trip</h3><p>Asset stopped; plant rate reduced.</p></div><span><svg><use href="#i-chevron"/></svg></span>
+                  </button>
+                  <div class="event-detail">
+                    <div class="event-chips"><b class="trip">Trip</b><em>Class A</em><em>32 h downtime</em></div>
+                    <p class="location"><svg><use href="#i-link"/></svg> AR-2026-ZCU-0142</p>
+                  </div>
+                </article>
+                <div class="time-mark later"><span>08:10</span></div>
+                <article class="event-card compact muted-event">
+                  <button class="event-toggle" aria-expanded="false">
+                    <div><h3>Oil contamination confirmed</h3><p>Investigation moved to RCA process.</p></div><span><svg><use href="#i-chevron"/></svg></span>
+                  </button>
+                  <div class="event-detail">
+                    <div class="event-chips"><b class="warning">Evidence gap</b><em>Lab result required</em></div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="response-card">
+              <div class="section-heading"><h2>Response team</h2><button>View all <svg><use href="#i-arrow"/></svg></button></div>
+              <div class="person-row"><div class="avatar avatar-one">RA</div><strong>Raka A.</strong><span><svg><use href="#i-link"/></svg> RCA owner</span><div class="progress"><i style="--w:85%"></i></div><b>85%</b></div>
+              <div class="person-row"><div class="avatar avatar-two">DN</div><strong>Dina N.</strong><span><svg><use href="#i-check"/></svg> Action owner</span><div class="progress"><i style="--w:64%"></i></div><b>64%</b></div>
+            </section>
+
+            <article class="signal-card">
+              <div class="signal-head"><div><h2>Signal health <sup>LIVE</sup></h2><p>4 correlated parameters</p></div><select aria-label="Signal view"><option>Anomaly</option><option>Actual</option></select></div>
+              <div class="mini-chart">
+                <div class="scale"><span>1.0</span><span>0.5</span><span>0.0</span></div>
+                <div class="signal-bars"><i style="--v:72%"></i><i style="--v:82%"></i><i style="--v:90%"></i><i style="--v:96%"></i><i style="--v:42%"></i></div>
+                <svg viewBox="0 0 320 90" preserveAspectRatio="none" aria-hidden="true"><path d="M0 49 C30 44, 40 64, 72 65 S112 36, 142 45 S190 63, 218 42 S268 28, 320 54"/><circle cx="72" cy="65" r="4"/></svg>
+                <span class="score">0.92</span>
+                <div class="months"><span>Vib</span><span>Water</span><span>Press</span><span>Temp</span><span>Post</span></div>
+              </div>
+            </article>
+
+            <article class="exposure-card">
+              <div class="exposure-head"><div class="title-group"><span class="title-icon orange"><svg><use href="#i-alert"/></svg></span><h2>Loss exposure</h2></div><select aria-label="Currency"><option>USD, $</option><option>IDR, Rp</option></select></div>
+              <div class="risk-chart" aria-hidden="true">
+                <span style="--x:2%;--h:37%"></span><span style="--x:12%;--h:65%"></span><span style="--x:22%;--h:48%"></span><span style="--x:32%;--h:75%"></span><span style="--x:42%;--h:86%"></span><span style="--x:52%;--h:68%"></span><span style="--x:62%;--h:95%" class="selected"><b>$1.58M</b></span><span style="--x:72%;--h:61%"></span><span style="--x:82%;--h:79%"></span><span style="--x:92%;--h:52%"></span>
+              </div>
+              <div class="exposure-foot"><strong>$2,059.2K</strong><div><b>32 hours</b><span>total incident exposure</span></div></div>
+            </article>
+          </section>
+        </div>
+        <div class="toast" id="toast" role="status"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

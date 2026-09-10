@@ -1,0 +1,12 @@
+source_key,source_sheet,source_column,signal_id,canonical_name,description,unit,measurement_type,direction_of_concern,typical_value,alarm_limit,trip_limit,cadence,quality_status,include_as_observation
+production_ko_3201,Sheet2,KO3201_FEED,sig-ko-feed-hourly,feed_rate,KO-3201 feed rate,t/h,process_rate,BOTH,41.2,,,HOURLY,APPROVED,true
+production_ko_3201,Sheet2,KO3201_DISP,sig-ko-discharge-pressure-hourly,discharge_pressure,KO-3201 discharge pressure,barg,pressure,BOTH,10.0,,,HOURLY,APPROVED,true
+production_ko_3201,Sheet2,KO3201_VIB,sig-ko-vibration-hourly,radial_vibration_de,KO-3201 vibration as reported by PI metadata,mm/s,vibration_velocity_as_reported,HIGH,10.0,,,HOURLY,UNIT_CONFLICT,true
+production_ko_3201,Sheet2,KO3201_TEMP,sig-ko-bearing-process-temp-hourly,bearing_process_temperature,KO-3201 bearing/process temperature,degC,temperature_ambiguous,HIGH,75.0,,,HOURLY,AMBIGUOUS_MEASUREMENT,true
+production_ko_3201,Sheet2,KO3201_AMP,sig-ko-motor-current-hourly,motor_current,KO-3201 motor current,A,electrical_current,BOTH,150.0,,,HOURLY,APPROVED,true
+production_ko_3201,Sheet2,PLANT_RATE,sig-zcu-plant-rate-hourly,plant_rate,ZCU production rate,t/h,production_rate,LOW,35.8,,,HOURLY,APPROVED,true
+production_ko_3201,Sheet2,RUN_STATUS,sig-ko-run-status-hourly,run_status,KO-3201 run status,state,digital_state,BOTH,1.0,,,HOURLY,APPROVED,false
+equipment_performance_ko_3201,Condition History,DE Radial Vibration (micron),sig-ko-vibration-weekly,radial_vibration_de,Drive-end radial vibration,micron,vibration_displacement,HIGH,28.0,45.0,75.0,WEEKLY,THRESHOLD_CONTEXT_REQUIRED,true
+equipment_performance_ko_3201,Condition History,Lube Oil Water Content (ppm),sig-ko-water-oil-weekly,water_in_oil,Lube-oil water content,ppm,concentration,HIGH,250.0,500.0,1500.0,WEEKLY,APPROVED,true
+equipment_performance_ko_3201,Condition History,Lube Oil Supply Press (barg),sig-ko-oil-pressure-weekly,lube_oil_pressure,Lube-oil supply pressure,barg,pressure,LOW,1.8,1.4,1.1,WEEKLY,SOURCE_DISAGREEMENT,true
+equipment_performance_ko_3201,Condition History,Bearing Metal Temp (°C),sig-ko-bearing-temp-weekly,bearing_metal_temperature,Bearing metal temperature,degC,temperature,HIGH,78.0,95.0,110.0,WEEKLY,APPROVED,true
