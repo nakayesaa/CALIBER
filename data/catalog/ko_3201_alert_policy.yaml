@@ -1,0 +1,74 @@
+policy_id: "ko-3201-alert-policy-v1"
+policy_version: "1.0.0"
+asset_id: "asset-ko-3201"
+input_model_id: "ko-3201-isolation-forest-v1"
+
+operating_modes:
+  excluded_modes:
+    - "STARTUP"
+    - "SHUTDOWN_TRANSIENT"
+    - "OFFLINE_TRIP"
+    - "OFFLINE_PLANNED"
+    - "MAINTENANCE"
+    - "RESTART"
+  cooldown_hours_after_excluded_mode: 24
+
+evidence:
+  condition_driver_prefix: "condition."
+  minimum_condition_driver_score: 50.0
+  suppress_process_only_anomalies: true
+  breach_watch_enabled: true
+  alarm_ratio_columns:
+    radial_vibration: "condition__radial_vibration__alarm_ratio"
+    water_in_oil: "condition__water_in_oil__alarm_ratio"
+    lube_oil_pressure: "condition__lube_oil_pressure__alarm_ratio"
+    bearing_temperature: "condition__bearing_temperature__alarm_ratio"
+
+severity_rules:
+  - name: "WATCH"
+    rank: 1
+    window_hours: 1
+    minimum_candidate_count: 1
+    minimum_consecutive_count: 1
+    minimum_alarm_breadth: 0
+    minimum_score: 50.0
+  - name: "WARNING"
+    rank: 2
+    window_hours: 3
+    minimum_candidate_count: 3
+    minimum_consecutive_count: 3
+    minimum_alarm_breadth: 0
+    minimum_score: 50.0
+  - name: "HIGH"
+    rank: 3
+    window_hours: 12
+    minimum_candidate_count: 6
+    minimum_consecutive_count: 0
+    minimum_alarm_breadth: 1
+    minimum_score: 50.0
+  - name: "CRITICAL"
+    rank: 4
+    window_hours: 24
+    minimum_candidate_count: 12
+    minimum_consecutive_count: 0
+    minimum_alarm_breadth: 2
+    minimum_score: 50.0
+
+events:
+  open_at_or_above_rank: 2
+  clear_after_hours: 24
+  terminal_operating_modes:
+    - "OFFLINE_TRIP"
+    - "MAINTENANCE"
+
+evaluation:
+  normal_phases:
+    - "HEALTHY_BASELINE"
+  degradation_phases:
+    - "EARLY_DEGRADATION"
+    - "PERSISTENT_ALARM"
+    - "ACUTE_ESCALATION"
+  trip_phase: "TRIP_AND_SHUTDOWN"
+  recovery_phases:
+    - "POST_REPAIR_MONITORING"
+    - "STABLE_RECOVERY"
