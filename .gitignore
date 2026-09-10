@@ -42,6 +42,7 @@ data/normalized/
 data/synthetic/
 data/features/
 data/scored/
+data/alerts/
 data/fixtures/
 
 # Local tooling

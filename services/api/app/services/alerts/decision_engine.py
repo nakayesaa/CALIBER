@@ -17,7 +17,7 @@ from services.api.app.schemas.alerts import (
 )
 
 
-SCORE_INPUT_COLUMNS = [
+BASE_SCORE_INPUT_COLUMNS = [
     "timestamp",
     "model_id",
     "operating_mode",
@@ -26,12 +26,6 @@ SCORE_INPUT_COLUMNS = [
     "anomaly_score",
     "anomaly_threshold",
     "is_anomaly",
-    "top_driver_1",
-    "top_driver_1_score",
-    "top_driver_2",
-    "top_driver_2_score",
-    "top_driver_3",
-    "top_driver_3_score",
 ]
 
 
@@ -40,6 +34,13 @@ class AlertDecisionResult:
     hourly_decisions: pd.DataFrame
     events: list[AlertEvent]
     transitions: list[AlertStateTransition]
+
+
+def decision_input_columns(policy: AlertPolicyConfig) -> list[str]:
+    columns = list(BASE_SCORE_INPUT_COLUMNS)
+    for rank in range(1, policy.evidence.maximum_driver_rank + 1):
+        columns.extend([f"top_driver_{rank}", f"top_driver_{rank}_score"])
+    return columns
 
 
 def build_alert_decisions(
@@ -62,7 +63,8 @@ def prepare_decision_inputs(
     feature_table: pd.DataFrame,
     policy: AlertPolicyConfig,
 ) -> pd.DataFrame:
-    score_missing = set(SCORE_INPUT_COLUMNS) - set(scored_timeline.columns)
+    score_columns = decision_input_columns(policy)
+    score_missing = set(score_columns) - set(scored_timeline.columns)
     ratio_columns = list(policy.evidence.alarm_ratio_columns.values())
     feature_missing = {"timestamp", *ratio_columns} - set(feature_table.columns)
     if score_missing:
@@ -70,7 +72,7 @@ def prepare_decision_inputs(
     if feature_missing:
         raise ValueError(f"Feature table is missing columns: {sorted(feature_missing)}")
 
-    scores = scored_timeline[SCORE_INPUT_COLUMNS].copy()
+    scores = scored_timeline[score_columns].copy()
     features = feature_table[["timestamp", *ratio_columns]].copy()
     scores["timestamp"] = pd.to_datetime(scores["timestamp"], errors="raise")
     features["timestamp"] = pd.to_datetime(features["timestamp"], errors="raise")
@@ -166,8 +168,9 @@ def apply_alert_policy(
     ]
 
     breach_watch = decisions["attention_signal"] & ~decisions["candidate_anomaly"]
-    decisions.loc[breach_watch, "decision_state"] = "WATCH"
-    decisions.loc[breach_watch, "severity_rank"] = 1
+    lowest_rule = policy.severity_rules[0]
+    decisions.loc[breach_watch, "decision_state"] = lowest_rule.name
+    decisions.loc[breach_watch, "severity_rank"] = lowest_rule.rank
     decisions.loc[breach_watch, "decision_reason"] = "ENGINEERING_LIMIT_BREACH"
 
     for rule in policy.severity_rules:
@@ -192,14 +195,12 @@ def apply_alert_policy(
         "decision_state",
         "severity_rank",
         "decision_reason",
-        "top_driver_1",
-        "top_driver_1_score",
-        "top_driver_2",
-        "top_driver_2_score",
-        "top_driver_3",
-        "top_driver_3_score",
         *ratio_columns,
     ]
+    for rank in range(1, policy.evidence.maximum_driver_rank + 1):
+        ordered_columns.extend(
+            [f"top_driver_{rank}", f"top_driver_{rank}_score"]
+        )
     rolling_columns = [
         column
         for column in decisions.columns
@@ -215,7 +216,7 @@ def condition_driver_evidence(
     evidence = pd.Series(False, index=frame.index)
     prefix = policy.evidence.condition_driver_prefix
     minimum_score = policy.evidence.minimum_condition_driver_score
-    for rank in range(1, 4):
+    for rank in range(1, policy.evidence.maximum_driver_rank + 1):
         driver = frame[f"top_driver_{rank}"].fillna("").astype(str)
         score = pd.to_numeric(frame[f"top_driver_{rank}_score"], errors="coerce")
         evidence |= driver.str.startswith(prefix) & score.ge(minimum_score)
@@ -241,6 +242,9 @@ def suppression_reasons(
 ) -> pd.Series:
     reasons = pd.Series("", index=frame.index, dtype=object)
     reasons.loc[frame["score_status"].eq("WARMUP")] = "MODEL_WARMUP"
+    reasons.loc[frame["score_status"].eq("EXCLUDED_MODE")] = (
+        "MODEL_SCORING_EXCLUDED"
+    )
     reasons.loc[excluded_mode] = "EXCLUDED_OPERATING_MODE"
     reasons.loc[frame["cooldown_active"]] = "OPERATING_MODE_COOLDOWN"
     process_only = (
@@ -308,7 +312,8 @@ def group_alert_events(
     for row in decisions.itertuples(index=False):
         timestamp = pd.Timestamp(row.timestamp)
         if row.attention_signal:
-            pending_signal_at = pending_signal_at or timestamp
+            if pending_signal_at is None:
+                pending_signal_at = timestamp
         elif active is None:
             pending_signal_at = None
 
@@ -478,3 +483,84 @@ def materialize_event(
         primary_driver=primary_driver,
         breached_signals=sorted(active["breached_signals"]),
     )
+
+
+def evaluate_alert_decisions(
+    decisions: pd.DataFrame,
+    scored_timeline: pd.DataFrame,
+    events: list[AlertEvent],
+    policy: AlertPolicyConfig,
+) -> dict[str, Any]:
+    labels = scored_timeline[["timestamp", "scenario_phase"]].copy()
+    labels["timestamp"] = pd.to_datetime(labels["timestamp"], errors="raise")
+    evaluated = decisions.merge(labels, on="timestamp", how="left", validate="one_to_one")
+    if evaluated["scenario_phase"].isna().any():
+        raise ValueError("Evaluation labels do not cover every alert decision")
+
+    trip_rows = evaluated.loc[
+        evaluated["scenario_phase"] == policy.evaluation.trip_phase
+    ]
+    trip_at = trip_rows["timestamp"].min() if not trip_rows.empty else None
+    degradation = evaluated.loc[
+        evaluated["scenario_phase"].isin(policy.evaluation.degradation_phases)
+    ]
+    first_by_state: dict[str, str | None] = {}
+    lead_time_by_state: dict[str, float | None] = {}
+    for rule in policy.severity_rules:
+        matching = degradation.loc[degradation["severity_rank"] >= rule.rank]
+        first = matching["timestamp"].min() if not matching.empty else None
+        first_by_state[rule.name] = timestamp_or_none(first)
+        lead_time_by_state[rule.name] = hours_between(first, trip_at)
+
+    state_by_phase = (
+        evaluated.groupby(["scenario_phase", "decision_state"], sort=False)
+        .size()
+        .unstack(fill_value=0)
+        .astype(int)
+        .to_dict(orient="index")
+    )
+    suppression_counts = (
+        evaluated.loc[evaluated["suppression_reason"].ne(""), "suppression_reason"]
+        .value_counts()
+        .astype(int)
+        .to_dict()
+    )
+    normal = evaluated.loc[
+        evaluated["scenario_phase"].isin(policy.evaluation.normal_phases)
+    ]
+    recovery = evaluated.loc[
+        evaluated["scenario_phase"].isin(policy.evaluation.recovery_phases)
+    ]
+    user_alert_rank = policy.events.open_at_or_above_rank
+    return {
+        "policy_id": policy.policy_id,
+        "trip_at": timestamp_or_none(trip_at),
+        "first_detection_by_state": first_by_state,
+        "lead_time_hours_by_state": lead_time_by_state,
+        "alert_event_count": len(events),
+        "normal_user_alert_hours": int(
+            normal["severity_rank"].ge(user_alert_rank).sum()
+        ),
+        "recovery_user_alert_hours": int(
+            recovery["severity_rank"].ge(user_alert_rank).sum()
+        ),
+        "suppression_counts": suppression_counts,
+        "state_counts_by_phase": {
+            str(phase): {str(state): int(count) for state, count in counts.items()}
+            for phase, counts in state_by_phase.items()
+        },
+        "decision_label_columns": [],
+        "evaluation_only_columns": ["scenario_phase"],
+    }
+
+
+def timestamp_or_none(value: Any) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    return pd.Timestamp(value).isoformat()
+
+
+def hours_between(start: Any, end: Any) -> float | None:
+    if start is None or end is None or pd.isna(start) or pd.isna(end):
+        return None
+    return float((pd.Timestamp(end) - pd.Timestamp(start)) / pd.Timedelta(hours=1))

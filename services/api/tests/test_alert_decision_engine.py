@@ -23,6 +23,7 @@ def policy(cooldown_hours: int = 0) -> AlertPolicyConfig:
             "evidence": {
                 "condition_driver_prefix": "condition.",
                 "minimum_condition_driver_score": 50.0,
+                "maximum_driver_rank": 3,
                 "suppress_process_only_anomalies": True,
                 "breach_watch_enabled": True,
                 "alarm_ratio_columns": {"vibration": "vibration_alarm_ratio"},

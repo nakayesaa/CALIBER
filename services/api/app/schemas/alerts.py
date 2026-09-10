@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
 class AlertConfigModel(BaseModel):
@@ -35,6 +35,7 @@ class OperatingModePolicy(AlertConfigModel):
 class EvidencePolicy(AlertConfigModel):
     condition_driver_prefix: str
     minimum_condition_driver_score: float = Field(ge=0, le=100)
+    maximum_driver_rank: int = Field(ge=1, le=5)
     suppress_process_only_anomalies: bool
     alarm_ratio_columns: dict[str, str]
     breach_watch_enabled: bool
@@ -107,3 +108,30 @@ class AlertStateTransition(AlertConfigModel):
     previous_state: str
     new_state: str
     reason: str
+
+
+class AlertEngineManifest(AlertConfigModel):
+    policy_id: str
+    policy_version: str
+    input_model_id: str
+    generated_at: AwareDatetime
+    scored_timeline_sha256: str
+    feature_table_sha256: str
+    policy_sha256: str
+    hourly_decision_rows: int
+    alert_event_count: int
+    state_transition_count: int
+    decision_input_columns: list[str]
+    evaluation_only_columns: list[str]
+
+
+class AlertValidationCheck(AlertConfigModel):
+    name: str
+    status: str
+    actual: int | float | str | bool
+
+
+class AlertValidationReport(AlertConfigModel):
+    status: str
+    policy_id: str
+    checks: list[AlertValidationCheck]

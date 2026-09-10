@@ -16,6 +16,7 @@ operating_modes:
 evidence:
   condition_driver_prefix: "condition."
   minimum_condition_driver_score: 50.0
+  maximum_driver_rank: 3
   suppress_process_only_anomalies: true
   breach_watch_enabled: true
   alarm_ratio_columns:
