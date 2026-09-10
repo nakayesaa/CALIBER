@@ -1,0 +1,86 @@
+pipeline_id: "ko-3201-hourly-features-v1"
+pipeline_version: "1.0.0"
+input_scenario_id: "ko-3201-six-month-v1"
+expected_frequency: "1h"
+
+condition_signals:
+  radial_vibration:
+    source_column: "radial_vibration_micron"
+    unit: "micron"
+    direction_of_concern: "HIGH"
+    alarm_limit: 45.0
+    trip_limit: 75.0
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+  water_in_oil:
+    source_column: "water_in_oil_ppm"
+    unit: "ppm"
+    direction_of_concern: "HIGH"
+    alarm_limit: 500.0
+    trip_limit: 1500.0
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+  lube_oil_pressure:
+    source_column: "lube_oil_pressure_barg"
+    unit: "barg"
+    direction_of_concern: "LOW"
+    alarm_limit: 1.4
+    trip_limit: 1.1
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+  bearing_temperature:
+    source_column: "bearing_metal_temperature_degc"
+    unit: "degC"
+    direction_of_concern: "HIGH"
+    alarm_limit: 95.0
+    trip_limit: 110.0
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+
+process_signals:
+  feed_rate:
+    source_column: "feed_rate_tph"
+    unit: "t/h"
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6]
+  discharge_pressure:
+    source_column: "discharge_pressure_barg"
+    unit: "barg"
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6]
+  motor_current:
+    source_column: "motor_current_a"
+    unit: "A"
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6]
+  plant_rate:
+    source_column: "plant_rate_tph"
+    unit: "t/h"
+    include_raw: true
+    delta_periods: [1]
+    rolling_windows: [6]
+
+output:
+  metadata_columns:
+    - "timestamp"
+    - "scenario_id"
+    - "operating_mode"
+    - "condition_source_type"
+    - "process_source_type"
+    - "run_status"
+    - "training_eligible"
+  label_columns:
+    - "scenario_phase"
+    - "health_state"
+    - "event_marker"
