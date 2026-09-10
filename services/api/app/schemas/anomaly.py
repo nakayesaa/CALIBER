@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
 class AnomalyConfigModel(BaseModel):
@@ -84,3 +84,39 @@ class AnomalyModelConfig(AnomalyConfigModel):
     calibration: ScoreCalibrationConfig
     drivers: DriverConfig
     evaluation: EvaluationConfig
+
+
+class ModelManifest(AnomalyConfigModel):
+    model_id: str
+    model_version: str
+    estimator: str
+    scaler: str
+    input_pipeline_id: str
+    feature_table_sha256: str
+    model_config_sha256: str
+    trained_at: AwareDatetime
+    fit_started_at: AwareDatetime
+    fit_ended_at: AwareDatetime
+    fit_rows: int
+    calibration_rows: int
+    scoring_rows: int
+    feature_count: int
+    feature_columns: list[str]
+    raw_anomaly_threshold: float
+    normalized_anomaly_threshold: float
+    score_transform: dict[str, float]
+    driver_profiles: list[dict[str, Any]]
+    artifact_file: str
+    artifact_sha256: str
+
+
+class ModelValidationCheck(AnomalyConfigModel):
+    name: str
+    status: str
+    actual: int | float | str | bool
+
+
+class ModelValidationReport(AnomalyConfigModel):
+    status: str
+    model_id: str
+    checks: list[ModelValidationCheck]

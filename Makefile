@@ -1,4 +1,5 @@
-.PHONY: help install web-dev web-build api-install api-dev canonical scenario features db-seed test check
+.PHONY: help install web-dev web-build api-install api-dev canonical scenario \
+	features train-preflight train db-seed test check
 
 help:
 	@echo "CALIBER development commands"
@@ -10,6 +11,8 @@ help:
 	@echo "  make canonical    Rebuild and validate KO-3201 canonical data"
 	@echo "  make scenario     Build the six-month KO-3201 hourly scenario"
 	@echo "  make features     Build the KO-3201 model-independent features"
+	@echo "  make train-preflight  Validate model inputs without training"
+	@echo "  make train        Train and evaluate the KO-3201 anomaly model"
 	@echo "  make db-seed      Rebuild canonical data and seed SQLite"
 	@echo "  make test         Run backend/data tests"
 	@echo "  make check        Run currently available checks"
@@ -38,6 +41,12 @@ scenario: canonical
 
 features: scenario
 	.venv/bin/python scripts/build_ko_3201_features.py
+
+train-preflight: features
+	.venv/bin/python scripts/train_ko_3201_anomaly.py --preflight
+
+train: features
+	.venv/bin/python scripts/train_ko_3201_anomaly.py
 
 db-seed: canonical
 	.venv/bin/python scripts/seed_database.py
