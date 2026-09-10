@@ -1,0 +1,48 @@
+model_id: "ko-3201-isolation-forest-v1"
+model_version: "1.0.0"
+input_pipeline_id: "ko-3201-hourly-features-v1"
+random_seed: 3201
+expected_feature_count: 40
+
+split:
+  fit_fraction: 0.80
+  minimum_fit_rows: 1000
+  minimum_calibration_rows: 250
+
+scaler:
+  quantile_range: [25.0, 75.0]
+  with_centering: true
+  with_scaling: true
+  unit_variance: false
+
+estimator:
+  n_estimators: 400
+  max_samples: 256
+  max_features: 1.0
+  bootstrap: false
+  n_jobs: -1
+
+calibration:
+  anomaly_quantile: 0.99
+  median_normalized_score: 10.0
+  threshold_normalized_score: 50.0
+  exponent_clip: 60.0
+
+drivers:
+  maximum_drivers: 3
+  included_feature_suffixes:
+    - "__value"
+    - "__mean_6h"
+    - "__mean_24h"
+
+evaluation:
+  normal_phases:
+    - "HEALTHY_BASELINE"
+  degradation_phases:
+    - "EARLY_DEGRADATION"
+    - "PERSISTENT_ALARM"
+    - "ACUTE_ESCALATION"
+  trip_phase: "TRIP_AND_SHUTDOWN"
+  recovery_phases:
+    - "POST_REPAIR_MONITORING"
+    - "STABLE_RECOVERY"
