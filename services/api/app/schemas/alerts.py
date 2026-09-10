@@ -86,6 +86,7 @@ class AlertEvent(AlertConfigModel):
     asset_id: str
     model_id: str
     policy_id: str
+    first_signal_at: str
     opened_at: str
     closed_at: str | None
     status: str
