@@ -1,5 +1,6 @@
 .PHONY: help install web-dev web-build api-install api-dev canonical scenario \
-	features train-preflight train alerts retrieval db-seed test check
+	features train-preflight train alerts retrieval rca-preflight rca actions \
+	db-seed test check
 
 help:
 	@echo "CALIBER development commands"
@@ -15,6 +16,9 @@ help:
 	@echo "  make train        Train and evaluate the KO-3201 anomaly model"
 	@echo "  make alerts       Build prioritized alerts from existing model scores"
 	@echo "  make retrieval    Retrieve historical analogues for the KO-3201 alert"
+	@echo "  make rca-preflight  Validate RCA inputs and request without an API call"
+	@echo "  make rca          Generate a grounded RCA draft with OpenAI"
+	@echo "  make actions      Build a CA/PA proposal from the RCA draft"
 	@echo "  make db-seed      Rebuild canonical data and seed SQLite"
 	@echo "  make test         Run backend/data tests"
 	@echo "  make check        Run currently available checks"
@@ -55,6 +59,15 @@ alerts:
 
 retrieval:
 	.venv/bin/python scripts/build_ko_3201_retrieval.py
+
+rca-preflight:
+	.venv/bin/python scripts/generate_ko_3201_rca.py --preflight
+
+rca:
+	.venv/bin/python scripts/generate_ko_3201_rca.py
+
+actions:
+	.venv/bin/python scripts/build_ko_3201_actions.py
 
 db-seed: canonical
 	.venv/bin/python scripts/seed_database.py

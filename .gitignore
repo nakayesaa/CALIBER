@@ -44,6 +44,8 @@ data/features/
 data/scored/
 data/alerts/
 data/retrieval/
+data/rca/
+data/actions/
 data/fixtures/
 
 # Local tooling

@@ -90,6 +90,7 @@ def validate_grounding(
 def generate_rca_record(
     package: RAGEvidencePackage,
     provider: RCAProvider,
+    config: RCAGenerationConfig,
 ) -> RCARecord:
     system_prompt, user_prompt = build_rca_prompts(package)
     result = provider.generate(system_prompt, user_prompt)
@@ -103,10 +104,15 @@ def generate_rca_record(
         rca_id=f"rca-{package.query.alert_id}",
         alert_id=package.query.alert_id,
         evidence_package_id=package.package_id,
+        evidence_as_of=package.query.as_of,
         status=RCAStatus.AI_DRAFT,
+        generator_id=config.generator_id,
+        prompt_version=config.prompt_version,
         provider=result.provider,
         model=result.model,
         response_id=result.response_id,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
         generation=result.generation,
         allowed_evidence_ids=allowed_evidence_ids,
         allowed_incident_ids=allowed_incident_ids,

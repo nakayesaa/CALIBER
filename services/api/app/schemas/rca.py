@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
 class RCAModel(BaseModel):
@@ -90,10 +91,15 @@ class RCARecord(RCAModel):
     rca_id: str
     alert_id: str
     evidence_package_id: str
+    evidence_as_of: AwareDatetime
     status: RCAStatus
+    generator_id: str
+    prompt_version: str
     provider: str
     model: str
     response_id: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
     generation: RCAGeneration
     allowed_evidence_ids: list[str]
     allowed_incident_ids: list[str]
@@ -102,9 +108,9 @@ class RCARecord(RCAModel):
 class RCAGenerationConfig(RCAModel):
     generator_id: str
     generator_version: str
-    provider: str
+    provider: Literal["openai"]
     model_environment_variable: str
     default_model: str
     maximum_output_tokens: int = Field(ge=256)
-    reasoning_effort: str
+    reasoning_effort: Literal["low", "medium", "high"]
     prompt_version: str
