@@ -41,14 +41,21 @@ def sample_generation() -> RCAGeneration:
                     "rank": 1,
                     "category": "LUBRICATION_CONTAMINATION",
                     "title": "Water ingress into the lubrication system",
-                    "mechanism": "Water degrades oil-film performance and can accelerate bearing distress.",
+                    "mechanism": (
+                        "Water degrades oil-film performance and can accelerate bearing distress."
+                    ),
                     "confidence": 0.72,
-                    "rationale": "Water is breached while bearing condition indicators contribute to the anomaly.",
+                    "rationale": (
+                        "Water is breached while bearing condition indicators contribute "
+                        "to the anomaly."
+                    ),
                     "supporting_evidence_ids": ["signal:water_in_oil"],
                     "contradicting_evidence_ids": [],
                     "analogue_incident_ids": ["incident-0213"],
                     "missing_evidence": ["Independent laboratory oil result"],
-                    "disconfirming_condition": "Independent sampling finds water within specification.",
+                    "disconfirming_condition": (
+                        "Independent sampling finds water within specification."
+                    ),
                 }
             ],
             "investigation_steps": [
@@ -62,7 +69,9 @@ def sample_generation() -> RCAGeneration:
                     "safety_gate": True,
                 }
             ],
-            "operating_guidance": "Escalate the operating decision to the responsible operations authority.",
+            "operating_guidance": (
+                "Escalate the operating decision to the responsible operations authority."
+            ),
             "requires_human_review": True,
         }
     )
@@ -77,6 +86,7 @@ def sample_rca(status: RCAStatus = RCAStatus.AI_DRAFT) -> RCARecord:
         status=status,
         generator_id="generator-1",
         prompt_version="prompt-1",
+        requested_by="test-user",
         provider="test",
         model="test-model",
         response_id="response-1",

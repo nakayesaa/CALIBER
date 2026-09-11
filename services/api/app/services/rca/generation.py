@@ -21,8 +21,17 @@ from services.api.app.schemas.rca import (
 from services.api.app.schemas.retrieval import RAGEvidencePackage
 
 
-SYSTEM_PROMPT = """You are a manufacturing reliability engineer preparing an early-warning RCA draft.
-Use only the supplied alert snapshot and historical analogues. Treat analogues as investigation clues, not confirmed causes. Never invent measurements, inspections, or source conclusions. Rank up to three distinct hypotheses. Confidence must reflect evidence strength and uncertainty. Cite only IDs from allowed_evidence_ids and allowed_incident_ids. Each hypothesis needs a test that could disconfirm it. Recommend safe investigation steps, but do not authorize equipment operation or maintenance execution. Human review is mandatory."""
+SYSTEM_PROMPT = (
+    "You are a manufacturing reliability engineer preparing an early-warning RCA "
+    "draft. Use only the supplied alert snapshot and historical analogues. Treat "
+    "analogues as investigation clues, not confirmed causes. Never invent "
+    "measurements, inspections, or source conclusions. Rank up to three distinct "
+    "hypotheses. Confidence must reflect evidence strength and uncertainty. Cite "
+    "only IDs from allowed_evidence_ids and allowed_incident_ids. Each hypothesis "
+    "needs a test that could disconfirm it. Recommend safe investigation steps, "
+    "but do not authorize equipment operation or maintenance execution. Human "
+    "review is mandatory."
+)
 
 
 class RCAProvider(Protocol):
@@ -93,6 +102,7 @@ def generate_rca_record(
     package: RAGEvidencePackage,
     provider: RCAProvider,
     config: RCAGenerationConfig,
+    requested_by: str = "local-cli",
 ) -> RCARecord:
     system_prompt, user_prompt = build_rca_prompts(package)
     result = provider.generate(system_prompt, user_prompt)
@@ -110,6 +120,7 @@ def generate_rca_record(
         status=RCAStatus.AI_DRAFT,
         generator_id=config.generator_id,
         prompt_version=config.prompt_version,
+        requested_by=requested_by,
         provider=result.provider,
         model=result.model,
         response_id=result.response_id,

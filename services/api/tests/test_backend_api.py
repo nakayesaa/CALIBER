@@ -1,0 +1,193 @@
+"""End-to-end HTTP tests for the backend vertical slice."""
+
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from services.api.app.main import create_app
+from services.api.app.schemas.rca import RCAGeneration, RCAProviderResult
+from services.api.app.services.backend import BackendService
+
+
+ROOT = Path(__file__).resolve().parents[3]
+ALERT_ID = "alert-asset-ko-3201-0001"
+
+
+class FakeRCAProvider:
+    def generate(self, system_prompt: str, user_prompt: str) -> RCAProviderResult:
+        assert "manufacturing reliability engineer" in system_prompt
+        assert "incident-0002" not in user_prompt
+        generation = RCAGeneration.model_validate(
+            {
+                "executive_summary": "Investigate lubrication contamination and bearing condition.",
+                "hypotheses": [
+                    {
+                        "hypothesis_id": "hypothesis-1",
+                        "rank": 1,
+                        "category": "LUBRICATION_CONTAMINATION",
+                        "title": "Lubrication contamination",
+                        "mechanism": "Water can impair the bearing oil film.",
+                        "confidence": 0.7,
+                        "rationale": "Water is breached with bearing-related model drivers.",
+                        "supporting_evidence_ids": ["signal:water_in_oil"],
+                        "contradicting_evidence_ids": [],
+                        "analogue_incident_ids": ["incident-0213"],
+                        "missing_evidence": ["Independent oil analysis"],
+                        "disconfirming_condition": (
+                            "Independent testing finds no water contamination."
+                        ),
+                    }
+                ],
+                "investigation_steps": [
+                    {
+                        "step_id": "step-1",
+                        "priority": "IMMEDIATE",
+                        "instruction": "Collect an independent oil sample.",
+                        "rationale": "Verify the online indication.",
+                        "expected_evidence": "Traceable water concentration result.",
+                        "owner_role": "Reliability Engineer",
+                        "safety_gate": True,
+                    }
+                ],
+                "operating_guidance": "Escalate the operating decision to operations.",
+                "requires_human_review": True,
+            }
+        )
+        return RCAProviderResult(
+            provider="test",
+            model="test-model",
+            response_id="response-test",
+            generation=generation,
+            input_tokens=100,
+            output_tokens=80,
+        )
+
+
+@pytest.fixture()
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    required = [
+        "data/normalized/ko_3201",
+        "data/synthetic/ko_3201/v1",
+        "data/features/ko_3201/v1",
+        "data/scored/ko_3201/v1",
+        "data/alerts/ko_3201/v1",
+        "data/retrieval/ko_3201/v1",
+    ]
+    if not all((ROOT / relative).is_dir() for relative in required):
+        pytest.skip("KO-3201 generated artifacts are not available")
+    for relative in required:
+        source = ROOT / relative
+        destination = tmp_path / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, destination)
+    catalog = tmp_path / "data/catalog"
+    catalog.mkdir(parents=True)
+    for name in ["ko_3201_rca_generation.yaml", "ko_3201_action_policy.yaml"]:
+        shutil.copy2(ROOT / "data/catalog" / name, catalog / name)
+
+    monkeypatch.setenv("CALIBER_LLM_ENABLED", "true")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-only-placeholder")
+    backend = BackendService(
+        tmp_path,
+        provider_factory=lambda config: FakeRCAProvider(),
+    )
+    return TestClient(create_app(tmp_path, backend))
+
+
+def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
+    status_response = client.get("/api/v1/status")
+    assets_response = client.get("/api/v1/assets")
+    overview_response = client.get("/api/v1/assets/asset-ko-3201/overview")
+    telemetry_response = client.get(
+        "/api/v1/assets/asset-ko-3201/telemetry",
+        params={"max_points": 20},
+    )
+    alert_response = client.get(f"/api/v1/alerts/{ALERT_ID}")
+
+    assert status_response.status_code == 200
+    assert status_response.json()["api_status"] == "ready"
+    assert assets_response.json()[0]["tag"] == "KO-3201"
+    assert overview_response.json()["alert_count"] == 1
+    assert telemetry_response.json()["total_points"] == 4368
+    assert telemetry_response.json()["returned_points"] == 20
+    assert len(alert_response.json()["similar_incidents"]) == 8
+    assert alert_response.json()["opening_snapshot"]["breached_signals"] == [
+        "water_in_oil"
+    ]
+
+
+def test_rca_review_and_action_workflow(client: TestClient) -> None:
+    generated = client.post(
+        f"/api/v1/alerts/{ALERT_ID}/rca",
+        json={"requested_by": "demo-user"},
+    )
+    assert generated.status_code == 200
+    rca = generated.json()
+    assert rca["status"] == "AI_DRAFT"
+    assert rca["requested_by"] == "demo-user"
+
+    invalid_approval = client.patch(
+        f"/api/v1/rca/{rca['rca_id']}/status",
+        json={"status": "APPROVED", "actor": "engineer-1", "note": "Skip"},
+    )
+    assert invalid_approval.status_code == 409
+
+    under_review = client.patch(
+        f"/api/v1/rca/{rca['rca_id']}/status",
+        json={
+            "status": "UNDER_REVIEW",
+            "actor": "engineer-1",
+            "note": "Review started",
+        },
+    )
+    assert under_review.status_code == 200
+    approved = client.patch(
+        f"/api/v1/rca/{rca['rca_id']}/status",
+        json={
+            "status": "APPROVED",
+            "actor": "engineer-1",
+            "note": "Evidence accepted",
+        },
+    )
+    assert approved.status_code == 200
+    assert len(approved.json()["status_history"]) == 2
+
+    plan_response = client.post(
+        f"/api/v1/rca/{rca['rca_id']}/action-plans",
+        json={"hypothesis_id": "hypothesis-1"},
+    )
+    assert plan_response.status_code == 200
+    plan = plan_response.json()
+    assert [action["action_type"] for action in plan["actions"]] == [
+        "CONTAINMENT",
+        "CORRECTIVE",
+        "PREVENTIVE",
+    ]
+
+    action_id = plan["actions"][0]["action_id"]
+    action_response = client.patch(
+        f"/api/v1/actions/{action_id}/status",
+        json={
+            "status": "APPROVED",
+            "actor": "operations-1",
+            "note": "Authorized",
+        },
+    )
+    assert action_response.status_code == 200
+    changed = next(
+        action
+        for action in action_response.json()["actions"]
+        if action["action_id"] == action_id
+    )
+    assert changed["status"] == "APPROVED"
+    assert changed["status_history"][0]["actor"] == "operations-1"
+
+
+def test_missing_resources_return_404(client: TestClient) -> None:
+    assert client.get("/api/v1/assets/missing/overview").status_code == 404
+    assert client.get("/api/v1/alerts/missing").status_code == 404
+    assert client.get("/api/v1/action-plans/missing").status_code == 404

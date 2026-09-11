@@ -103,6 +103,7 @@ class RCARecord(RCAModel):
     status: RCAStatus
     generator_id: str
     prompt_version: str
+    requested_by: str
     provider: str
     model: str
     response_id: str
