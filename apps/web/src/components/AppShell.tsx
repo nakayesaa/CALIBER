@@ -50,7 +50,7 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
               <button className="round-button notification" aria-label="Notifications"><Icon name="inbox"/><i/></button>
             </div>
           </header>
-          {children}
+          <div className="workspace-scroll">{children}</div>
         </div>
       </section>
     </main>
