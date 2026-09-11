@@ -21,6 +21,7 @@ from services.api.app.services.actions.workflow import (
     load_action_policy,
     transition_action,
 )
+from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
 from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
     transition_rca,
@@ -140,6 +141,14 @@ def test_openai_adapter_requests_structured_non_stored_output() -> None:
     assert calls[0]["text_format"] is RCAGeneration
     assert calls[0]["store"] is False
     assert calls[0]["model"] == "test-model"
+
+
+def test_prepared_provider_returns_grounded_reviewable_draft() -> None:
+    result = PreparedRCAProvider().generate("system", "user")
+
+    assert result.provider == "prepared-case"
+    assert result.generation.requires_human_review is True
+    assert result.generation.hypotheses[0].category == "LUBRICATION_CONTAMINATION"
 
 
 def test_action_plan_is_policy_driven_and_deterministic() -> None:

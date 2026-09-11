@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -82,6 +83,7 @@ class AlertDetail(APIModel):
 
 class RCAGenerateRequest(APIModel):
     requested_by: str = Field(min_length=1)
+    mode: Literal["ai", "prepared"] = "ai"
 
 
 class RCAStatusUpdate(APIModel):

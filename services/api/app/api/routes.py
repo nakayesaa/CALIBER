@@ -153,7 +153,7 @@ def generate_rca(
     backend: Backend,
 ) -> RCARecord:
     try:
-        return backend.generate_rca(alert_id, request.requested_by)
+        return backend.generate_rca(alert_id, request.requested_by, request.mode)
     except ArtifactNotFoundError as error:
         raise not_found(error) from error
     except LLMConfigurationError as error:

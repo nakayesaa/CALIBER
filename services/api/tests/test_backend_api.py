@@ -130,6 +130,13 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
     assert rca["status"] == "AI_DRAFT"
     assert rca["requested_by"] == "demo-user"
 
+    blocked_plan = client.post(
+        f"/api/v1/rca/{rca['rca_id']}/action-plans",
+        json={"hypothesis_id": "hypothesis-1"},
+    )
+    assert blocked_plan.status_code == 409
+    assert "approved RCA" in blocked_plan.json()["detail"]
+
     invalid_approval = client.patch(
         f"/api/v1/rca/{rca['rca_id']}/status",
         json={"status": "APPROVED", "actor": "engineer-1", "note": "Skip"},

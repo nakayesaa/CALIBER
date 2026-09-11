@@ -7,6 +7,7 @@ import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -29,6 +30,7 @@ from services.api.app.services.actions.workflow import (
     update_plan_status,
 )
 from services.api.app.services.artifacts import KO3201ArtifactRepository
+from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
 from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
     RCAProvider,
@@ -121,13 +123,18 @@ class BackendService:
         self.repository.get_alert(alert_id)
         return self.repository.get_rca(alert_id)
 
-    def generate_rca(self, alert_id: str, requested_by: str) -> RCARecord:
+    def generate_rca(
+        self,
+        alert_id: str,
+        requested_by: str,
+        mode: Literal["ai", "prepared"] = "ai",
+    ) -> RCARecord:
         with self._mutation_lock:
             self.repository.get_alert(alert_id)
             existing = self.repository.get_rca(alert_id)
             if existing is not None:
                 return existing
-            if not self._llm_ready():
+            if mode == "ai" and not self._llm_ready():
                 raise LLMConfigurationError(
                     "OpenAI RCA generation requires CALIBER_LLM_ENABLED=true "
                     "and OPENAI_API_KEY"
@@ -137,10 +144,14 @@ class BackendService:
             )
             package = self.repository.get_evidence_package(alert_id)
             try:
-                provider = self.provider_factory(config)
+                provider = (
+                    self.provider_factory(config)
+                    if mode == "ai"
+                    else PreparedRCAProvider()
+                )
                 record = generate_rca_record(package, provider, config, requested_by)
             except Exception as error:
-                raise LLMGenerationError("OpenAI RCA generation failed") from error
+                raise LLMGenerationError("RCA generation failed") from error
             self.repository.save_rca(record)
             return record
 
@@ -171,6 +182,8 @@ class BackendService:
     ) -> ActionPlan:
         with self._mutation_lock:
             rca = self._require_rca_id(rca_id)
+            if rca.status != RCAStatus.APPROVED:
+                raise ValueError("Action plans require an approved RCA")
             policy = load_action_policy(
                 self.root / "data/catalog/ko_3201_action_policy.yaml"
             )
