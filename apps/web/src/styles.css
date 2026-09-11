@@ -290,6 +290,17 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .line-chart .grid-line { stroke: #ebeeed; stroke-width: 1; }
 .line-chart .threshold-path { stroke: #f08c53; stroke-width: 1; stroke-dasharray: 3 3; }
 .line-chart .data-path { stroke: #1d554a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.interactive-chart { position: relative; min-width: 0; cursor: crosshair; touch-action: pan-y; }
+.interactive-chart .line-chart { user-select: none; }
+.tracking-line { stroke: #60717a; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; opacity: .65; }
+.tracking-point-ring { fill: #fff; stroke: var(--ca-blue); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.tracking-point { fill: var(--ca-blue); }
+.chart-tooltip { position: absolute; z-index: 5; min-width: 118px; padding: 8px 10px; border: 1px solid #dbe3e7; border-radius: 9px; background: rgba(255,255,255,.96); box-shadow: 0 9px 24px rgba(34,58,70,.14); pointer-events: none; transform: translate(10px,-50%); }
+.chart-tooltip.align-right { transform: translate(calc(-100% - 10px),-50%); }
+.chart-tooltip.align-left { transform: translate(10px,-50%); }
+.chart-tooltip time, .chart-tooltip span { display: block; color: #7f8b91; font-size: 7px; white-space: nowrap; }
+.chart-tooltip strong { display: block; margin: 3px 0 1px; color: var(--ca-blue); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.chart-empty { min-height: 130px; display: grid; place-items: center; color: #8c969a; font-size: 9px; }
 
 .rca-layout { display: grid; grid-template-columns: .8fr 1.2fr; gap: 22px; }
 .evidence-panel, .analogue-panel, .rca-output, .pipeline-panel { padding: 0 22px 20px; }
@@ -477,6 +488,7 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .trajectory-facts span { color: #89949a; font-size: 7px; }
 .trajectory-facts strong { color: #273840; font-size: 9px; font-weight: 600; }
 .health-chart-canvas { position: absolute; left: 155px; right: 18px; top: 16px; bottom: 24px; }
+.health-chart-canvas .interactive-chart { height: 100%; }
 .health-chart-canvas .line-chart { width: 100%; height: 100%; margin: 0; }
 .health-chart-canvas .data-path { stroke: var(--ca-blue); stroke-width: 2.3; }
 .health-chart-canvas .grid-line { stroke: transparent; }
