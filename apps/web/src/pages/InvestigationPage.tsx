@@ -80,7 +80,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     </nav>
 
     <section className="investigation-section" hidden={activeStep !== 0}>
-      <StoryHeader number="01" eyebrow="Issue detection" title="The degradation window" description="The chart begins 72 hours before the first persistent signal and ends after the alert closes, keeping the investigation focused on the event."/>
       <div className="investigation-hero-grid">
         <article className="degradation-chart panel">
           <header><div><span>Anomaly trajectory</span><h3>From first deviation to intervention</h3></div><div><span>Peak score</span><strong>{formatSignal(alert.peak_anomaly_score)}</strong></div></header>
@@ -98,7 +97,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 1}>
-      <StoryHeader number="02" eyebrow="Condition evidence" title="Which variables changed" description="Select any condition or operating variable to inspect its behavior during the same degradation window."/>
       <article className="investigation-signal-panel panel">
         <nav aria-label="Investigated variables">
           {signalDefinitions.map((signal) => <button key={signal.field} className={selectedField === signal.field ? 'active' : ''} onClick={() => setSelectedField(signal.field)}><span>{signal.label}</span><strong>{latestPoint ? formatSignal(Number(latestPoint[signal.field])) : '—'} <small>{signal.unit}</small></strong><i>{signal.source}</i></button>)}
@@ -112,7 +110,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 2}>
-      <StoryHeader number="03" eyebrow="Root cause indication" title="What most likely happened" description="The leading explanation combines signal sequence, physical mechanism, and similar historical incidents. It remains traceable to supporting evidence."/>
       <div className="rca-story-grid">
         <article className="leading-cause panel">
           <span>Leading hypothesis · {hypothesis ? Math.round(hypothesis.confidence * 100) : 0}% confidence</span>
@@ -129,7 +126,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 3}>
-      <StoryHeader number="04" eyebrow="Governed evidence" title="Where every insight came from" description="Each analytical statement links back to its operational source, transformation, and role in the decision."/>
       <div className="source-trace-list panel">
         <SourceRow label="Hourly operating context" source="Production Data - RCA2 KO-3201.xlsx" detail="Feed rate, discharge pressure, operating status, shutdown and restart context" use="Detection and operating context" href="https://drive.google.com/file/d/1xHVQZcSJZg0-Tknd2PjZ8mJVByQsFDMr"/>
         <SourceRow label="Equipment condition" source="Equipment Performance - RCA2 KO-3201.xlsx" detail="Vibration, oil water content, oil pressure, bearing temperature and engineering limits" use="Variable evidence and thresholds" href="https://drive.google.com/file/d/1JbDwEz1q3NRxW4OVrJR9q9M7ec2Nn0Ch"/>
@@ -140,7 +136,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 4}>
-      <StoryHeader number="05" eyebrow="Follow-up execution" title="Who needs to do what next" description="Recommended actions are prioritized, assigned to accountable roles, and tracked through completion and effectiveness checks."/>
       <div className="investigation-action-list panel">
         <header><span>Priority and action</span><span>Owner</span><span>Status</span><span>Due date</span></header>
         {actions.map((action) => <div key={action.action_id}><div><span>{humanize(action.priority)}</span><strong>{action.title}</strong><p>{action.effectiveness_check}</p></div><strong>{action.owner_role}</strong><span className={`action-state ${action.status.toLowerCase()}`}>{humanize(action.status)}</span><time>{formatDate(action.due_date)}</time></div>)}
@@ -149,16 +144,11 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
 
     <footer className="story-controls">
       <button className="story-previous" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}><Icon name="arrow"/> Previous</button>
-      <p><span>Step {activeStep + 1} of {storySteps.length}</span><strong>{storySteps[activeStep]}</strong></p>
       {activeStep < storySteps.length - 1
         ? <button className="story-next" onClick={() => setActiveStep((step) => Math.min(storySteps.length - 1, step + 1))}>Next: {storySteps[activeStep + 1]} <Icon name="arrow"/></button>
         : <button className="story-next" onClick={() => onNavigate('actions')}>Open action tracker <Icon name="arrow"/></button>}
     </footer>
   </div>;
-}
-
-function StoryHeader({ number, eyebrow, title, description }: { number: string; eyebrow: string; title: string; description: string }) {
-  return <header className="story-header"><div><span>{number}</span><div><p>{eyebrow}</p><h2>{title}</h2></div></div><strong>{description}</strong></header>;
 }
 
 function SourceRow({ label, source, detail, use, href }: { label: string; source: string; detail: string; use: string; href?: string }) {
