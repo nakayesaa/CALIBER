@@ -107,6 +107,14 @@ export interface RCARecord {
   status: string;
   requested_by: string;
   model: string;
+  provider?: string;
+  status_history?: Array<{
+    previous_status: string;
+    new_status: string;
+    actor: string;
+    occurred_at: string;
+    note: string;
+  }>;
   generation: {
     executive_summary: string;
     hypotheses: RCAHypothesis[];
@@ -134,6 +142,13 @@ export interface ActionItem {
   status: string;
   completion_criteria: string;
   effectiveness_check: string;
+  status_history?: Array<{
+    previous_status: string;
+    new_status: string;
+    actor: string;
+    occurred_at: string;
+    note: string;
+  }>;
 }
 
 export interface ActionPlan {
@@ -163,8 +178,11 @@ export interface AlertDetail {
   action_plans: ActionPlan[];
 }
 
-async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: init?.body ? { 'Content-Type': 'application/json', ...init.headers } : init?.headers,
+  });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(payload?.detail ?? `Request failed with status ${response.status}`);
@@ -185,4 +203,20 @@ export const api = {
   alerts: (assetId?: string) =>
     request<AlertEvent[]>(`/alerts${assetId ? `?asset_id=${assetId}` : ''}`),
   alertDetail: (alertId: string) => request<AlertDetail>(`/alerts/${alertId}`),
+  generateRca: (alertId: string, requestedBy: string, mode: 'ai' | 'prepared') =>
+    request<RCARecord>(`/alerts/${alertId}/rca`, {
+      method: 'POST', body: JSON.stringify({ requested_by: requestedBy, mode }),
+    }),
+  updateRcaStatus: (rcaId: string, status: 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED', actor: string, note: string) =>
+    request<RCARecord>(`/rca/${rcaId}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status, actor, note }),
+    }),
+  createActionPlan: (rcaId: string, hypothesisId: string) =>
+    request<ActionPlan>(`/rca/${rcaId}/action-plans`, {
+      method: 'POST', body: JSON.stringify({ hypothesis_id: hypothesisId }),
+    }),
+  updateActionStatus: (actionId: string, status: string, actor: string, note: string) =>
+    request<ActionPlan>(`/actions/${actionId}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status, actor, note }),
+    }),
 };

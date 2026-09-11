@@ -52,7 +52,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const selectedSignal = signals.find((signal) => signal.field === selectedField)!;
   const selectedValues = telemetry.points.map((point) => Number(point[selectedField]));
   const rca = detail && rcaForAlert(detail.alert.alert_id, detail.rca);
-  const plans = detail ? actionsForAlert(detail.alert.alert_id, detail.action_plans) : [];
+  const plans = detail ? actionsForAlert(detail.alert.alert_id, detail.action_plans, Boolean(detail.rca)) : [];
   const actions = plans.flatMap((plan) => plan.actions);
 
   return <div className="equipment-dashboard">

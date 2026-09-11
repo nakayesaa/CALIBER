@@ -45,7 +45,7 @@ export function ProblemTankPage({ onNavigate }: { onNavigate: (page: PageId) => 
       </header>
       {resource.data.details.map((detail, index) => {
         const { alert } = detail;
-        const plans = actionsForAlert(alert.alert_id, detail.action_plans);
+        const plans = actionsForAlert(alert.alert_id, detail.action_plans, Boolean(detail.rca));
         const actions = plans.flatMap((plan) => plan.actions);
         const closedActions = actions.filter((action) => action.status === 'CLOSED').length;
         return <button key={alert.alert_id} className="problem-list-row" onClick={() => onNavigate('investigation')}>
@@ -55,7 +55,7 @@ export function ProblemTankPage({ onNavigate }: { onNavigate: (page: PageId) => 
           </div>
           <span className={`problem-severity ${alert.highest_severity.toLowerCase()}`}>{humanize(alert.highest_severity)}</span>
           <div className="problem-list-metric"><strong>{formatSignal(alert.peak_anomaly_score)}</strong><span>{alert.breached_signals.length} signals</span></div>
-          <div className="problem-list-status"><strong>{humanize(plans[0]?.status ?? alert.status)}</strong><span>{closedActions}/{actions.length} actions closed</span></div>
+          <div className="problem-list-status"><strong>{humanize(plans[0]?.status ?? detail.rca?.status ?? alert.status)}</strong><span>{actions.length ? `${closedActions}/${actions.length} actions closed` : 'RCA review'}</span></div>
           <span className="problem-row-arrow"><Icon name="arrow"/></span>
         </button>;
       })}

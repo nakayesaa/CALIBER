@@ -148,7 +148,8 @@ export function rcaForAlert(alertId: string, liveRca: RCARecord | null): RCAReco
   return alertId === ALERT_ID ? demoRca : null;
 }
 
-export function actionsForAlert(alertId: string, livePlans: ActionPlan[]): ActionPlan[] {
+export function actionsForAlert(alertId: string, livePlans: ActionPlan[], hasLiveRca = false): ActionPlan[] {
   if (livePlans.length) return livePlans;
+  if (hasLiveRca) return [];
   return alertId === ALERT_ID ? [demoActionPlan] : [];
 }

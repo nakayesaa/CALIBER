@@ -344,6 +344,9 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .action-card summary { display: flex; align-items: center; gap: 5px; }
 .action-card summary .app-icon { width: 12px; height: 12px; }
 .action-card details p { margin-top: 8px; color: #68736f; font-size: 8px; line-height: 1.55; }
+.action-advance { width: 100%; min-height: 36px; margin-top: 12px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; border-radius: 9px; background: #26343b; color: #fff; font-size: 10px; font-weight: 600; }
+.action-advance .app-icon { width: 11px; height: 11px; }
+.action-advance:disabled { opacity: .55; cursor: wait; }
 
 .empty-state, .view-state { min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .empty-state { min-height: 260px; background: #fff; border-radius: 24px; padding: 35px; }
@@ -622,6 +625,19 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .leading-cause > div { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--story-line); }
 .leading-cause > div strong { font-size: 13px; }
 .leading-cause > div p { margin-top: 6px; color: var(--story-muted); font-size: 13px; line-height: 21px; }
+.leading-cause > .rca-workflow-controls { margin-top: 18px; padding-top: 15px; display: grid; grid-template-columns: minmax(130px,.45fr) minmax(0,1fr); gap: 10px 18px; align-items: center; }
+.rca-workflow-controls > div:first-child { display: flex; flex-direction: column; }
+.rca-workflow-controls > div:first-child span { color: var(--story-muted); font-size: 10px; text-transform: uppercase; }
+.rca-workflow-controls > div:first-child strong { margin-top: 3px; font-size: 13px; }
+.rca-workflow-controls > div:nth-child(2) { display: flex; justify-content: flex-end; gap: 8px; }
+.rca-workflow-controls button { min-height: 36px; padding: 0 11px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+.workflow-primary { background: #26343b; color: #fff; }
+.workflow-secondary { border: 1px solid var(--story-line); color: #65737a; }
+.rca-workflow-controls > p, .workflow-error { grid-column: 1 / -1; color: #a6362e; font-size: 11px; }
+.workflow-complete, .workflow-rejected { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; }
+.workflow-complete { color: #2d6c51; }
+.workflow-complete .app-icon { width: 13px; height: 13px; }
+.workflow-rejected { color: #a6362e; }
 .cause-evidence > header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 12px; }
 .cause-evidence > header span, .cause-evidence footer { color: var(--story-muted); }
 .cause-evidence > div { min-height: 60px; display: grid; grid-template-columns: 30px minmax(0,1fr) 52px; gap: 10px; align-items: center; border-top: 1px solid var(--story-line); }
@@ -641,17 +657,20 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .source-trace-list > div > b { color: #526269; font-size: 12px; font-weight: 500; }
 
 .investigation-action-list { overflow: hidden; }
-.investigation-action-list > header, .investigation-action-list > div { display: grid; grid-template-columns: minmax(360px,1.45fr) minmax(150px,.55fr) 110px 100px; gap: 20px; align-items: center; }
+.investigation-action-list > header, .investigation-action-list > div { display: grid; grid-template-columns: minmax(340px,1.4fr) minmax(140px,.5fr) 145px 100px; gap: 20px; align-items: center; }
 .investigation-action-list > header { min-height: 45px; padding: 0 20px; border-bottom: 1px solid var(--story-line); color: var(--story-muted); font-size: 11px; }
 .investigation-action-list > div { min-height: 78px; padding: 11px 20px; border-bottom: 1px solid var(--story-line); }
 .investigation-action-list > div:last-child { border-bottom: 0; }
-.investigation-action-list > div > div > span { color: var(--ca-blue); font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.investigation-action-list > div > div:first-child > span { color: var(--ca-blue); font-size: 10px; font-weight: 600; text-transform: uppercase; }
 .investigation-action-list > div > div strong { display: block; margin-top: 4px; font-size: 14px; }
 .investigation-action-list > div > div p { margin-top: 4px; color: var(--story-muted); font-size: 11px; line-height: 17px; }
 .investigation-action-list > div > strong { font-size: 13px; font-weight: 500; }
 .action-state { width: fit-content; padding: 5px 8px; border-radius: 7px; background: #eef2f3; color: #526269; font-size: 11px; }
 .action-state.closed { background: #e7f3ed; color: #2d6c51; }
 .action-state.in_progress { background: #fff3d5; color: #8c651c; }
+.action-workflow-state { display: flex; align-items: flex-start; flex-direction: column; gap: 5px; }
+.action-workflow-state button { color: var(--ca-blue); font-size: 10px; font-weight: 600; }
+.action-workflow-state button:disabled { opacity: .45; cursor: wait; }
 .investigation-action-list time { color: var(--story-muted); font-size: 12px; }
 .story-controls { min-height: 58px; margin-top: 14px; padding: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--story-line); }
 .story-controls > button { min-height: 42px; display: flex; align-items: center; gap: 10px; border-radius: 10px; font-size: 13px; font-weight: 500; }
