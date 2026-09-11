@@ -79,10 +79,8 @@ svg { display: block; }
 .avatar-small { width: 32px; height: 32px; font-size: 9px; }
 
 .workspace { padding: 24px 28px 0; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0,1fr); overflow: hidden; }
-.workspace-scroll { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 28px 0; scrollbar-width: thin; scrollbar-color: #c4ccca transparent; }
-.workspace-scroll::-webkit-scrollbar { width: 7px; }
-.workspace-scroll::-webkit-scrollbar-track { background: transparent; }
-.workspace-scroll::-webkit-scrollbar-thumb { background: #c4ccca; border-radius: 10px; }
+.workspace-scroll { min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 28px 0; scrollbar-width: none; -ms-overflow-style: none; }
+.workspace-scroll::-webkit-scrollbar { display: none; }
 .topbar { min-height: 54px; display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; }
 .breadcrumbs { display: flex; gap: 12px; align-items: center; color: #9aa19f; font-size: 14px; padding-top: 14px; white-space: nowrap; }
 .breadcrumbs b { color: #c0c5c3; font-weight: 400; }
