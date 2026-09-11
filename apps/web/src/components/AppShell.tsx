@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
+import { SidebarIcon, type SidebarIconName } from './SidebarIcon';
 
 export type PageId = 'overview' | 'problems' | 'assets' | 'rca' | 'actions' | 'data';
 
-const navigation: Array<{ id: PageId; label: string; icon: IconName }> = [
+const navigation: Array<{ id: PageId; label: string; icon: SidebarIconName }> = [
   { id: 'overview', label: 'Overview', icon: 'home' },
-  { id: 'problems', label: 'Problem tank', icon: 'alert' },
-  { id: 'assets', label: 'Asset health', icon: 'trend' },
-  { id: 'rca', label: 'RCA workspace', icon: 'spark' },
-  { id: 'actions', label: 'Action tracker', icon: 'tasks' },
-  { id: 'data', label: 'Data foundation', icon: 'database' },
+  { id: 'problems', label: 'Problem tank', icon: 'problem' },
+  { id: 'assets', label: 'Asset health', icon: 'asset' },
+  { id: 'rca', label: 'RCA workspace', icon: 'rca' },
+  { id: 'actions', label: 'Action tracker', icon: 'action' },
+  { id: 'data', label: 'Data foundation', icon: 'data' },
 ];
 
 interface AppShellProps {
@@ -35,7 +36,7 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
                 title={item.label}
                 onClick={() => onNavigate(item.id)}
               >
-                <Icon name={item.icon}/>
+                <SidebarIcon name={item.icon}/>
               </button>
             ))}
           </nav>

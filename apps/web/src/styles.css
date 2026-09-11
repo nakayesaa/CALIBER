@@ -30,14 +30,10 @@ svg { display: block; }
 .noun-icon-arrow { --noun-icon: url('/icons/noun/arrow.png'); }
 .noun-icon-check { --noun-icon: url('/icons/noun/check.png'); }
 .noun-icon-database { --noun-icon: url('/icons/noun/database.png'); }
-.noun-icon-home { --noun-icon: url('/icons/noun/home.png'); }
 .noun-icon-inbox { --noun-icon: url('/icons/noun/inbox.png'); }
-.noun-icon-network { --noun-icon: url('/icons/noun/network.png'); }
 .noun-icon-pulse { --noun-icon: url('/icons/noun/pulse.png'); }
 .noun-icon-search { --noun-icon: url('/icons/noun/search.png'); }
 .noun-icon-spark { --noun-icon: url('/icons/noun/spark.png'); }
-.noun-icon-tasks { --noun-icon: url('/icons/noun/tasks.png'); }
-.noun-icon-trend { --noun-icon: url('/icons/noun/trend.png'); }
 
 .page {
   width: 100%;
@@ -86,12 +82,14 @@ svg { display: block; }
   place-items: center;
   transition: background .2s, transform .2s;
 }
-.nav-btn .noun-icon, .round-button .noun-icon { width: 19px; height: 19px; color: #34454e; }
+.nav-btn .sidebar-icon { width: 23px; height: 23px; fill: none; stroke: #34454e; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+.round-button .noun-icon { width: 19px; height: 19px; color: #34454e; }
 .nav-btn.active { background: transparent; box-shadow: none; }
 .nav-btn.active::before { content: ""; position: absolute; left: -12px; width: 3px; height: 20px; border-radius: 0 4px 4px 0; background: var(--ca-blue); }
-.nav-btn.active .noun-icon { color: var(--ca-blue); }
+.nav-btn.active .sidebar-icon { stroke: var(--ca-blue); stroke-width: 1.8; }
 .nav-btn:hover, .round-button:hover { background: transparent; transform: translateY(-1px); }
-.nav-btn:hover .noun-icon, .round-button:hover .noun-icon { color: var(--ca-blue); }
+.nav-btn:hover .sidebar-icon { stroke: var(--ca-blue); }
+.round-button:hover .noun-icon { color: var(--ca-blue); }
 .rail-bottom { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .add-button { width: 38px; height: 38px; border: 1px solid #e0e4e2; border-radius: 50%; background: white; font-size: 25px; font-weight: 200; color: #a2aaa8; }
 .avatar { display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; background: #546b65; border: 2px solid white; box-shadow: 0 2px 7px rgba(0,0,0,.12); }

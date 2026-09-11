@@ -3,14 +3,10 @@ export type IconName =
   | 'arrow'
   | 'check'
   | 'database'
-  | 'home'
   | 'inbox'
-  | 'network'
   | 'pulse'
   | 'search'
-  | 'spark'
-  | 'tasks'
-  | 'trend';
+  | 'spark';
 
 export function Icon({ name }: { name: IconName }) {
   return <span className={`noun-icon noun-icon-${name}`} aria-hidden="true"/>;
