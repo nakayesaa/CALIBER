@@ -158,7 +158,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
 }
 
 function StoryHeader({ number, eyebrow, title, description }: { number: string; eyebrow: string; title: string; description: string }) {
-  return <header className="story-header"><span>{number}</span><div><p>{eyebrow}</p><h2>{title}</h2><strong>{description}</strong></div></header>;
+  return <header className="story-header"><div><span>{number}</span><div><p>{eyebrow}</p><h2>{title}</h2></div></div><strong>{description}</strong></header>;
 }
 
 function SourceRow({ label, source, detail, use, href }: { label: string; source: string; detail: string; use: string; href?: string }) {
