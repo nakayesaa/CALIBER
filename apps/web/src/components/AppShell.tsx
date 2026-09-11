@@ -53,9 +53,8 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
               <button className="round-button notification" aria-label="Notifications"><Icon name="inbox"/><i/></button>
             </div>
           </header>
-          <div className="workspace-scroll">
+          <div className={`workspace-scroll${activePage === 'investigation' ? ' investigation-scroll' : ''}`}>
             {children}
-            <a className="icon-credit" href="https://thenounproject.com/adisena/" target="_blank" rel="noreferrer">Icons by adi_sena, Noun Project · CC BY 3.0</a>
           </div>
         </div>
       </section>
