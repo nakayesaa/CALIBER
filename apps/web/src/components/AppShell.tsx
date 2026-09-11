@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import { SidebarIcon, type SidebarIconName } from './SidebarIcon';
 
-export type PageId = 'overview' | 'problems' | 'assets' | 'rca' | 'actions' | 'data';
+export type PageId = 'overview' | 'problems' | 'investigation' | 'assets' | 'rca' | 'actions' | 'data';
 
 const navigation: Array<{ id: PageId; label: string; icon: SidebarIconName }> = [
   { id: 'overview', label: 'Overview', icon: 'home' },
@@ -20,7 +20,9 @@ interface AppShellProps {
 }
 
 export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
-  const activeLabel = navigation.find(({ id }) => id === activePage)?.label ?? 'Overview';
+  const activeLabel = activePage === 'investigation'
+    ? 'Problem investigation'
+    : navigation.find(({ id }) => id === activePage)?.label ?? 'Overview';
 
   return (
     <main className="page">
@@ -31,7 +33,7 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
             {navigation.map((item) => (
               <button
                 key={item.id}
-                className={`nav-btn${activePage === item.id ? ' active' : ''}`}
+                className={`nav-btn${activePage === item.id || (activePage === 'investigation' && item.id === 'problems') ? ' active' : ''}`}
                 aria-label={item.label}
                 title={item.label}
                 onClick={() => onNavigate(item.id)}

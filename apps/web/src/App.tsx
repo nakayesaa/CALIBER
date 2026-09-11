@@ -4,12 +4,14 @@ import { ActionsPage } from './pages/ActionsPage';
 import { AssetPage } from './pages/AssetPage';
 import { DataFoundationPage } from './pages/DataFoundationPage';
 import { OverviewPage } from './pages/OverviewPage';
+import { InvestigationPage } from './pages/InvestigationPage';
 import { ProblemTankPage } from './pages/ProblemTankPage';
 import { RcaPage } from './pages/RcaPage';
 
 const pages: Record<PageId, React.ComponentType<{ onNavigate: (page: PageId) => void }>> = {
   overview: OverviewPage,
   problems: ProblemTankPage,
+  investigation: InvestigationPage,
   assets: AssetPage,
   rca: RcaPage,
   actions: ActionsPage,

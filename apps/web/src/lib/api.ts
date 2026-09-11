@@ -176,8 +176,12 @@ export const api = {
   status: () => request<SystemStatus>('/status'),
   assets: () => request<AssetSummary[]>('/assets'),
   assetOverview: (assetId: string) => request<AssetOverview>(`/assets/${assetId}/overview`),
-  telemetry: (assetId: string, maxPoints = 360) =>
-    request<TelemetrySeries>(`/assets/${assetId}/telemetry?max_points=${maxPoints}`),
+  telemetry: (assetId: string, maxPoints = 360, start?: string, end?: string) => {
+    const query = new URLSearchParams({ max_points: String(maxPoints) });
+    if (start) query.set('start', start);
+    if (end) query.set('end', end);
+    return request<TelemetrySeries>(`/assets/${assetId}/telemetry?${query}`);
+  },
   alerts: (assetId?: string) =>
     request<AlertEvent[]>(`/alerts${assetId ? `?asset_id=${assetId}` : ''}`),
   alertDetail: (alertId: string) => request<AlertDetail>(`/alerts/${alertId}`),
