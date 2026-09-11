@@ -51,11 +51,7 @@ export function SignalChart({ points, field, threshold }: SignalChartProps) {
         <path className="grid-line" d="M0 25H100M0 50H100M0 75H100"/>
         {thresholdY !== null && <path className="threshold-path" d={`M0 ${thresholdY}H100`}/>}
         <path className="data-path" d={path}/>
-        {hoveredCoordinate && <>
-          <line className="tracking-line" x1={hoveredCoordinate.x} x2={hoveredCoordinate.x} y1="4" y2="96"/>
-          <circle className="tracking-point-ring" cx={hoveredCoordinate.x} cy={hoveredCoordinate.y} r="2.4"/>
-          <circle className="tracking-point" cx={hoveredCoordinate.x} cy={hoveredCoordinate.y} r="1.2"/>
-        </>}
+        {hoveredCoordinate && <line className="tracking-line" x1={hoveredCoordinate.x} x2={hoveredCoordinate.x} y1="4" y2="96"/>}
       </svg>
       {hoveredPoint && hoveredCoordinate && <div className={`chart-tooltip${hoveredCoordinate.x > 72 ? ' align-right' : hoveredCoordinate.x < 28 ? ' align-left' : ''}`} style={{ left: `${hoveredCoordinate.x}%`, top: `${Math.min(82, Math.max(12, hoveredCoordinate.y))}%` }}>
         <time>{formatTimestamp(hoveredPoint.timestamp)}</time>

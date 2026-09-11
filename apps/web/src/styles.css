@@ -291,8 +291,6 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .interactive-chart { position: relative; min-width: 0; cursor: crosshair; touch-action: pan-y; }
 .interactive-chart .line-chart { user-select: none; }
 .tracking-line { stroke: #60717a; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; opacity: .65; }
-.tracking-point-ring { fill: #fff; stroke: var(--ca-blue); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.tracking-point { fill: var(--ca-blue); }
 .chart-tooltip { position: absolute; z-index: 5; min-width: 118px; padding: 8px 10px; border: 1px solid #dbe3e7; border-radius: 9px; background: rgba(255,255,255,.96); box-shadow: 0 9px 24px rgba(34,58,70,.14); pointer-events: none; transform: translate(10px,-50%); }
 .chart-tooltip.align-right { transform: translate(calc(-100% - 10px),-50%); }
 .chart-tooltip.align-left { transform: translate(10px,-50%); }
