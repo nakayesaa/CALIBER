@@ -22,6 +22,8 @@ const signalDefinitions: Array<{ field: SignalField; label: string; unit: string
   { field: 'discharge_pressure_barg', label: 'Discharge pressure', unit: 'barg', source: 'Production Data · Sheet2' },
 ];
 
+const storySteps = ['Detection', 'Variables', 'Probable RCA', 'Source trace', 'CA/PA'];
+
 interface InvestigationData {
   detail: AlertDetail;
   telemetry: TelemetrySeries;
@@ -46,6 +48,7 @@ async function loadInvestigation(): Promise<InvestigationData> {
 
 export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const [selectedField, setSelectedField] = useState<SignalField>('water_in_oil_ppm');
+  const [activeStep, setActiveStep] = useState(0);
   const resource = useApiResource('problem-investigation', loadInvestigation);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Investigation data unavailable'}/>;
@@ -73,14 +76,10 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     </header>
 
     <nav className="storyline-nav" aria-label="Investigation storyline">
-      <a href="#detection"><span>01</span>Detection</a>
-      <a href="#variables"><span>02</span>Variables</a>
-      <a href="#rca"><span>03</span>Probable RCA</a>
-      <a href="#sources"><span>04</span>Source trace</a>
-      <a href="#actions"><span>05</span>CA/PA</a>
+      {storySteps.map((step, index) => <button key={step} className={`${index === activeStep ? 'active' : ''}${index < activeStep ? ' complete' : ''}`} onClick={() => setActiveStep(index)}><span>{String(index + 1).padStart(2, '0')}</span>{step}</button>)}
     </nav>
 
-    <section className="investigation-section" id="detection">
+    <section className="investigation-section" hidden={activeStep !== 0}>
       <StoryHeader number="01" eyebrow="Issue detection" title="The degradation window" description="The chart begins 72 hours before the first persistent signal and ends after the alert closes, keeping the investigation focused on the event."/>
       <div className="investigation-hero-grid">
         <article className="degradation-chart panel">
@@ -98,7 +97,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
       </div>
     </section>
 
-    <section className="investigation-section" id="variables">
+    <section className="investigation-section" hidden={activeStep !== 1}>
       <StoryHeader number="02" eyebrow="Condition evidence" title="Which variables changed" description="Select any condition or operating variable to inspect its behavior during the same degradation window."/>
       <article className="investigation-signal-panel panel">
         <nav aria-label="Investigated variables">
@@ -112,7 +111,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
       </article>
     </section>
 
-    <section className="investigation-section" id="rca">
+    <section className="investigation-section" hidden={activeStep !== 2}>
       <StoryHeader number="03" eyebrow="Root cause indication" title="What most likely happened" description="The leading explanation combines signal sequence, physical mechanism, and similar historical incidents. It remains traceable to supporting evidence."/>
       <div className="rca-story-grid">
         <article className="leading-cause panel">
@@ -129,7 +128,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
       </div>
     </section>
 
-    <section className="investigation-section" id="sources">
+    <section className="investigation-section" hidden={activeStep !== 3}>
       <StoryHeader number="04" eyebrow="Governed evidence" title="Where every insight came from" description="Each analytical statement links back to its operational source, transformation, and role in the decision."/>
       <div className="source-trace-list panel">
         <SourceRow label="Hourly operating context" source="Production Data - RCA2 KO-3201.xlsx" detail="Feed rate, discharge pressure, operating status, shutdown and restart context" use="Detection and operating context" href="https://drive.google.com/file/d/1xHVQZcSJZg0-Tknd2PjZ8mJVByQsFDMr"/>
@@ -140,13 +139,21 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
       </div>
     </section>
 
-    <section className="investigation-section" id="actions">
+    <section className="investigation-section" hidden={activeStep !== 4}>
       <StoryHeader number="05" eyebrow="Follow-up execution" title="Who needs to do what next" description="Recommended actions are prioritized, assigned to accountable roles, and tracked through completion and effectiveness checks."/>
       <div className="investigation-action-list panel">
         <header><span>Priority and action</span><span>Owner</span><span>Status</span><span>Due date</span></header>
         {actions.map((action) => <div key={action.action_id}><div><span>{humanize(action.priority)}</span><strong>{action.title}</strong><p>{action.effectiveness_check}</p></div><strong>{action.owner_role}</strong><span className={`action-state ${action.status.toLowerCase()}`}>{humanize(action.status)}</span><time>{formatDate(action.due_date)}</time></div>)}
       </div>
     </section>
+
+    <footer className="story-controls">
+      <button className="story-previous" disabled={activeStep === 0} onClick={() => setActiveStep((step) => Math.max(0, step - 1))}><Icon name="arrow"/> Previous</button>
+      <p><span>Step {activeStep + 1} of {storySteps.length}</span><strong>{storySteps[activeStep]}</strong></p>
+      {activeStep < storySteps.length - 1
+        ? <button className="story-next" onClick={() => setActiveStep((step) => Math.min(storySteps.length - 1, step + 1))}>Next: {storySteps[activeStep + 1]} <Icon name="arrow"/></button>
+        : <button className="story-next" onClick={() => onNavigate('actions')}>Open action tracker <Icon name="arrow"/></button>}
+    </footer>
   </div>;
 }
 
