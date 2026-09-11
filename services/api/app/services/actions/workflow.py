@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -13,6 +13,7 @@ from services.api.app.schemas.actions import (
     ActionPlan,
     ActionPolicyConfig,
     ActionStatus,
+    ActionStatusTransition,
 )
 from services.api.app.schemas.rca import RCARecord, RCAStatus
 
@@ -77,13 +78,28 @@ def transition_action(
     new_status: ActionStatus,
     policy: ActionPolicyConfig,
     rca_status: RCAStatus,
+    actor: str,
+    note: str,
+    occurred_at: datetime,
 ) -> ActionItem:
     allowed = policy.workflow.transitions.get(action.status, [])
     if new_status not in allowed:
         raise ValueError(f"Invalid action transition: {action.status} -> {new_status}")
     if new_status == ActionStatus.APPROVED and rca_status != RCAStatus.APPROVED:
         raise ValueError("Actions cannot be approved before the RCA is approved")
-    return action.model_copy(update={"status": new_status})
+    transition = ActionStatusTransition(
+        previous_status=action.status,
+        new_status=new_status,
+        actor=actor,
+        occurred_at=occurred_at,
+        note=note,
+    )
+    return action.model_copy(
+        update={
+            "status": new_status,
+            "status_history": [*action.status_history, transition],
+        }
+    )
 
 
 def update_plan_status(plan: ActionPlan) -> ActionPlan:

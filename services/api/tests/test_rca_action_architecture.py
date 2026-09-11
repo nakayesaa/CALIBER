@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,6 +23,7 @@ from services.api.app.services.actions.workflow import (
 )
 from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
+    transition_rca,
     validate_grounding,
 )
 
@@ -159,11 +160,47 @@ def test_action_approval_requires_reviewed_rca() -> None:
             ActionStatus.APPROVED,
             policy,
             RCAStatus.AI_DRAFT,
+            "reviewer-1",
+            "Ready to execute",
+            datetime(2026, 2, 23, tzinfo=timezone.utc),
         )
     approved = transition_action(
         plan.actions[0],
         ActionStatus.APPROVED,
         policy,
         RCAStatus.APPROVED,
+        "reviewer-1",
+        "Ready to execute",
+        datetime(2026, 2, 23, tzinfo=timezone.utc),
     )
     assert approved.status == ActionStatus.APPROVED
+    assert approved.status_history[0].actor == "reviewer-1"
+
+
+def test_rca_review_follows_audited_state_machine() -> None:
+    draft = sample_rca()
+    reviewed = transition_rca(
+        draft,
+        RCAStatus.UNDER_REVIEW,
+        "engineer-1",
+        "Review started",
+        datetime(2026, 2, 23, tzinfo=timezone.utc),
+    )
+    approved = transition_rca(
+        reviewed,
+        RCAStatus.APPROVED,
+        "engineer-1",
+        "Evidence accepted",
+        datetime(2026, 2, 24, tzinfo=timezone.utc),
+    )
+
+    assert approved.status == RCAStatus.APPROVED
+    assert len(approved.status_history) == 2
+    with pytest.raises(ValueError, match="Invalid RCA transition"):
+        transition_rca(
+            draft,
+            RCAStatus.APPROVED,
+            "engineer-1",
+            "Skipped review",
+            datetime(2026, 2, 23, tzinfo=timezone.utc),
+        )

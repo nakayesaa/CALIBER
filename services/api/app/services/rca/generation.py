@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -15,6 +16,7 @@ from services.api.app.schemas.rca import (
     RCAProviderResult,
     RCARecord,
     RCAStatus,
+    RCAStatusTransition,
 )
 from services.api.app.schemas.retrieval import RAGEvidencePackage
 
@@ -116,6 +118,36 @@ def generate_rca_record(
         generation=result.generation,
         allowed_evidence_ids=allowed_evidence_ids,
         allowed_incident_ids=allowed_incident_ids,
+    )
+
+
+def transition_rca(
+    record: RCARecord,
+    new_status: RCAStatus,
+    actor: str,
+    note: str,
+    occurred_at: datetime,
+) -> RCARecord:
+    allowed = {
+        RCAStatus.AI_DRAFT: {RCAStatus.UNDER_REVIEW},
+        RCAStatus.UNDER_REVIEW: {RCAStatus.APPROVED, RCAStatus.REJECTED},
+        RCAStatus.APPROVED: set(),
+        RCAStatus.REJECTED: set(),
+    }
+    if new_status not in allowed[record.status]:
+        raise ValueError(f"Invalid RCA transition: {record.status} -> {new_status}")
+    transition = RCAStatusTransition(
+        previous_status=record.status,
+        new_status=new_status,
+        actor=actor,
+        occurred_at=occurred_at,
+        note=note,
+    )
+    return record.model_copy(
+        update={
+            "status": new_status,
+            "status_history": [*record.status_history, transition],
+        }
     )
 
 

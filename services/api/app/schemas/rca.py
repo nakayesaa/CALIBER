@@ -87,6 +87,14 @@ class RCAProviderResult(RCAModel):
     output_tokens: int | None = None
 
 
+class RCAStatusTransition(RCAModel):
+    previous_status: RCAStatus
+    new_status: RCAStatus
+    actor: str
+    occurred_at: AwareDatetime
+    note: str
+
+
 class RCARecord(RCAModel):
     rca_id: str
     alert_id: str
@@ -103,6 +111,7 @@ class RCARecord(RCAModel):
     generation: RCAGeneration
     allowed_evidence_ids: list[str]
     allowed_incident_ids: list[str]
+    status_history: list[RCAStatusTransition] = Field(default_factory=list)
 
 
 class RCAGenerationConfig(RCAModel):

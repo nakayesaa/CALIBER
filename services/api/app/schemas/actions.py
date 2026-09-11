@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from services.api.app.schemas.rca import CauseCategory
 
@@ -85,6 +85,14 @@ class ActionPolicyConfig(ActionModel):
         return self
 
 
+class ActionStatusTransition(ActionModel):
+    previous_status: ActionStatus
+    new_status: ActionStatus
+    actor: str
+    occurred_at: AwareDatetime
+    note: str
+
+
 class ActionItem(ActionModel):
     action_id: str
     template_id: str
@@ -99,6 +107,7 @@ class ActionItem(ActionModel):
     status: ActionStatus
     completion_criteria: str
     effectiveness_check: str
+    status_history: list[ActionStatusTransition] = Field(default_factory=list)
 
 
 class ActionPlan(ActionModel):
