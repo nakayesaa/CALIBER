@@ -25,7 +25,7 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
     <main className="page">
       <section className="app-shell">
         <aside className="rail">
-          <button className="brand" aria-label="CALIBER home" onClick={() => onNavigate('overview')}><span/><span/></button>
+          <button className="brand" aria-label="CALIBER home" onClick={() => onNavigate('overview')}><img src="/chandra-asri-logo.png" alt=""/></button>
           <nav aria-label="Primary navigation">
             {navigation.map((item) => (
               <button

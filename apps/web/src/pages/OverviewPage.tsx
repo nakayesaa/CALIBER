@@ -1,13 +1,27 @@
+import { useState } from 'react';
 import type { PageId } from '../components/AppShell';
 import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 
 const ASSET_ID = 'asset-ko-3201';
+
+type SignalField = keyof Pick<TelemetryPoint,
+  'radial_vibration_micron' | 'water_in_oil_ppm' | 'lube_oil_pressure_barg' |
+  'bearing_metal_temperature_degc' | 'feed_rate_tph' | 'discharge_pressure_barg'>;
+
+const signals: Array<{ field: SignalField; label: string; shortLabel: string; unit: string }> = [
+  { field: 'water_in_oil_ppm', label: 'Water in oil', shortLabel: 'Oil moisture', unit: 'ppm' },
+  { field: 'radial_vibration_micron', label: 'Radial vibration', shortLabel: 'Vibration', unit: 'µm' },
+  { field: 'lube_oil_pressure_barg', label: 'Lube oil pressure', shortLabel: 'Oil pressure', unit: 'barg' },
+  { field: 'bearing_metal_temperature_degc', label: 'Bearing temperature', shortLabel: 'Temperature', unit: '°C' },
+  { field: 'feed_rate_tph', label: 'Feed rate', shortLabel: 'Feed rate', unit: 'tph' },
+  { field: 'discharge_pressure_barg', label: 'Discharge pressure', shortLabel: 'Discharge', unit: 'barg' },
+];
 
 interface OverviewData {
   overview: AssetOverview;
@@ -27,99 +41,72 @@ async function loadOverview(): Promise<OverviewData> {
 }
 
 export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+  const [selectedField, setSelectedField] = useState<SignalField>('water_in_oil_ppm');
   const resource = useApiResource('overview', loadOverview);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'No overview data returned'}/>;
 
   const { overview, telemetry, alerts, detail } = resource.data;
   const alert = alerts[0];
+  const latest = telemetry.points.at(-1)!;
+  const selectedSignal = signals.find((signal) => signal.field === selectedField)!;
+  const selectedValues = telemetry.points.map((point) => Number(point[selectedField]));
   const rca = detail && rcaForAlert(detail.alert.alert_id, detail.rca);
   const plans = detail ? actionsForAlert(detail.alert.alert_id, detail.action_plans) : [];
   const actions = plans.flatMap((plan) => plan.actions);
-  const latest = telemetry.points.at(-1);
-  const alertDays = alert ? alert.duration_hours / 24 : 0;
-  const detectionDays = alert ? hoursBetween(alert.first_signal_at, alert.opened_at) / 24 : 0;
-  const selectedCause = rca?.generation.hypotheses.find((hypothesis) => hypothesis.hypothesis_id === plans[0]?.selected_hypothesis_id)
-    ?? rca?.generation.hypotheses[0];
 
-  return (
-    <div className="product-view overview-page">
-      <header className="overview-heading">
-        <div><p>KO-3201 reliability case</p><h1>Operational overview</h1><span>From condition change to corrective action in one decision view.</span></div>
-        <button className="asset-context" onClick={() => onNavigate('assets')}><span>{overview.asset.tag}</span><strong>{overview.asset.name}</strong><Icon name="arrow"/></button>
-      </header>
+  return <div className="equipment-dashboard">
+    <header className="equipment-heading">
+      <div><h1>Equipment health</h1><button className="equipment-select" onClick={() => onNavigate('assets')}>{overview.asset.tag}<Icon name="arrow"/></button></div>
+      <button className="dark-action" onClick={() => onNavigate('rca')}>Open RCA <Icon name="arrow"/></button>
+    </header>
 
-      <section className="overview-kpis" aria-label="Case summary">
-        <OverviewMetric label="Current condition" value={humanize(overview.latest_decision_state)} note="Recovered after event" tone="normal"/>
-        <OverviewMetric label="Highest severity" value={humanize(alert?.highest_severity ?? 'none')} note="Historical case maximum" tone="critical"/>
-        <OverviewMetric label="Actionable window" value={`${formatSignal(alertDays)} days`} note="Alert open to termination"/>
-        <OverviewMetric label="Correlated signals" value={String(alert?.breached_signals.length ?? 0)} note="Condition evidence"/>
-      </section>
+    <section className="equipment-top-grid">
+      <article className="health-map panel">
+        <div className="health-map-head"><div><span className="live-pill"><i/> Historical case</span><h2>Health trajectory</h2><p>Anomaly score across the six-month KO-3201 monitoring window</p></div><div className="peak-score"><span>Peak score</span><strong>{formatSignal(alert?.peak_anomaly_score ?? 0)}</strong></div></div>
+        <div className="health-map-chart">
+          <div className="trajectory-facts"><Fact label="First signal" value={formatDate(alert?.first_signal_at ?? overview.timeline_start)}/><Fact label="Alert window" value={`${formatSignal((alert?.duration_hours ?? 0) / 24)} days`}/><Fact label="Signals" value={String(alert?.breached_signals.length ?? 0)}/></div>
+          <div className="health-chart-canvas"><SignalChart points={telemetry.points} field="anomaly_score" threshold={50}/><span className="threshold-label">Decision threshold 50</span><div className="peak-callout"><b>{humanize(alert?.highest_severity ?? 'normal')}</b><span>{formatDateTime(alert?.peak_score_at ?? overview.timeline_end)}</span></div></div>
+          <div className="health-map-dates"><span>{formatDate(overview.timeline_start)}</span><span>{formatDate(overview.timeline_end)}</span></div>
+        </div>
+      </article>
 
-      <section className="overview-main-grid">
-        <article className="trajectory-card panel">
-          <div className="overview-card-head"><div><p>Model decision signal</p><h2>Health trajectory</h2></div><span className="status-tag">6-month case window</span></div>
-          <div className="trajectory-summary"><div><strong>{formatSignal(alert?.peak_anomaly_score ?? 0)}</strong><span>Peak anomaly score</span></div><p>The score crossed the decision threshold after water-in-oil became persistent, then escalated as temperature, pressure, and vibration joined the pattern.</p></div>
-          <div className="trajectory-plot"><div className="chart-axis"><span>100</span><span>50</span><span>0</span></div><div><SignalChart points={telemetry.points} field="anomaly_score" threshold={50}/><div className="chart-dates"><span>{formatDate(overview.timeline_start)}</span><span>Alert threshold: 50</span><span>{formatDate(overview.timeline_end)}</span></div></div></div>
-          <div className="trajectory-legend"><span><i className="model-line"/> Model anomaly score</span><span><i className="threshold-legend"/> Decision threshold</span><b>{telemetry.total_points.toLocaleString()} hourly decisions</b></div>
-        </article>
+      <article className="equipment-detail panel">
+        <div className="overview-card-head"><div><p>Asset context</p><h2>Equipment details</h2></div><button onClick={() => onNavigate('assets')} aria-label="Open asset"><Icon name="arrow"/></button></div>
+        <div className="equipment-mark"><span>{overview.asset.tag}</span><Icon name="pulse"/></div>
+        <dl><Detail label="Equipment type" value={overview.asset.equipment_type}/><Detail label="Plant" value={overview.asset.plant_name}/><Detail label="Criticality" value={overview.asset.criticality}/><Detail label="Discipline" value={overview.asset.discipline}/><Detail label="Current state" value={humanize(overview.latest_decision_state)}/></dl>
+        <div className="asset-monitor-note"><i/><span>Latest monitor</span><b>{formatDateTime(latest.timestamp)}</b></div>
+      </article>
+    </section>
 
-        <article className="case-insight-card panel">
-          <div className="overview-card-head"><div><p>Decision interpretation</p><h2>What the data says</h2></div><Icon name="spark"/></div>
-          <div className="insight-list">
-            <Insight number="01" title="Earliest persistent driver" value={humanize(alert?.primary_driver ?? 'none')} detail={`Detected ${formatSignal(detectionDays)} days before the grouped alert opened.`}/>
-            <Insight number="02" title="Pattern progression" value="Contamination to bearing distress" detail="Oil condition led; pressure, temperature, and vibration later converged."/>
-            <Insight number="03" title="Probable cause" value={selectedCause?.title ?? 'RCA pending'} detail={selectedCause ? `${Math.round(selectedCause.confidence * 100)}% ranked confidence, approved for action planning.` : 'Review the grounded evidence package.'}/>
+    <section className="equipment-bottom-grid">
+      <article className="signal-performance panel">
+        <div className="overview-card-head"><div><p>Condition monitoring</p><h2>Signal performance</h2></div><span className="status-tag">Hourly</span></div>
+        <div className="signal-workspace">
+          <nav className="signal-selector" aria-label="Condition variables">{signals.map((signal) => <button key={signal.field} className={selectedField === signal.field ? 'active' : ''} onClick={() => setSelectedField(signal.field)}><span>{signal.shortLabel}</span><strong>{formatSignal(Number(latest[signal.field]))} <small>{signal.unit}</small></strong></button>)}</nav>
+          <div className="selected-signal-chart">
+            <header><div><span>{selectedSignal.label}</span><strong>{formatSignal(Number(latest[selectedField]))} <small>{selectedSignal.unit}</small></strong></div><div><span>Window peak</span><b>{formatSignal(Math.max(...selectedValues))} {selectedSignal.unit}</b></div></header>
+            <SignalChart points={telemetry.points} field={selectedField}/>
+            <div className="signal-chart-dates"><span>{formatDate(overview.timeline_start)}</span><span>{formatDate(overview.timeline_end)}</span></div>
           </div>
-          <button className="primary-link" onClick={() => onNavigate('rca')}>Review evidence and RCA <Icon name="arrow"/></button>
-        </article>
-      </section>
+        </div>
+      </article>
 
-      <section className="overview-bottom-grid">
-        <article className="case-timeline-card panel">
-          <div className="overview-card-head"><div><p>How the case developed</p><h2>Event progression</h2></div><button onClick={() => onNavigate('problems')}>Open problem <Icon name="arrow"/></button></div>
-          {alert ? <div className="case-stages">
-            <CaseStage state="Signal" tone="signal" date={formatDateTime(alert.first_signal_at)} title="Condition change detected" detail="Water-in-oil became the earliest persistent driver." metric={`${formatSignal(detectionDays)} days to alert`}/>
-            <CaseStage state="Warning" tone="warning" date={formatDateTime(alert.opened_at)} title="Operational alert opened" detail="Persistence rules converted the anomaly into a problem for operator review." metric={`${formatSignal(detail?.opening_snapshot.anomaly_score ?? 0)} score · threshold ${formatSignal(detail?.opening_snapshot.anomaly_threshold ?? 50)}`}/>
-            <CaseStage state="Critical" tone="critical" date={formatDateTime(alert.peak_score_at)} title="Multi-signal degradation" detail="Oil pressure, bearing temperature, and vibration joined the initial oil-condition signal." metric={`${formatSignal(alert.peak_anomaly_score)} peak · ${alert.breached_signals.length} signals`}/>
-            <CaseStage state="Closed" tone="closed" date={formatDateTime(alert.closed_at ?? alert.peak_score_at)} title="Case moved to investigation" detail="Monitoring event ended at operating-mode termination while RCA and response work continued." metric="RCA approved · CA/PA active"/>
-          </div> : <p>No alert event is available.</p>}
-        </article>
-
-        <article className="workflow-card panel">
-          <div className="overview-card-head"><div><p>Response status</p><h2>Decision workflow</h2></div><button onClick={() => onNavigate('actions')}>View actions <Icon name="arrow"/></button></div>
-          <div className="workflow-steps">
-            <WorkflowStep title="Detect and prioritize" detail={`${alerts.length} grouped critical event`} status="Complete" complete/>
-            <WorkflowStep title="Review probable cause" detail={rca ? humanize(rca.status) : 'Awaiting RCA'} status={rca ? 'Complete' : 'Pending'} complete={Boolean(rca)}/>
-            <WorkflowStep title="Execute CA/PA" detail={`${actions.filter((action) => action.status === 'CLOSED').length} of ${actions.length} actions closed`} status={humanize(plans[0]?.status ?? 'pending')} complete={actions.length > 0 && actions.every((action) => action.status === 'CLOSED')}/>
-          </div>
-          {latest && <div className="current-state-note"><span className="state-dot"/><p><b>Current monitor:</b> {humanize(latest.decision_state)} at {formatDateTime(latest.timestamp)}</p></div>}
-        </article>
-      </section>
-    </div>
-  );
-}
-
-function OverviewMetric({ label, value, note, tone }: { label: string; value: string; note: string; tone?: string }) {
-  return <article><div><span>{label}</span>{tone && <i className={tone}/>}</div><strong>{value}</strong><p>{note}</p></article>;
-}
-
-function Insight({ number, title, value, detail }: { number: string; title: string; value: string; detail: string }) {
-  return <div className="insight"><b>{number}</b><div><span>{title}</span><h3>{value}</h3><p>{detail}</p></div></div>;
-}
-
-function CaseStage({ state, tone, date, title, detail, metric }: { state: string; tone: string; date: string; title: string; detail: string; metric: string }) {
-  return <div className={`case-stage ${tone}`}>
-    <div className="stage-time"><b>{state}</b><span>{date}</span></div>
-    <div className="stage-track"><i>{tone === 'closed' ? <Icon name="check"/> : null}</i></div>
-    <div className="stage-content"><div><h3>{title}</h3><p>{detail}</p></div><strong>{metric}</strong></div>
+      <article className="event-tracker panel">
+        <div className="overview-card-head"><div><p>Case progression</p><h2>Key events</h2></div><button onClick={() => onNavigate('problems')} aria-label="Open problem tank"><Icon name="arrow"/></button></div>
+        {alert && <div className="compact-events">
+          <CompactEvent tone="signal" status="Signal" time={formatDateTime(alert.first_signal_at)} title="Oil condition changed" detail="Water-in-oil became persistent."/>
+          <CompactEvent tone="warning" status="Warning" time={formatDateTime(alert.opened_at)} title="Alert opened" detail={`${formatSignal(detail?.opening_snapshot.anomaly_score ?? 0)} anomaly score.`}/>
+          <CompactEvent tone="critical" status="Critical" time={formatDateTime(alert.peak_score_at)} title="Signals converged" detail={`${alert.breached_signals.length} parameters supported escalation.`}/>
+          <CompactEvent tone="closed" status="Response" time={formatDateTime(alert.closed_at ?? alert.peak_score_at)} title="RCA to CA/PA" detail={`${rca ? 'Cause approved' : 'RCA pending'} · ${actions.filter((action) => action.status === 'CLOSED').length}/${actions.length} actions closed.`}/>
+        </div>}
+      </article>
+    </section>
   </div>;
 }
 
-function WorkflowStep({ title, detail, status, complete }: { title: string; detail: string; status: string; complete: boolean }) {
-  return <div className="workflow-step"><span className={complete ? 'complete' : ''}>{complete ? <Icon name="check"/> : null}</span><div><h3>{title}</h3><p>{detail}</p></div><b>{status}</b></div>;
-}
-
-function hoursBetween(start: string, end: string): number {
-  return Math.max(0, (new Date(end).getTime() - new Date(start).getTime()) / 3_600_000);
+function Fact({ label, value }: { label: string; value: string }) { return <div><span>{label}</span><strong>{value}</strong></div>; }
+function Detail({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{humanize(value)}</dd></div>; }
+function CompactEvent({ tone, status, time, title, detail }: { tone: string; status: string; time: string; title: string; detail: string }) {
+  return <div className={`compact-event ${tone}`}><span><Icon name={tone === 'closed' ? 'check' : tone === 'critical' ? 'alert' : 'pulse'}/></span><div><header><b>{status}</b><time>{time}</time></header><h3>{title}</h3><p>{detail}</p></div></div>;
 }

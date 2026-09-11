@@ -2,7 +2,7 @@ import type { TelemetryPoint } from '../lib/api';
 
 interface SignalChartProps {
   points: TelemetryPoint[];
-  field: keyof Pick<TelemetryPoint, 'anomaly_score' | 'radial_vibration_micron' | 'water_in_oil_ppm' | 'lube_oil_pressure_barg' | 'bearing_metal_temperature_degc'>;
+  field: keyof Pick<TelemetryPoint, 'anomaly_score' | 'radial_vibration_micron' | 'water_in_oil_ppm' | 'lube_oil_pressure_barg' | 'bearing_metal_temperature_degc' | 'feed_rate_tph' | 'discharge_pressure_barg'>;
   threshold?: number;
 }
 
