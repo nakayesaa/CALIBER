@@ -3,6 +3,7 @@ import { ErrorState, LoadingState } from '../components/ViewState';
 import { Icon } from '../components/Icon';
 import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetrySeries } from '../lib/api';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
+import { rcaForAlert } from '../lib/demoWorkflow';
 import { useApiResource } from '../lib/useApiResource';
 import type { PageId } from '../components/AppShell';
 
@@ -32,6 +33,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 
   const { overview, telemetry, alerts, detail } = resource.data;
   const alert = alerts[0];
+  const rca = detail && rcaForAlert(detail.alert.alert_id, detail.rca);
   const weekly = sampleBuckets(telemetry.points, 5);
   const maxVibration = Math.max(...weekly.map((point) => point.radial_vibration_micron), 1);
   const latest = telemetry.points.at(-1);
@@ -80,7 +82,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       <section className="response-card">
         <div className="section-heading"><h2>Decision workflow</h2><button onClick={() => onNavigate('actions')}>Open tracker <Icon name="arrow"/></button></div>
         <WorkflowRow initials="AD" title="Anomaly detection" detail={`${telemetry.total_points.toLocaleString()} hourly decisions`} progress={100}/>
-        <WorkflowRow initials="RC" title="RCA review" detail={detail?.rca ? humanize(detail.rca.status) : 'Awaiting AI draft'} progress={detail?.rca ? 60 : 25}/>
+        <WorkflowRow initials="RC" title="RCA review" detail={rca ? humanize(rca.status) : 'Awaiting AI draft'} progress={rca?.status === 'APPROVED' ? 100 : rca ? 60 : 25}/>
       </section>
 
       <article className="signal-card">
