@@ -1,0 +1,162 @@
+policy_id: "ko-3201-ca-pa-policy-v1"
+policy_version: "1.0.0"
+
+cause_policies:
+  - cause_category: "LUBRICATION_CONTAMINATION"
+    actions:
+      - template_id: "lubrication-containment"
+        action_type: "CONTAINMENT"
+        title: "Confirm contamination and protect the compressor"
+        guidance: "Collect a controlled oil sample, verify water content with an independent method, and apply the approved operating restriction while results are pending."
+        default_owner_role: "Shift Supervisor"
+        priority: "CRITICAL"
+        due_in_days: 0
+        completion_criteria: "Independent oil result is recorded and the operating decision is documented."
+        effectiveness_check: "Water-in-oil indication and independent sample agree within the approved tolerance."
+      - template_id: "lubrication-corrective"
+        action_type: "CORRECTIVE"
+        title: "Locate and remove the contamination source"
+        guidance: "Inspect the lubrication circuit and cooler integrity, repair the confirmed ingress path, then restore oil condition under the approved maintenance procedure."
+        default_owner_role: "Rotating Equipment Engineer"
+        priority: "HIGH"
+        due_in_days: 7
+        completion_criteria: "Ingress source is documented, repaired, and post-work oil quality meets specification."
+        effectiveness_check: "No increasing water trend is observed during the defined post-repair monitoring window."
+      - template_id: "lubrication-preventive"
+        action_type: "PREVENTIVE"
+        title: "Strengthen lubrication condition monitoring"
+        guidance: "Review online water detection, sampling frequency, alarm governance, and cooler inspection tasks for comparable critical compressors."
+        default_owner_role: "Reliability Engineer"
+        priority: "MEDIUM"
+        due_in_days: 30
+        completion_criteria: "Approved monitoring and maintenance changes are assigned to the affected asset population."
+        effectiveness_check: "Revised tasks are completed on schedule and detect no uncontrolled contamination trend."
+
+  - cause_category: "BEARING_DEGRADATION"
+    actions:
+      - template_id: "bearing-containment"
+        action_type: "CONTAINMENT"
+        title: "Limit bearing damage progression"
+        guidance: "Review vibration and bearing temperature together, define an operating envelope, and increase monitoring frequency until inspection."
+        default_owner_role: "Shift Supervisor"
+        priority: "CRITICAL"
+        due_in_days: 0
+        completion_criteria: "Operating envelope and monitoring frequency are approved and active."
+        effectiveness_check: "Condition indicators remain inside the approved envelope before inspection."
+      - template_id: "bearing-corrective"
+        action_type: "CORRECTIVE"
+        title: "Inspect and restore the bearing system"
+        guidance: "Inspect the bearing, clearances, lubrication path, and associated shaft surfaces; repair or replace only against confirmed findings."
+        default_owner_role: "Rotating Equipment Engineer"
+        priority: "HIGH"
+        due_in_days: 7
+        completion_criteria: "Inspection findings and completed repair are documented with acceptance measurements."
+        effectiveness_check: "Post-work vibration and temperature return to the approved baseline band."
+      - template_id: "bearing-preventive"
+        action_type: "PREVENTIVE"
+        title: "Improve bearing degradation detection"
+        guidance: "Update condition-monitoring routes and maintenance triggers using the confirmed failure signature."
+        default_owner_role: "Reliability Engineer"
+        priority: "MEDIUM"
+        due_in_days: 30
+        completion_criteria: "Revised detection tasks and thresholds are approved for comparable assets."
+        effectiveness_check: "Next scheduled reviews demonstrate complete data capture and timely escalation."
+
+  - cause_category: "MECHANICAL_VIBRATION"
+    actions:
+      - template_id: "vibration-containment"
+        action_type: "CONTAINMENT"
+        title: "Characterize vibration before continued operation"
+        guidance: "Capture spectrum, phase, and operating-condition context, then apply the approved operating restriction based on severity."
+        default_owner_role: "Condition Monitoring Engineer"
+        priority: "CRITICAL"
+        due_in_days: 0
+        completion_criteria: "Diagnostic data and an approved operating decision are attached to the case."
+        effectiveness_check: "Repeated measurements confirm that the operating restriction controls vibration severity."
+      - template_id: "vibration-corrective"
+        action_type: "CORRECTIVE"
+        title: "Correct the confirmed mechanical defect"
+        guidance: "Use diagnostic findings to inspect alignment, balance, looseness, rotor, coupling, and support conditions, then correct the verified defect."
+        default_owner_role: "Rotating Equipment Engineer"
+        priority: "HIGH"
+        due_in_days: 10
+        completion_criteria: "The defect and completed correction are documented with before-and-after measurements."
+        effectiveness_check: "Post-work vibration spectrum meets the approved acceptance criteria."
+      - template_id: "vibration-preventive"
+        action_type: "PREVENTIVE"
+        title: "Deploy the confirmed vibration signature"
+        guidance: "Add the confirmed signature and escalation threshold to monitoring guidance for comparable compressors."
+        default_owner_role: "Reliability Engineer"
+        priority: "MEDIUM"
+        due_in_days: 30
+        completion_criteria: "Fleet monitoring guidance includes the confirmed signature and response rule."
+        effectiveness_check: "Condition-monitoring reviews show consistent classification and escalation."
+
+  - cause_category: "INSTRUMENTATION_ISSUE"
+    actions:
+      - template_id: "instrument-containment"
+        action_type: "CONTAINMENT"
+        title: "Verify the signal independently"
+        guidance: "Cross-check the suspect measurement with an independent instrument or laboratory method before changing equipment operation."
+        default_owner_role: "Instrument Engineer"
+        priority: "HIGH"
+        due_in_days: 0
+        completion_criteria: "Independent measurement and comparison result are recorded."
+        effectiveness_check: "Primary and reference measurements agree within the approved tolerance."
+      - template_id: "instrument-corrective"
+        action_type: "CORRECTIVE"
+        title: "Restore the measurement chain"
+        guidance: "Inspect the sensor, wiring, transmitter, scaling, and calibration; repair the confirmed defect and complete a loop check."
+        default_owner_role: "Instrument Engineer"
+        priority: "HIGH"
+        due_in_days: 5
+        completion_criteria: "The confirmed measurement defect is corrected and the loop check passes."
+        effectiveness_check: "Signal comparison remains within tolerance during the verification window."
+      - template_id: "instrument-preventive"
+        action_type: "PREVENTIVE"
+        title: "Improve measurement assurance"
+        guidance: "Review proof-test frequency, calibration history, and redundancy for the affected critical measurement."
+        default_owner_role: "Maintenance Planner"
+        priority: "MEDIUM"
+        due_in_days: 30
+        completion_criteria: "Approved proof-test or redundancy improvements are included in the maintenance plan."
+        effectiveness_check: "Future proof tests complete on schedule with traceable results."
+
+  - cause_category: "UNDETERMINED"
+    actions:
+      - template_id: "undetermined-containment"
+        action_type: "CONTAINMENT"
+        title: "Apply a conservative operating decision"
+        guidance: "Escalate to operations and reliability, preserve relevant data, and apply the approved temporary operating restriction."
+        default_owner_role: "Shift Supervisor"
+        priority: "CRITICAL"
+        due_in_days: 0
+        completion_criteria: "Data preservation and the temporary operating decision are documented."
+        effectiveness_check: "No condition indicator exceeds the temporary operating envelope."
+      - template_id: "undetermined-corrective"
+        action_type: "CORRECTIVE"
+        title: "Complete evidence-driven fault isolation"
+        guidance: "Execute the approved investigation plan and update the RCA before authorizing permanent corrective work."
+        default_owner_role: "Reliability Engineer"
+        priority: "HIGH"
+        due_in_days: 7
+        completion_criteria: "A reviewed hypothesis is supported by sufficient evidence for corrective work."
+        effectiveness_check: "The selected repair removes the observed condition signature."
+      - template_id: "undetermined-preventive"
+        action_type: "PREVENTIVE"
+        title: "Close the diagnostic data gap"
+        guidance: "Add the missing measurement, inspection, or history capture identified during the investigation."
+        default_owner_role: "Reliability Engineer"
+        priority: "MEDIUM"
+        due_in_days: 30
+        completion_criteria: "The approved data-gap closure is implemented and owned."
+        effectiveness_check: "A future review can distinguish the competing hypotheses using captured evidence."
+
+workflow:
+  transitions:
+    PROPOSED: ["APPROVED", "REJECTED"]
+    APPROVED: ["IN_PROGRESS", "REJECTED"]
+    IN_PROGRESS: ["EFFECTIVENESS_REVIEW"]
+    EFFECTIVENESS_REVIEW: ["IN_PROGRESS", "CLOSED"]
+    CLOSED: []
+    REJECTED: []

@@ -1,0 +1,8 @@
+generator_id: "ko-3201-grounded-rca-v1"
+generator_version: "1.0.0"
+provider: "openai"
+model_environment_variable: "CALIBER_LLM_MODEL"
+default_model: "gpt-6-astra"
+maximum_output_tokens: 2200
+reasoning_effort: "low"
+prompt_version: "ko-3201-early-warning-rca-v1"
