@@ -397,14 +397,25 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .insight p { margin-top: 5px; color: #737d79; font-size: 9px; line-height: 1.5; }
 .primary-link { width: 100%; margin-top: auto; padding: 11px 13px; display: flex; justify-content: space-between; align-items: center; border-radius: 11px; background: #263630; color: #fff; font-size: 9px; }
 
-.case-stages { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); margin-top: 20px; }
-.case-stage { position: relative; min-height: 142px; padding: 4px 18px 4px 0; border-top: 1px solid #cfd6d3; }
-.case-stage::before { content: ""; position: absolute; top: -4px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: #263630; }
-.case-stage > div { display: flex; flex-direction: column; gap: 4px; padding-top: 11px; }
-.case-stage > div b { color: #42524c; font-size: 8px; text-transform: uppercase; letter-spacing: .06em; }
-.case-stage > div span { color: #929a97; font-size: 7px; }
-.case-stage h3 { margin-top: 13px; padding-right: 6px; font-size: 11px; }
-.case-stage p { margin-top: 5px; padding-right: 8px; color: #77817d; font-size: 8px; line-height: 1.5; }
+.case-stages { margin-top: 17px; }
+.case-stage { min-height: 86px; display: grid; grid-template-columns: 106px 24px minmax(0,1fr); gap: 10px; }
+.stage-time { padding-top: 12px; text-align: right; }
+.stage-time b { display: block; color: #485650; font-size: 8px; letter-spacing: .07em; text-transform: uppercase; }
+.stage-time span { display: block; margin-top: 3px; color: #929a97; font-size: 7px; }
+.stage-track { position: relative; display: flex; justify-content: center; }
+.stage-track::after { content: ""; position: absolute; top: 25px; bottom: 0; left: 50%; border-left: 1px solid #d2d8d5; }
+.case-stage:last-child .stage-track::after { display: none; }
+.stage-track i { position: relative; z-index: 1; width: 18px; height: 18px; margin-top: 11px; display: grid; place-items: center; border: 4px solid #fff; border-radius: 50%; background: #71807a; box-shadow: 0 0 0 1px #bdc7c3; }
+.case-stage.warning .stage-track i { background: #d4a34a; }
+.case-stage.critical .stage-track i { background: #ee702d; box-shadow: 0 0 0 4px #fae6da; }
+.case-stage.closed .stage-track i { width: 21px; height: 21px; margin-top: 9px; border: 0; background: #263630; box-shadow: none; }
+.stage-track svg { width: 11px; height: 11px; fill: none; stroke: #fff; stroke-width: 2; }
+.stage-content { min-height: 70px; margin-bottom: 10px; padding: 11px 13px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 14px; border: 1px solid #e2e7e4; border-radius: 13px; background: rgba(255,255,255,.7); }
+.case-stage.critical .stage-content { border-color: #efc8b2; background: #fff9f5; }
+.stage-content h3 { font-size: 11px; }
+.stage-content p { margin-top: 4px; color: #74807b; font-size: 8px; line-height: 1.45; }
+.stage-content > strong { max-width: 135px; padding: 6px 8px; border-radius: 7px; background: #edf1ef; color: #4e5d57; font-size: 8px; font-weight: 600; text-align: center; }
+.case-stage.critical .stage-content > strong { background: #f5dfd2; color: #794325; }
 
 .workflow-steps { margin-top: 15px; }
 .workflow-step { display: grid; grid-template-columns: 26px minmax(0,1fr) auto; gap: 9px; align-items: center; padding: 12px 0; border-bottom: 1px solid #e4e8e6; }
@@ -457,7 +468,9 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
   .overview-heading { align-items: stretch; flex-direction: column; }
   .asset-context { width: 100%; }
   .overview-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .case-stages { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 0; }
+  .case-stage { grid-template-columns: 82px 20px minmax(0,1fr); gap: 7px; }
+  .stage-content { grid-template-columns: 1fr; gap: 8px; }
+  .stage-content > strong { justify-self: start; max-width: none; }
   .health-visual { grid-template-columns: 1fr; height: 268px; }
   .bar-chart { max-width: 58%; height: 180px; }
   .machine-wrap { position: absolute; right: 4px; top: 132px; width: 49%; }

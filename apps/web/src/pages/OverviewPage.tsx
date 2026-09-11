@@ -79,10 +79,10 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
         <article className="case-timeline-card panel">
           <div className="overview-card-head"><div><p>How the case developed</p><h2>Event progression</h2></div><button onClick={() => onNavigate('problems')}>Open problem <Icon name="arrow"/></button></div>
           {alert ? <div className="case-stages">
-            <CaseStage state="Signal" date={formatDateTime(alert.first_signal_at)} title="Condition change detected" detail="Water-in-oil became the earliest persistent driver."/>
-            <CaseStage state="Warning" date={formatDateTime(alert.opened_at)} title="Operational alert opened" detail={`Anomaly score reached ${formatSignal(detail?.opening_snapshot.anomaly_score ?? 0)} against a threshold of ${formatSignal(detail?.opening_snapshot.anomaly_threshold ?? 50)}.`}/>
-            <CaseStage state="Peak" date={formatDateTime(alert.peak_score_at)} title="Multi-signal degradation" detail={`${alert.breached_signals.length} condition signals contributed to a ${humanize(alert.highest_severity)} event.`}/>
-            <CaseStage state="Closed" date={formatDateTime(alert.closed_at ?? alert.peak_score_at)} title="Case moved to investigation" detail="Alert ended at the operating-mode termination; RCA and response work continued."/>
+            <CaseStage state="Signal" tone="signal" date={formatDateTime(alert.first_signal_at)} title="Condition change detected" detail="Water-in-oil became the earliest persistent driver." metric={`${formatSignal(detectionDays)} days to alert`}/>
+            <CaseStage state="Warning" tone="warning" date={formatDateTime(alert.opened_at)} title="Operational alert opened" detail="Persistence rules converted the anomaly into a problem for operator review." metric={`${formatSignal(detail?.opening_snapshot.anomaly_score ?? 0)} score · threshold ${formatSignal(detail?.opening_snapshot.anomaly_threshold ?? 50)}`}/>
+            <CaseStage state="Critical" tone="critical" date={formatDateTime(alert.peak_score_at)} title="Multi-signal degradation" detail="Oil pressure, bearing temperature, and vibration joined the initial oil-condition signal." metric={`${formatSignal(alert.peak_anomaly_score)} peak · ${alert.breached_signals.length} signals`}/>
+            <CaseStage state="Closed" tone="closed" date={formatDateTime(alert.closed_at ?? alert.peak_score_at)} title="Case moved to investigation" detail="Monitoring event ended at operating-mode termination while RCA and response work continued." metric="RCA approved · CA/PA active"/>
           </div> : <p>No alert event is available.</p>}
         </article>
 
@@ -108,8 +108,12 @@ function Insight({ number, title, value, detail }: { number: string; title: stri
   return <div className="insight"><b>{number}</b><div><span>{title}</span><h3>{value}</h3><p>{detail}</p></div></div>;
 }
 
-function CaseStage({ state, date, title, detail }: { state: string; date: string; title: string; detail: string }) {
-  return <div className="case-stage"><div><b>{state}</b><span>{date}</span></div><h3>{title}</h3><p>{detail}</p></div>;
+function CaseStage({ state, tone, date, title, detail, metric }: { state: string; tone: string; date: string; title: string; detail: string; metric: string }) {
+  return <div className={`case-stage ${tone}`}>
+    <div className="stage-time"><b>{state}</b><span>{date}</span></div>
+    <div className="stage-track"><i>{tone === 'closed' ? <Icon name="check"/> : null}</i></div>
+    <div className="stage-content"><div><h3>{title}</h3><p>{detail}</p></div><strong>{metric}</strong></div>
+  </div>;
 }
 
 function WorkflowStep({ title, detail, status, complete }: { title: string; detail: string; status: string; complete: boolean }) {
