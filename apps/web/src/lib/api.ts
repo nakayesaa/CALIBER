@@ -59,6 +59,7 @@ export interface TelemetrySeries {
 export interface AlertEvent {
   alert_id: string;
   asset_id: string;
+  first_signal_at: string;
   opened_at: string;
   closed_at: string | null;
   status: string;
