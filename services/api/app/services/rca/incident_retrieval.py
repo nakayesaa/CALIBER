@@ -131,7 +131,13 @@ def build_alert_open_query(
     if str(alert["asset_id"]) != str(asset["asset_id"]):
         raise ValueError("Alert and asset IDs do not match")
 
-    decisions = hourly_decisions[list(DECISION_COLUMNS)].copy()
+    driver_columns = sorted(
+        column
+        for column in hourly_decisions.columns
+        if re.fullmatch(r"top_driver_\d+", column)
+    )
+    selected_columns = [*DECISION_COLUMNS, *driver_columns]
+    decisions = hourly_decisions[list(dict.fromkeys(selected_columns))].copy()
     decisions["timestamp"] = pd.to_datetime(decisions["timestamp"], errors="raise")
     opened_at = pd.Timestamp(alert["opened_at"])
     visible = decisions.loc[decisions["timestamp"].le(opened_at)]
@@ -141,14 +147,28 @@ def build_alert_open_query(
 
     opening_row = opening.iloc[0]
     breached_signals = _semicolon_values(opening_row["breached_signals"])
-    unknown = set(breached_signals) - set(config.signal_mappings)
+    condition_drivers = _unique(
+        _driver_signal(opening_row[column])
+        for column in driver_columns
+        if _is_condition_driver(opening_row[column])
+    )
+    supporting_signals = [
+        signal for signal in condition_drivers if signal not in breached_signals
+    ]
+    query_signals = _unique([*breached_signals, *supporting_signals])
+    unknown = set(query_signals) - set(config.signal_mappings)
     if unknown:
         raise ValueError(f"Missing retrieval mappings for signals: {sorted(unknown)}")
-    mappings = [config.signal_mappings[signal] for signal in breached_signals]
+    mappings = [config.signal_mappings[signal] for signal in query_signals]
     components = _unique(mapping.component for mapping in mappings)
     symptoms = _unique(mapping.symptom for mapping in mappings)
     primary_driver = _driver_signal(opening_row["top_driver_1"])
-    narrative_parts = [mapping.narrative for mapping in mappings]
+    narrative_parts = [
+        config.signal_mappings[signal].narrative for signal in breached_signals
+    ]
+    if supporting_signals:
+        readable = ", ".join(signal.replace("_", " ") for signal in supporting_signals)
+        narrative_parts.append(f"supporting model drivers: {readable}")
     narrative = "; ".join(narrative_parts) or "model anomaly opened for investigation"
     search_fields = [
         asset["equipment_family"],
@@ -169,6 +189,7 @@ def build_alert_open_query(
         components=components,
         observed_symptoms=symptoms,
         breached_signals=breached_signals,
+        supporting_signals=supporting_signals,
         primary_driver=primary_driver,
         narrative=narrative,
         search_text=_search_text(search_fields),
@@ -180,10 +201,7 @@ def retrieve_incidents(
     query: RetrievalQuery,
     config: IncidentRetrievalConfig,
 ) -> list[IncidentRetrievalResult]:
-    excluded = set(config.eligibility.exclude_incident_ids)
-    eligible = [document for document in documents if document.incident_id not in excluded]
-    if config.eligibility.require_occurred_before_alert_open:
-        eligible = [document for document in eligible if document.occurred_at < query.as_of]
+    eligible = eligible_documents(documents, query, config)
     if not eligible:
         return []
 
@@ -268,6 +286,18 @@ def retrieve_incidents(
     return selected
 
 
+def eligible_documents(
+    documents: list[IncidentDocument],
+    query: RetrievalQuery,
+    config: IncidentRetrievalConfig,
+) -> list[IncidentDocument]:
+    excluded = set(config.eligibility.exclude_incident_ids)
+    eligible = [document for document in documents if document.incident_id not in excluded]
+    if config.eligibility.require_occurred_before_alert_open:
+        eligible = [document for document in eligible if document.occurred_at < query.as_of]
+    return eligible
+
+
 def _tfidf_scores(
     corpus: list[str],
     query: str,
@@ -340,6 +370,10 @@ def _driver_signal(value: Any) -> str:
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return ""
     return str(value).removeprefix("condition.")
+
+
+def _is_condition_driver(value: Any) -> bool:
+    return not pd.isna(value) and str(value).startswith("condition.")
 
 
 def _unique(values: Iterable[str]) -> list[str]:

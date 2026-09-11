@@ -43,6 +43,7 @@ data/synthetic/
 data/features/
 data/scored/
 data/alerts/
+data/retrieval/
 data/fixtures/
 
 # Local tooling

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
 class RetrievalConfigModel(BaseModel):
@@ -107,6 +108,7 @@ class RetrievalQuery(RetrievalConfigModel):
     components: list[str]
     observed_symptoms: list[str]
     breached_signals: list[str]
+    supporting_signals: list[str]
     primary_driver: str
     narrative: str
     search_text: str
@@ -135,3 +137,46 @@ class IncidentRetrievalResult(RetrievalConfigModel):
     plant_score: float = Field(ge=0, le=1)
     match_reasons: list[str]
     source_reference: str
+
+
+class RetrievalValidationCheck(RetrievalConfigModel):
+    name: str
+    status: str
+    actual: int | float | str | bool
+
+
+class RetrievalValidationReport(RetrievalConfigModel):
+    status: str
+    retriever_id: str
+    query_id: str
+    eligible_document_count: int = Field(ge=0)
+    result_count: int = Field(ge=0)
+    checks: list[RetrievalValidationCheck]
+    evaluation_scope: str
+    known_limitations: list[str]
+
+
+class RetrievalManifest(RetrievalConfigModel):
+    retriever_id: str
+    retriever_version: str
+    generated_at: AwareDatetime
+    config_sha256: str
+    incidents_sha256: str
+    incident_labels_sha256: str
+    assets_sha256: str
+    alerts_sha256: str
+    hourly_decisions_sha256: str
+    source_document_count: int = Field(ge=0)
+    eligible_document_count: int = Field(ge=0)
+    result_count: int = Field(ge=0)
+    query_as_of: AwareDatetime
+
+
+class RAGEvidencePackage(RetrievalConfigModel):
+    package_id: str
+    created_for_stage: str
+    query: RetrievalQuery
+    alert_snapshot: dict[str, Any]
+    historical_analogues: list[IncidentRetrievalResult]
+    evidence_boundaries: list[str]
+    requested_output: list[str]
