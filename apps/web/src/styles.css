@@ -699,14 +699,14 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .fusion-kpis p.positive { color:#367c5b; }
 
 .fusion-main-grid, .fusion-bottom-grid { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(300px,.62fr); gap:12px; }
-.fusion-health-card, .fusion-timeline-card, .fusion-signal-table, .fusion-action-card { min-width:0; border:1px solid var(--fusion-line); border-radius:18px; background:#fff; }
+.fusion-health-card, .fusion-timeline-card, .fusion-condition-card, .fusion-action-card { min-width:0; border:1px solid var(--fusion-line); border-radius:18px; background:#fff; }
 .fusion-health-card { overflow:hidden; }
-.fusion-health-card > header, .fusion-signal-table > header, .fusion-action-card > header { min-height:70px; padding:15px 18px; display:flex; align-items:center; justify-content:space-between; gap:18px; }
+.fusion-health-card > header, .fusion-condition-card > header, .fusion-action-card > header { min-height:70px; padding:15px 18px; display:flex; align-items:center; justify-content:space-between; gap:18px; }
 .fusion-health-card > header > div { display:flex; align-items:center; gap:11px; }
 .fusion-title-icon { width:34px; height:34px; display:grid; place-items:center; color:var(--fusion-blue); }
 .fusion-title-icon .app-icon { width:23px; height:23px; }
-.fusion-health-card h2, .fusion-timeline-card h2, .fusion-signal-table h2, .fusion-action-card h2 { font-size:17px; line-height:22px; }
-.fusion-health-card header p, .fusion-timeline-card header p, .fusion-signal-table header p, .fusion-action-card header p { margin-top:2px; color:var(--fusion-muted); font-size:11px; }
+.fusion-health-card h2, .fusion-timeline-card h2, .fusion-condition-card h2, .fusion-action-card h2 { font-size:17px; line-height:22px; }
+.fusion-health-card header p, .fusion-timeline-card header p, .fusion-condition-card header p, .fusion-action-card header p { margin-top:2px; color:var(--fusion-muted); font-size:11px; }
 .fusion-select { padding:8px 10px; display:flex; align-items:center; gap:10px; border:1px solid var(--fusion-line); border-radius:9px; color:#53656d; font-size:11px; }
 .fusion-select .app-icon { width:10px; height:10px; transform:rotate(90deg); }
 .fusion-health-body { position:relative; height:275px; margin:0 12px; overflow:hidden; border-radius:14px; background:#f2f6f7; }
@@ -744,19 +744,31 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
 .fusion-event p { margin-top:3px; color:var(--fusion-muted); font-size:10px; line-height:15px; }
 
 .fusion-bottom-grid { margin-top:12px; }
-.fusion-signal-table { overflow:hidden; }
-.fusion-signal-table > header button, .fusion-action-card > button, .fusion-accent-card > button { display:flex; align-items:center; gap:10px; color:var(--fusion-blue); font-size:11px; font-weight:600; }
-.fusion-signal-table button .app-icon, .fusion-action-card button .app-icon, .fusion-accent-card button .app-icon { width:11px; height:11px; }
-.fusion-table-head, .fusion-signal-row { display:grid; grid-template-columns:minmax(150px,1fr) 120px minmax(140px,.8fr) 90px; gap:14px; align-items:center; }
-.fusion-table-head { min-height:38px; padding:0 18px; border-top:1px solid var(--fusion-line); border-bottom:1px solid var(--fusion-line); background:#f7f9fa; color:#7c898f; font-size:10px; }
-.fusion-signal-row { min-height:54px; padding:0 18px; border-bottom:1px solid var(--fusion-line); }
-.fusion-signal-row > div { display:flex; align-items:center; gap:10px; }
-.fusion-signal-row > div span { color:#99a5aa; font-size:9px; }
-.fusion-signal-row strong, .fusion-signal-row b { font-size:11px; }
-.fusion-signal-row b { font-weight:600; }
-.fusion-signal-row p { color:var(--fusion-muted); font-size:10px; }
-.fusion-signal-row > span { width:fit-content; padding:4px 7px; border-radius:6px; background:#f0f3f4; color:#697a82; font-size:9px; }
-.fusion-signal-row > span.primary { background:#e8f3f7; color:var(--fusion-blue); }
+.fusion-condition-card { overflow:hidden; }
+.fusion-condition-card > header button, .fusion-action-card > button, .fusion-accent-card > button { display:flex; align-items:center; gap:10px; color:var(--fusion-blue); font-size:11px; font-weight:600; }
+.fusion-condition-card button .app-icon, .fusion-action-card button .app-icon, .fusion-accent-card button .app-icon { width:11px; height:11px; }
+.fusion-condition-tabs { margin:0 14px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); overflow:hidden; border:1px solid var(--fusion-line); border-radius:11px; }
+.fusion-condition-tabs button { min-width:0; min-height:55px; padding:8px 10px; border-right:1px solid var(--fusion-line); color:#687980; text-align:left; }
+.fusion-condition-tabs button:last-child { border-right:0; }
+.fusion-condition-tabs button.active { background:#eaf3f6; color:var(--fusion-blue); box-shadow:inset 0 -2px var(--fusion-blue); }
+.fusion-condition-tabs span, .fusion-condition-tabs strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fusion-condition-tabs span { font-size:9px; }.fusion-condition-tabs strong { margin-top:4px; font-size:11px; }
+.fusion-condition-visual { min-height:221px; margin:12px 14px 0; padding:15px; display:grid; grid-template-columns:140px minmax(0,1fr); gap:18px; border-radius:13px; background:#f3f7f8; }
+.fusion-condition-summary { padding-right:15px; border-right:1px solid #dce6e9; }
+.fusion-condition-summary > span { color:var(--fusion-blue); font-size:9px; font-weight:700; text-transform:uppercase; }
+.fusion-condition-summary > strong { display:block; margin-top:12px; color:#20343d; font-size:28px; line-height:32px; font-weight:500; letter-spacing:-.04em; }
+.fusion-condition-summary > strong small { font-size:11px; font-weight:600; letter-spacing:0; }
+.fusion-condition-summary > p { margin-top:2px; color:var(--fusion-muted); font-size:9px; }
+.fusion-condition-summary dl { margin-top:21px; }
+.fusion-condition-summary dl div { min-height:39px; padding:7px 0; border-top:1px solid #dce6e9; }
+.fusion-condition-summary dt { color:var(--fusion-muted); font-size:8px; }.fusion-condition-summary dd { margin:3px 0 0; font-size:10px; font-weight:600; }
+.fusion-condition-chart { min-width:0; display:grid; grid-template-rows:174px auto; }
+.fusion-condition-chart > .interactive-chart { width:100%; height:174px; }
+.fusion-condition-chart .line-chart { width:100%; height:100%; margin:0; }
+.fusion-condition-chart .data-path { stroke:var(--fusion-blue); stroke-width:2.35; }
+.fusion-condition-chart .grid-line { stroke:rgba(40,111,157,.12); }
+.fusion-condition-chart > div:last-child { padding-top:7px; display:flex; align-items:center; justify-content:space-between; gap:10px; color:#84939a; font-size:8px; }
+.fusion-condition-chart > div:last-child b { color:#b45e3e; font-weight:600; }
 .fusion-insight-note { min-height:57px; margin:12px 14px 14px; padding:10px 12px; display:flex; align-items:center; gap:10px; border-radius:10px; background:#edf5f7; color:#53676f; }
 .fusion-insight-note .app-icon { flex:0 0 auto; width:18px; height:18px; color:var(--fusion-blue); }
 .fusion-insight-note p { font-size:10px; line-height:15px; }
@@ -802,7 +814,7 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
   .investigation-hero-grid, .rca-story-grid { grid-template-columns: 1fr; }
   .investigation-action-list > header, .investigation-action-list > div { grid-template-columns: minmax(300px,1.25fr) minmax(130px,.55fr) 100px 90px; gap: 14px; }
   .fusion-main-grid, .fusion-bottom-grid { grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr); }
-  .fusion-table-head, .fusion-signal-row { grid-template-columns:minmax(135px,1fr) 100px minmax(120px,.8fr) 78px; gap:10px; }
+  .fusion-condition-visual { grid-template-columns:125px minmax(0,1fr); }
 }
 
 @media (max-width: 820px) {
@@ -897,10 +909,12 @@ h3 { font-size: 15px; font-weight: 560; letter-spacing: -.25px; }
   .fusion-health-card > footer { grid-template-columns:1fr; }
   .fusion-health-card > footer div, .fusion-health-card > footer div:not(:first-child) { padding:12px 0; border-right:0; border-bottom:1px solid var(--fusion-line); }
   .fusion-health-card > footer div:last-child { border-bottom:0; }
-  .fusion-table-head { display:none; }
-  .fusion-signal-row { min-height:70px; grid-template-columns:minmax(130px,1fr) auto; }
-  .fusion-signal-row p { grid-column:1; padding-left:27px; }
-  .fusion-signal-row > span { grid-column:2; grid-row:2; }
+  .fusion-condition-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .fusion-condition-tabs button:nth-child(2) { border-right:0; }
+  .fusion-condition-tabs button:nth-child(-n+2) { border-bottom:1px solid var(--fusion-line); }
+  .fusion-condition-visual { grid-template-columns:1fr; }
+  .fusion-condition-summary { padding-right:0; border-right:0; }
+  .fusion-condition-summary dl { margin-top:12px; display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
   .fusion-side-stack { grid-template-columns:1fr; }
   .storyline-nav { grid-template-columns: repeat(5,minmax(108px,1fr)); }
   .storyline-nav button { padding: 0 10px; font-size: 12px; }

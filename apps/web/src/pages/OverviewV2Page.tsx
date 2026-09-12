@@ -1,13 +1,26 @@
+import { useState } from 'react';
+
 import type { PageId } from '../components/AppShell';
 import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 
 const ASSET_ID = 'asset-ko-3201';
+
+type ConditionField = keyof Pick<TelemetryPoint,
+  'water_in_oil_ppm' | 'radial_vibration_micron' |
+  'bearing_metal_temperature_degc' | 'lube_oil_pressure_barg'>;
+
+const conditionSignals: Array<{ field: ConditionField; label: string; unit: string; role: string; insight: string }> = [
+  { field: 'water_in_oil_ppm', label: 'Water in oil', unit: 'ppm', role: 'Primary driver', insight: 'Moisture was the earliest persistent deviation and preceded the wider mechanical response.' },
+  { field: 'radial_vibration_micron', label: 'Radial vibration', unit: 'µm', role: 'Mechanical response', insight: 'Vibration increased after oil condition changed, strengthening the bearing degradation hypothesis.' },
+  { field: 'bearing_metal_temperature_degc', label: 'Bearing temperature', unit: '°C', role: 'Thermal response', insight: 'Temperature movement provides supporting evidence that friction and bearing load were increasing.' },
+  { field: 'lube_oil_pressure_barg', label: 'Lube oil pressure', unit: 'barg', role: 'Supporting condition', insight: 'Oil pressure shows whether lubrication delivery remained stable while other condition signals changed.' },
+];
 
 interface OverviewV2Data {
   overview: AssetOverview;
@@ -27,6 +40,7 @@ async function loadOverviewV2(): Promise<OverviewV2Data> {
 }
 
 export function OverviewV2Page({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+  const [selectedCondition, setSelectedCondition] = useState<ConditionField>('water_in_oil_ppm');
   const resource = useApiResource('overview-v2', loadOverviewV2);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
@@ -41,12 +55,12 @@ export function OverviewV2Page({ onNavigate }: { onNavigate: (page: PageId) => v
   const activeAction = actions.find((action) => action.status === 'IN_PROGRESS') ?? actions.find((action) => action.status !== 'CLOSED');
   const confidence = Math.round((rca?.generation.hypotheses[0]?.confidence ?? 0) * 100);
 
-  const signalRows = [
-    { label: 'Water in oil', value: `${formatSignal(latest?.water_in_oil_ppm ?? 0)} ppm`, role: 'Earliest persistent driver', state: 'Primary' },
-    { label: 'Radial vibration', value: `${formatSignal(latest?.radial_vibration_micron ?? 0)} µm`, role: 'Mechanical response', state: 'Correlated' },
-    { label: 'Bearing temperature', value: `${formatSignal(latest?.bearing_metal_temperature_degc ?? 0)} °C`, role: 'Thermal response', state: 'Correlated' },
-    { label: 'Lube oil pressure', value: `${formatSignal(latest?.lube_oil_pressure_barg ?? 0)} barg`, role: 'Lubrication condition', state: 'Supporting' },
-  ];
+  const selectedSignal = conditionSignals.find((signal) => signal.field === selectedCondition)!;
+  const selectedValues = telemetry.points.map((point) => Number(point[selectedCondition]));
+  const selectedLatest = selectedValues.at(-1) ?? 0;
+  const selectedFirst = selectedValues[0] ?? 0;
+  const selectedPeak = Math.max(...selectedValues);
+  const selectedDelta = selectedLatest - selectedFirst;
 
   return <div className="fusion-overview">
     <header className="fusion-heading">
@@ -88,11 +102,21 @@ export function OverviewV2Page({ onNavigate }: { onNavigate: (page: PageId) => v
     </section>
 
     <section className="fusion-bottom-grid">
-      <article className="fusion-signal-table">
-        <header><div><h2>Condition insights</h2><p>Variables supporting the current problem</p></div><button onClick={() => onNavigate('assets')}>View all <Icon name="arrow"/></button></header>
-        <div className="fusion-table-head"><span>Variable</span><span>Latest value</span><span>Role in event</span><span>Evidence</span></div>
-        {signalRows.map((signal, index) => <div className="fusion-signal-row" key={signal.label}><div><span>{String(index + 1).padStart(2, '0')}</span><strong>{signal.label}</strong></div><b>{signal.value}</b><p>{signal.role}</p><span className={index === 0 ? 'primary' : ''}>{signal.state}</span></div>)}
-        <div className="fusion-insight-note"><Icon name="spark"/><p><strong>Insight:</strong> Moisture appeared first, followed by a mechanically consistent bearing response.</p></div>
+      <article className="fusion-condition-card">
+        <header><div><h2>Condition insights</h2><p>Explore how each variable contributed to the event</p></div><button onClick={() => onNavigate('assets')}>All equipment data <Icon name="arrow"/></button></header>
+        <nav className="fusion-condition-tabs" aria-label="Condition variables">
+          {conditionSignals.map((signal) => <button className={selectedCondition === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedCondition(signal.field)}><span>{signal.label}</span><strong>{formatSignal(Number(latest?.[signal.field] ?? 0))} {signal.unit}</strong></button>)}
+        </nav>
+        <div className="fusion-condition-visual">
+          <div className="fusion-condition-summary">
+            <span>{selectedSignal.role}</span>
+            <strong>{formatSignal(selectedLatest)} <small>{selectedSignal.unit}</small></strong>
+            <p>Latest reading</p>
+            <dl><div><dt>Window peak</dt><dd>{formatSignal(selectedPeak)} {selectedSignal.unit}</dd></div><div><dt>Net movement</dt><dd>{selectedDelta >= 0 ? '+' : ''}{formatSignal(selectedDelta)} {selectedSignal.unit}</dd></div></dl>
+          </div>
+          <div className="fusion-condition-chart"><SignalChart points={telemetry.points} field={selectedCondition}/><div><span>{formatDate(overview.timeline_start)}</span><b>{formatDate(alert?.first_signal_at ?? overview.timeline_start)} · event onset</b><span>{formatDate(overview.timeline_end)}</span></div></div>
+        </div>
+        <div className="fusion-insight-note"><Icon name="spark"/><p><strong>What it means:</strong> {selectedSignal.insight}</p></div>
       </article>
 
       <div className="fusion-side-stack">
