@@ -1,26 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import type { PageId } from '../components/AppShell';
+import { EventProgressionExplorer } from '../components/EventProgressionExplorer';
 import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type AlertEvent, type AlertStateTransition, type AssetOverview, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetrySeries } from '../lib/api';
+import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 
 const ASSET_ID = 'asset-ko-3201';
-
-type ConditionField = keyof Pick<TelemetryPoint,
-  'water_in_oil_ppm' | 'radial_vibration_micron' |
-  'bearing_metal_temperature_degc' | 'lube_oil_pressure_barg'>;
-
-const conditionSignals: Array<{ field: ConditionField; label: string; unit: string; role: string }> = [
-  { field: 'water_in_oil_ppm', label: 'Water in oil', unit: 'ppm', role: 'Primary driver' },
-  { field: 'radial_vibration_micron', label: 'Radial vibration', unit: 'µm', role: 'Mechanical response' },
-  { field: 'bearing_metal_temperature_degc', label: 'Bearing temperature', unit: '°C', role: 'Thermal response' },
-  { field: 'lube_oil_pressure_barg', label: 'Lube oil pressure', unit: 'barg', role: 'Supporting condition' },
-];
 
 interface OverviewData {
   overview: AssetOverview;
@@ -132,134 +123,8 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       </article>
     </section>
 
-    {selectedProgression !== null && alert && detail ? <EventProgressionExplorer alert={alert} transitions={detail.state_transitions} telemetry={telemetry.points} initialSelection={selectedProgression} onClose={() => setSelectedProgression(null)}/> : null}
+    {selectedProgression !== null && alert && detail ? <EventProgressionExplorer assetTag={overview.asset.tag} alert={alert} transitions={detail.state_transitions} telemetry={telemetry.points} initialSelection={selectedProgression} onClose={() => setSelectedProgression(null)}/> : null}
   </div>;
-}
-
-const progressionCopy: Record<string, { title: string; detail: string; tone: string }> = {
-  WARNING: {
-    title: 'Persistent condition warning opened',
-    detail: 'The leading condition remained abnormal long enough to satisfy the alert policy.',
-    tone: 'warning',
-  },
-  HIGH: {
-    title: 'Alert escalated to high priority',
-    detail: 'Additional evidence increased confidence that the deviation required engineering review.',
-    tone: 'high',
-  },
-  CRITICAL: {
-    title: 'Multi-signal degradation became critical',
-    detail: 'Oil, pressure, thermal, and vibration evidence converged into a critical equipment condition.',
-    tone: 'critical',
-  },
-  CLOSED: {
-    title: 'Alert monitoring window closed',
-    detail: 'The operating-state transition ended this alert window and preserved it for investigation.',
-    tone: 'closed',
-  },
-};
-
-function EventProgressionExplorer({ alert, transitions, telemetry, initialSelection, onClose }: { alert: AlertEvent; transitions: AlertStateTransition[]; telemetry: TelemetryPoint[]; initialSelection: number; onClose: () => void }) {
-  const milestones = [
-    { timestamp: alert.first_signal_at, state: 'FIRST_SIGNAL', reason: 'MODEL_CONDITION_DEVIATION' },
-    ...transitions.map((transition) => ({ timestamp: transition.timestamp, state: transition.new_state, reason: transition.reason })),
-  ];
-  const [selectedIndex, setSelectedIndex] = useState(Math.min(initialSelection, milestones.length - 1));
-  const selected = milestones[selectedIndex];
-  const snapshot = nearestTelemetryPoint(telemetry, selected.timestamp);
-  const copy = selected.state === 'FIRST_SIGNAL'
-    ? { title: 'Oil condition began to deviate', detail: 'Water-in-oil became the earliest persistent signal before the wider equipment response.', tone: 'signal' }
-    : progressionCopy[selected.state] ?? { title: `${humanize(selected.state)} state recorded`, detail: humanize(selected.reason), tone: 'signal' };
-  const synthesis = conditionSynthesis(selected.state, snapshot);
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose]);
-
-  useEffect(() => setSelectedIndex(Math.min(initialSelection, milestones.length - 1)), [initialSelection, milestones.length]);
-
-  return <aside className="overview-progression-explorer" aria-label="KO-3201 event progression explorer">
-      <header>
-        <div><span>Event explorer</span><h2>KO-3201 progression</h2><p>Select any milestone to inspect the equipment evidence recorded at that hour.</p></div>
-        <button className="overview-modal-close" onClick={onClose} aria-label="Close event progression">×</button>
-      </header>
-      <div className="overview-explorer-body">
-        <nav className="overview-explorer-events" aria-label="Alert milestones">
-          <div><span>{milestones.length} milestones</span><b>{formatSignal(alert.duration_hours / 24)} days</b></div>
-          {milestones.map((milestone, index) => {
-            const itemCopy = milestone.state === 'FIRST_SIGNAL'
-              ? { title: 'First condition signal', tone: 'signal' }
-              : progressionCopy[milestone.state] ?? { title: humanize(milestone.state), tone: 'signal' };
-            return <button className={selectedIndex === index ? 'active' : ''} key={`${milestone.timestamp}-${milestone.state}`} onClick={() => setSelectedIndex(index)}>
-              <i className={itemCopy.tone}/><span><time>{formatDateTime(milestone.timestamp)}</time><strong>{itemCopy.title}</strong></span><b className={itemCopy.tone}>{humanize(milestone.state)}</b>
-            </button>;
-          })}
-        </nav>
-        <section className="overview-explorer-detail" aria-live="polite">
-          <header><div><span className={copy.tone}>{humanize(selected.state)}</span><time>{formatDateTime(selected.timestamp)}</time></div><h3>{copy.title}</h3><p>{copy.detail}</p></header>
-          <section className="overview-snapshot-section">
-            <div className="overview-snapshot-heading"><h4>Current condition</h4><span>Hourly snapshot</span></div>
-            <div className="overview-snapshot-grid">
-              {conditionSignals.map((signal) => <div key={signal.field}><span>{signal.label}</span><strong>{formatSignal(Number(snapshot?.[signal.field] ?? 0))} <small>{signal.unit}</small></strong></div>)}
-            </div>
-          </section>
-          <section className="overview-evidence-strip">
-            <div><span>Anomaly score</span><strong>{snapshot?.anomaly_score == null ? 'Not scored' : formatSignal(snapshot.anomaly_score)}</strong></div>
-            <div><span>Decision state</span><strong>{humanize(snapshot?.decision_state ?? selected.state)}</strong></div>
-            <div><span>Signals breached</span><strong>{snapshot?.breached_signals.length ?? 0}</strong></div>
-          </section>
-          <section className="overview-event-synthesis">
-            <span>Condition synthesis</span><h4>{synthesis.title}</h4><p>{synthesis.detail}</p>
-            <footer><span>Source</span><b>Hourly telemetry + alert decision engine</b></footer>
-          </section>
-        </section>
-      </div>
-    </aside>;
-}
-
-function nearestTelemetryPoint(points: TelemetryPoint[], timestamp: string): TelemetryPoint | undefined {
-  if (!points.length) return undefined;
-  const target = new Date(timestamp).getTime();
-  let low = 0;
-  let high = points.length - 1;
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2);
-    if (new Date(points[middle].timestamp).getTime() < target) low = middle + 1;
-    else high = middle;
-  }
-  if (low === 0) return points[0];
-  const before = points[low - 1];
-  const after = points[low];
-  return target - new Date(before.timestamp).getTime() <= new Date(after.timestamp).getTime() - target ? before : after;
-}
-
-function conditionSynthesis(state: string, snapshot?: TelemetryPoint): { title: string; detail: string } {
-  const score = snapshot?.anomaly_score == null ? 'not yet available' : formatSignal(snapshot.anomaly_score);
-  const breadth = snapshot?.breached_signals.length ?? 0;
-  if (state === 'FIRST_SIGNAL') return {
-    title: 'An isolated lubrication signal is emerging',
-    detail: `Water-in-oil moved first while broader mechanical evidence had not yet converged. The anomaly score was ${score}, so the appropriate response at this point was observation and verification rather than a confirmed RCA.`,
-  };
-  if (state === 'WARNING') return {
-    title: 'Lubrication contamination is the earliest working hypothesis',
-    detail: `The persistent oil-condition deviation satisfied the warning policy with ${breadth} breached signal. Evidence was still narrow, so an oil sample and sensor verification were needed before escalation.`,
-  };
-  if (state === 'HIGH') return {
-    title: 'Persistent oil-condition evidence raises the priority',
-    detail: `The model reached ${score} with ${breadth} breached ${breadth === 1 ? 'signal' : 'signals'}. Persistence and risk intensity drove this escalation before broad signal convergence, making impaired lubrication a stronger but still unconfirmed hypothesis.`,
-  };
-  if (state === 'CRITICAL') return {
-    title: 'Multi-signal convergence supports bearing oil-film degradation',
-    detail: `Oil condition, pressure, temperature, and vibration now form a mechanically coherent pattern. Moisture ingress degrading the lubricant film is the leading probable cause and immediate equipment inspection is justified.`,
-  };
-  return {
-    title: 'The alert window ended, but the cause remains actionable',
-    detail: `Closure records the operating-state termination rather than proof that the equipment recovered. The accumulated evidence remains available for RCA, corrective action, and effectiveness verification.`,
-  };
 }
 
 function ScheduleEvent({ title, detail, date, status, meta, tone, onClick }: { title: string; detail: string; date: string; status: string; meta: string; tone: string; onClick: () => void }) {
