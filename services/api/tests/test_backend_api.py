@@ -115,6 +115,10 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     assert telemetry_response.json()["total_points"] == 4368
     assert telemetry_response.json()["returned_points"] == 20
     assert len(alert_response.json()["similar_incidents"]) == 8
+    assert [
+        transition["new_state"]
+        for transition in alert_response.json()["state_transitions"]
+    ] == ["WARNING", "HIGH", "CRITICAL", "CLOSED"]
     assert alert_response.json()["opening_snapshot"]["breached_signals"] == [
         "water_in_oil"
     ]

@@ -109,6 +109,7 @@ class BackendService:
         alert = self.repository.get_alert(alert_id)
         return AlertDetail(
             alert=alert,
+            state_transitions=self.repository.get_alert_transitions(alert_id),
             opening_snapshot=self.repository.get_opening_snapshot(alert),
             similar_incidents=self.repository.get_similar_incidents(alert_id),
             rca=self.repository.get_rca(alert_id),

@@ -12,7 +12,7 @@ import pandas as pd
 from pydantic import BaseModel
 
 from services.api.app.schemas.actions import ActionPlan
-from services.api.app.schemas.alerts import AlertEvent
+from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
 from services.api.app.schemas.api import AssetSummary, TelemetryPoint, TelemetrySeries
 from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import (
@@ -69,6 +69,17 @@ class KO3201ArtifactRepository:
         if len(matches) != 1:
             raise ArtifactNotFoundError(f"Alert not found: {alert_id}")
         return matches[0]
+
+    def get_alert_transitions(self, alert_id: str) -> list[AlertStateTransition]:
+        frame = self._read_csv(
+            "data/alerts/ko_3201/v1/alert_state_transitions.csv"
+        )
+        matching = frame.loc[frame["alert_id"].astype(str).eq(alert_id)]
+        transitions = [
+            AlertStateTransition.model_validate(record)
+            for record in matching.to_dict("records")
+        ]
+        return sorted(transitions, key=lambda transition: transition.timestamp)
 
     def get_opening_snapshot(self, alert: AlertEvent) -> dict[str, object]:
         decisions = self._read_csv(

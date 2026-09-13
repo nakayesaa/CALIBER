@@ -8,7 +8,7 @@ from typing import Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from services.api.app.schemas.actions import ActionPlan, ActionStatus
-from services.api.app.schemas.alerts import AlertEvent
+from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
 from services.api.app.schemas.rca import RCARecord, RCAStatus
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
 
@@ -75,6 +75,7 @@ class TelemetrySeries(APIModel):
 
 class AlertDetail(APIModel):
     alert: AlertEvent
+    state_transitions: list[AlertStateTransition]
     opening_snapshot: dict[str, object]
     similar_incidents: list[IncidentRetrievalResult]
     rca: RCARecord | None

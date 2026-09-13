@@ -72,6 +72,14 @@ export interface AlertEvent {
   breached_signals: string[];
 }
 
+export interface AlertStateTransition {
+  alert_id: string;
+  timestamp: string;
+  previous_state: string;
+  new_state: string;
+  reason: string;
+}
+
 export interface SimilarIncident {
   rank: number;
   incident_id: string;
@@ -163,6 +171,7 @@ export interface ActionPlan {
 
 export interface AlertDetail {
   alert: AlertEvent;
+  state_transitions: AlertStateTransition[];
   opening_snapshot: {
     timestamp: string;
     decision_state: string;

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { PageId } from '../components/AppShell';
 import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type AlertEvent, type AlertStateTransition, type AssetOverview, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
@@ -41,12 +41,15 @@ async function loadOverview(): Promise<OverviewData> {
 
 export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const [selectedCondition, setSelectedCondition] = useState<ConditionField>('water_in_oil_ppm');
+  const [selectedProgression, setSelectedProgression] = useState<number | null>(null);
   const resource = useApiResource('overview', loadOverview);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
 
   const { overview, telemetry, alerts, detail } = resource.data;
   const alert = alerts[0];
+  const escalationTransition = detail?.state_transitions.find((transition) => transition.new_state === alert?.highest_severity);
+  const escalationIndex = Math.max((detail?.state_transitions.findIndex((transition) => transition === escalationTransition) ?? 0) + 1, 1);
   const latest = telemetry.points.at(-1);
   const rca = detail ? rcaForAlert(detail.alert.alert_id, detail.rca) : null;
   const plans = detail ? actionsForAlert(detail.alert.alert_id, detail.action_plans, Boolean(detail.rca)) : [];
@@ -62,7 +65,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const selectedPeak = selectedValues.length ? Math.max(...selectedValues) : 0;
   const selectedDelta = selectedLatest - selectedFirst;
 
-  return <div className="overview-overview">
+  return <div className="overview-dashboard">
     <header className="overview-heading">
       <div><span>Manufacturing performance</span><h1>Reliability overview</h1></div>
       <div><button onClick={() => onNavigate('investigation')}>Open investigation <Icon name="arrow"/></button></div>
@@ -87,12 +90,12 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       </article>
 
       <article className="overview-timeline-card">
-        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><button onClick={() => onNavigate('investigation')}>View all <Icon name="arrow"/></button></header>
+        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><button onClick={() => setSelectedProgression(0)}>View all <Icon name="arrow"/></button></header>
         <div className="overview-schedule">
           <div className="overview-time-rule"><span>First signal</span><i/></div>
-          <ScheduleEvent title="Oil condition began to deviate" detail="Water-in-oil became persistent before the broader equipment response." date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="Warning" meta="1 leading signal" tone="warning"/>
+          <ScheduleEvent title="Oil condition began to deviate" detail="Water-in-oil became persistent before the broader equipment response." date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="Warning" meta="1 leading signal" tone="warning" onClick={() => setSelectedProgression(0)}/>
           <div className="overview-time-rule"><span>Escalation</span><i/></div>
-          <ScheduleEvent title="Condition signals converged" detail="The anomaly score crossed the decision threshold and required review." date={formatDateTime(alert?.opened_at ?? overview.timeline_start)} status={humanize(alert?.highest_severity ?? 'critical')} meta={`${alert?.breached_signals.length ?? 0} correlated signals`} tone="critical"/>
+          <ScheduleEvent title="Condition signals converged" detail="Oil, pressure, thermal, and vibration evidence formed a critical pattern." date={formatDateTime(escalationTransition?.timestamp ?? alert?.opened_at ?? overview.timeline_start)} status={humanize(alert?.highest_severity ?? 'critical')} meta={`${alert?.breached_signals.length ?? 0} correlated signals`} tone="critical" onClick={() => setSelectedProgression(escalationIndex)}/>
         </div>
       </article>
     </section>
@@ -128,11 +131,139 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
         <footer><button onClick={() => onNavigate('actions')}>Open action tracker <Icon name="arrow"/></button></footer>
       </article>
     </section>
+
+    {selectedProgression !== null && alert && detail ? <EventProgressionExplorer alert={alert} transitions={detail.state_transitions} telemetry={telemetry.points} initialSelection={selectedProgression} onClose={() => setSelectedProgression(null)}/> : null}
   </div>;
 }
 
-function ScheduleEvent({ title, detail, date, status, meta, tone }: { title: string; detail: string; date: string; status: string; meta: string; tone: string }) {
-  return <article className="overview-schedule-event"><div><h3>{title}</h3><button><Icon name="arrow"/></button></div><p>{detail}</p><footer><span className={tone}>{status}</span><b>{meta}</b><time>{date}</time></footer></article>;
+const progressionCopy: Record<string, { title: string; detail: string; tone: string }> = {
+  WARNING: {
+    title: 'Persistent condition warning opened',
+    detail: 'The leading condition remained abnormal long enough to satisfy the alert policy.',
+    tone: 'warning',
+  },
+  HIGH: {
+    title: 'Alert escalated to high priority',
+    detail: 'Additional evidence increased confidence that the deviation required engineering review.',
+    tone: 'high',
+  },
+  CRITICAL: {
+    title: 'Multi-signal degradation became critical',
+    detail: 'Oil, pressure, thermal, and vibration evidence converged into a critical equipment condition.',
+    tone: 'critical',
+  },
+  CLOSED: {
+    title: 'Alert monitoring window closed',
+    detail: 'The operating-state transition ended this alert window and preserved it for investigation.',
+    tone: 'closed',
+  },
+};
+
+function EventProgressionExplorer({ alert, transitions, telemetry, initialSelection, onClose }: { alert: AlertEvent; transitions: AlertStateTransition[]; telemetry: TelemetryPoint[]; initialSelection: number; onClose: () => void }) {
+  const milestones = [
+    { timestamp: alert.first_signal_at, state: 'FIRST_SIGNAL', reason: 'MODEL_CONDITION_DEVIATION' },
+    ...transitions.map((transition) => ({ timestamp: transition.timestamp, state: transition.new_state, reason: transition.reason })),
+  ];
+  const [selectedIndex, setSelectedIndex] = useState(Math.min(initialSelection, milestones.length - 1));
+  const selected = milestones[selectedIndex];
+  const snapshot = nearestTelemetryPoint(telemetry, selected.timestamp);
+  const copy = selected.state === 'FIRST_SIGNAL'
+    ? { title: 'Oil condition began to deviate', detail: 'Water-in-oil became the earliest persistent signal before the wider equipment response.', tone: 'signal' }
+    : progressionCopy[selected.state] ?? { title: `${humanize(selected.state)} state recorded`, detail: humanize(selected.reason), tone: 'signal' };
+  const synthesis = conditionSynthesis(selected.state, snapshot);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  useEffect(() => setSelectedIndex(Math.min(initialSelection, milestones.length - 1)), [initialSelection, milestones.length]);
+
+  return <aside className="overview-progression-explorer" aria-label="KO-3201 event progression explorer">
+      <header>
+        <div><span>Event explorer</span><h2>KO-3201 progression</h2><p>Select any milestone to inspect the equipment evidence recorded at that hour.</p></div>
+        <button className="overview-modal-close" onClick={onClose} aria-label="Close event progression">×</button>
+      </header>
+      <div className="overview-explorer-body">
+        <nav className="overview-explorer-events" aria-label="Alert milestones">
+          <div><span>{milestones.length} milestones</span><b>{formatSignal(alert.duration_hours / 24)} days</b></div>
+          {milestones.map((milestone, index) => {
+            const itemCopy = milestone.state === 'FIRST_SIGNAL'
+              ? { title: 'First condition signal', tone: 'signal' }
+              : progressionCopy[milestone.state] ?? { title: humanize(milestone.state), tone: 'signal' };
+            return <button className={selectedIndex === index ? 'active' : ''} key={`${milestone.timestamp}-${milestone.state}`} onClick={() => setSelectedIndex(index)}>
+              <i className={itemCopy.tone}/><span><time>{formatDateTime(milestone.timestamp)}</time><strong>{itemCopy.title}</strong></span><b className={itemCopy.tone}>{humanize(milestone.state)}</b>
+            </button>;
+          })}
+        </nav>
+        <section className="overview-explorer-detail" aria-live="polite">
+          <header><div><span className={copy.tone}>{humanize(selected.state)}</span><time>{formatDateTime(selected.timestamp)}</time></div><h3>{copy.title}</h3><p>{copy.detail}</p></header>
+          <section className="overview-snapshot-section">
+            <div className="overview-snapshot-heading"><h4>Current condition</h4><span>Hourly snapshot</span></div>
+            <div className="overview-snapshot-grid">
+              {conditionSignals.map((signal) => <div key={signal.field}><span>{signal.label}</span><strong>{formatSignal(Number(snapshot?.[signal.field] ?? 0))} <small>{signal.unit}</small></strong></div>)}
+            </div>
+          </section>
+          <section className="overview-evidence-strip">
+            <div><span>Anomaly score</span><strong>{snapshot?.anomaly_score == null ? 'Not scored' : formatSignal(snapshot.anomaly_score)}</strong></div>
+            <div><span>Decision state</span><strong>{humanize(snapshot?.decision_state ?? selected.state)}</strong></div>
+            <div><span>Signals breached</span><strong>{snapshot?.breached_signals.length ?? 0}</strong></div>
+          </section>
+          <section className="overview-event-synthesis">
+            <span>Condition synthesis</span><h4>{synthesis.title}</h4><p>{synthesis.detail}</p>
+            <footer><span>Source</span><b>Hourly telemetry + alert decision engine</b></footer>
+          </section>
+        </section>
+      </div>
+    </aside>;
+}
+
+function nearestTelemetryPoint(points: TelemetryPoint[], timestamp: string): TelemetryPoint | undefined {
+  if (!points.length) return undefined;
+  const target = new Date(timestamp).getTime();
+  let low = 0;
+  let high = points.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (new Date(points[middle].timestamp).getTime() < target) low = middle + 1;
+    else high = middle;
+  }
+  if (low === 0) return points[0];
+  const before = points[low - 1];
+  const after = points[low];
+  return target - new Date(before.timestamp).getTime() <= new Date(after.timestamp).getTime() - target ? before : after;
+}
+
+function conditionSynthesis(state: string, snapshot?: TelemetryPoint): { title: string; detail: string } {
+  const score = snapshot?.anomaly_score == null ? 'not yet available' : formatSignal(snapshot.anomaly_score);
+  const breadth = snapshot?.breached_signals.length ?? 0;
+  if (state === 'FIRST_SIGNAL') return {
+    title: 'An isolated lubrication signal is emerging',
+    detail: `Water-in-oil moved first while broader mechanical evidence had not yet converged. The anomaly score was ${score}, so the appropriate response at this point was observation and verification rather than a confirmed RCA.`,
+  };
+  if (state === 'WARNING') return {
+    title: 'Lubrication contamination is the earliest working hypothesis',
+    detail: `The persistent oil-condition deviation satisfied the warning policy with ${breadth} breached signal. Evidence was still narrow, so an oil sample and sensor verification were needed before escalation.`,
+  };
+  if (state === 'HIGH') return {
+    title: 'Persistent oil-condition evidence raises the priority',
+    detail: `The model reached ${score} with ${breadth} breached ${breadth === 1 ? 'signal' : 'signals'}. Persistence and risk intensity drove this escalation before broad signal convergence, making impaired lubrication a stronger but still unconfirmed hypothesis.`,
+  };
+  if (state === 'CRITICAL') return {
+    title: 'Multi-signal convergence supports bearing oil-film degradation',
+    detail: `Oil condition, pressure, temperature, and vibration now form a mechanically coherent pattern. Moisture ingress degrading the lubricant film is the leading probable cause and immediate equipment inspection is justified.`,
+  };
+  return {
+    title: 'The alert window ended, but the cause remains actionable',
+    detail: `Closure records the operating-state termination rather than proof that the equipment recovered. The accumulated evidence remains available for RCA, corrective action, and effectiveness verification.`,
+  };
+}
+
+function ScheduleEvent({ title, detail, date, status, meta, tone, onClick }: { title: string; detail: string; date: string; status: string; meta: string; tone: string; onClick: () => void }) {
+  return <article className="overview-schedule-event"><div><h3>{title}</h3><button onClick={onClick} aria-label={`Inspect ${title}`}><Icon name="arrow"/></button></div><p>{detail}</p><footer><span className={tone}>{status}</span><b>{meta}</b><time>{date}</time></footer></article>;
 }
 
 function GoalCard({ label, value, tone }: { label: string; value: number; tone: string }) {
