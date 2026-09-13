@@ -45,8 +45,11 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const rca = detail ? rcaForAlert(detail.alert.alert_id, detail.rca) : null;
   const plans = detail ? actionsForAlert(detail.alert.alert_id, detail.action_plans, Boolean(detail.rca)) : [];
   const actions = plans.flatMap((plan) => plan.actions);
-  const closedActions = actions.filter((action) => action.status === 'CLOSED').length;
   const activeAction = actions.find((action) => action.status === 'IN_PROGRESS') ?? actions.find((action) => action.status !== 'CLOSED');
+  const correctiveAction = actions.find((action) => action.action_type === 'CORRECTIVE');
+  const preventiveAction = actions.find((action) => action.action_type === 'PREVENTIVE');
+  const caPaActions = [correctiveAction, preventiveAction].filter((action) => action !== undefined);
+  const verifiedCaPa = caPaActions.filter((action) => action.status === 'CLOSED').length;
   const confidence = Math.round((rca?.generation.hypotheses[0]?.confidence ?? 0) * 100);
 
   const selectedSignal = conditionSignals.find((signal) => signal.field === selectedCondition)!;
@@ -109,17 +112,18 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       </article>
 
       <article className="overview-decision-card">
-        <header><h2>RCA &amp; action progress</h2><button onClick={() => onNavigate('investigation')}><Icon name="arrow"/></button></header>
-        <section className="overview-rca-summary">
-          <div><span>01</span><h3>{rca?.generation.hypotheses[0]?.title ?? 'Evidence package ready'}</h3><b>{confidence}%</b></div>
-          <p>Supported by signal sequence and similar incident evidence.</p>
+        <section className="overview-decision-half overview-rca-half">
+          <header><div><span>Root cause analysis</span><b>{rca ? humanize(rca.status) : 'Pending'}</b></div><button onClick={() => onNavigate('rca')} aria-label="Open RCA workspace"><Icon name="arrow"/></button></header>
+          <h3>{rca?.generation.hypotheses[0]?.title ?? 'Evidence package ready for review'}</h3>
+          <p>{rca?.generation.hypotheses[0]?.rationale ?? 'Review the signal sequence and historical analogues to establish a probable cause.'}</p>
+          <dl><div><dt>Confidence</dt><dd>{confidence}%</dd></div><div><dt>Evidence</dt><dd>{rca?.generation.hypotheses[0]?.supporting_evidence_ids.length ?? 0} items</dd></div><div><dt>Similar cases</dt><dd>{detail?.similar_incidents.length ?? 0}</dd></div></dl>
         </section>
-        <section className="overview-goal-tracking">
-          <div className="overview-goal-cards"><GoalCard label="Closed" value={closedActions} tone="green"/><GoalCard label="In progress" value={actions.filter((action) => action.status === 'IN_PROGRESS').length} tone="blue"/><GoalCard label="Pending" value={actions.filter((action) => !['CLOSED', 'IN_PROGRESS'].includes(action.status)).length} tone="orange"/></div>
-          <div className="overview-action-target"><header><span>CA/PA completion</span><b>{actions.length ? `${closedActions}/${actions.length}` : '0/0'}</b></header><div><i style={{ width: `${actions.length ? closedActions / actions.length * 100 : 0}%` }}/></div></div>
-          <div className="overview-action-target"><header><span>{activeAction?.title ?? 'Approve RCA to create actions'}</span><b>{activeAction ? humanize(activeAction.status) : 'Pending'}</b></header><p>{activeAction?.owner_role ?? 'Reliability Engineer'}</p></div>
+        <section className="overview-decision-half overview-capa-half">
+          <header><div><span>CA/PA progress</span><b>{verifiedCaPa}/{caPaActions.length} verified</b></div><button onClick={() => onNavigate('actions')} aria-label="Open CA/PA tracker"><Icon name="arrow"/></button></header>
+          <div className="overview-capa-row"><span>Corrective</span><div><strong>{correctiveAction?.title ?? 'Awaiting approved RCA'}</strong><small>{correctiveAction?.owner_role ?? 'Unassigned'}</small></div><b>{humanize(correctiveAction?.status ?? 'Pending')}</b></div>
+          <div className="overview-capa-row"><span>Preventive</span><div><strong>{preventiveAction?.title ?? 'Awaiting approved RCA'}</strong><small>{preventiveAction?.owner_role ?? 'Unassigned'}</small></div><b>{humanize(preventiveAction?.status ?? 'Pending')}</b></div>
+          <footer><span>Next attention</span><strong>{activeAction?.title ?? 'Approve RCA and assign actions'}</strong></footer>
         </section>
-        <footer><button onClick={() => onNavigate('actions')}>Open action tracker <Icon name="arrow"/></button></footer>
       </article>
     </section>
 
@@ -129,8 +133,4 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 
 function ScheduleEvent({ title, detail, date, status, meta, tone, onClick }: { title: string; detail: string; date: string; status: string; meta: string; tone: string; onClick: () => void }) {
   return <article className="overview-schedule-event"><div><h3>{title}</h3><button onClick={onClick} aria-label={`Inspect ${title}`}><Icon name="arrow"/></button></div><p>{detail}</p><footer><span className={tone}>{status}</span><b>{meta}</b><time>{date}</time></footer></article>;
-}
-
-function GoalCard({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return <div className={tone}><span>{label}</span><strong>{value}</strong></div>;
 }

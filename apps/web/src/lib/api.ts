@@ -150,6 +150,9 @@ export interface ActionItem {
   status: string;
   completion_criteria: string;
   effectiveness_check: string;
+  affected_scope?: string | null;
+  execution_route?: string | null;
+  change_control?: string | null;
   status_history?: Array<{
     previous_status: string;
     new_status: string;

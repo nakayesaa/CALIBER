@@ -167,6 +167,9 @@ def test_action_plan_is_policy_driven_and_deterministic() -> None:
         "2026-03-02",
         "2026-03-25",
     ]
+    assert first.actions[1].affected_scope == "KO-3201 lubrication circuit"
+    assert first.actions[1].change_control == "MOC screening before execution"
+    assert first.actions[2].execution_route == "Reliability program update"
 
 
 def test_action_approval_requires_reviewed_rca() -> None:

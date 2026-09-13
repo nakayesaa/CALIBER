@@ -1,27 +1,44 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import type { PageId } from '../components/AppShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
-import { Icon } from '../components/Icon';
-import { api } from '../lib/api';
+import { api, type ActionItem, type ActionPlan } from '../lib/api';
 import { actionsForAlert } from '../lib/demoWorkflow';
 import { formatDate, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
-import { Metric, ViewHeader } from './ProblemTankPage';
+
+const workflowStates = ['PROPOSED', 'APPROVED', 'IN_PROGRESS', 'EFFECTIVENESS_REVIEW', 'CLOSED'];
 
 async function loadActions() {
   const alerts = await api.alerts('asset-ko-3201');
   return alerts[0] ? api.alertDetail(alerts[0].alert_id) : null;
 }
 
-export function ActionsPage() {
+export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+  const [reportOpen, setReportOpen] = useState(false);
   const [busyActionId, setBusyActionId] = useState<string | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const resource = useApiResource('actions', loadActions);
+
+  useEffect(() => {
+    if (!reportOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' && setReportOpen(false);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [reportOpen]);
+
   if (resource.loading) return <LoadingState/>;
   if (resource.error) return <ErrorState message={resource.error}/>;
+
   const plans = resource.data ? actionsForAlert(resource.data.alert.alert_id, resource.data.action_plans, Boolean(resource.data.rca)) : [];
-  const actions = plans.flatMap((plan) => plan.actions);
+  if (!plans.length) return <EmptyState title="No CAPA report created yet" description="An approved RCA hypothesis unlocks containment, corrective, and preventive work."/>;
+
+  const plan = plans[0];
+  const caPaActions = plan.actions.filter((action) => action.action_type === 'CORRECTIVE' || action.action_type === 'PREVENTIVE');
+  const verifiedActions = caPaActions.filter((action) => action.status === 'CLOSED').length;
+  const pendingActions = caPaActions.filter((action) => action.status !== 'CLOSED');
+  const nextDueAction = [...pendingActions].sort((left, right) => left.due_date.localeCompare(right.due_date))[0];
 
   async function advanceAction(actionId: string, status: string) {
     const nextStatus = nextActionStatus(status);
@@ -29,12 +46,7 @@ export function ActionsPage() {
     setBusyActionId(actionId);
     setWorkflowError(null);
     try {
-      await api.updateActionStatus(
-        actionId,
-        nextStatus,
-        'Action Owner',
-        `Action advanced to ${humanize(nextStatus)} from the action tracker.`,
-      );
+      await api.updateActionStatus(actionId, nextStatus, 'Action Owner', `Action advanced to ${humanize(nextStatus)} from the CAPA report.`);
       resource.reload();
     } catch (error) {
       setWorkflowError(error instanceof Error ? error.message : 'Unable to update action');
@@ -43,12 +55,113 @@ export function ActionsPage() {
     }
   }
 
-  return <div className="product-view"><ViewHeader eyebrow="Close the loop" title="CA/PA action tracker" description="Approved root causes become containment, corrective, and preventive work with explicit ownership."/>{plans.length === 0 ? <EmptyState title="No action plan created yet" description="An approved RCA hypothesis unlocks the policy-driven CA/PA plan and its three tracked action types."/> : <>
-    <div className="summary-strip"><Metric label="Overall status" value={humanize(plans[0].status)}/><Metric label="Actions closed" value={`${actions.filter((action) => action.status === 'CLOSED').length}/${actions.length}`}/><Metric label="Selected cause" value={humanize(plans[0].selected_cause_category)}/><Metric label="Critical actions" value={String(actions.filter((action) => action.priority === 'CRITICAL').length)}/></div>
-    {plans.map((plan) => <section className="action-plan panel" key={plan.plan_id}><div className="section-heading"><div><h2>Response plan</h2><p>Based on approved hypothesis: {humanize(plan.selected_cause_category)}</p></div><b className="status-tag in-progress">{humanize(plan.status)}</b></div><div className="action-cards">{plan.actions.map((action) => {
-      const nextStatus = resource.data?.action_plans.length ? nextActionStatus(action.status) : null;
-      return <article className="action-card" key={action.action_id}><header><span className={`action-type ${action.action_type.toLowerCase()}`}>{humanize(action.action_type)}</span><b className={`status-tag ${action.status.toLowerCase().replaceAll('_', '-')}`}>{humanize(action.status)}</b></header><h3>{action.title}</h3><p>{action.guidance}</p><div className="action-owner"><span>Owner<strong>{action.owner_role}</strong></span><span>Due<strong>{formatDate(action.due_date)}</strong></span><span>Priority<strong>{humanize(action.priority)}</strong></span></div><details><summary><Icon name="check"/> Definition of done</summary><p><b>Completion:</b> {action.completion_criteria}</p><p><b>Effectiveness:</b> {action.effectiveness_check}</p></details>{nextStatus && <button className="action-advance" disabled={busyActionId !== null} onClick={() => advanceAction(action.action_id, action.status)}>{busyActionId === action.action_id ? 'Updating…' : actionTransitionLabel(nextStatus)} <Icon name="arrow"/></button>}</article>;
-    })}</div></section>)}
+  const sourceSummary = resource.data?.rca?.generation.executive_summary ?? 'Approved investigation links the equipment degradation to lubrication contamination.';
+
+  return <div className="decision-workspace action-workspace">
+    <header className="decision-workspace-heading">
+      <div><span>KO-3201 · Controlled records</span><h1>Corrective and preventive action</h1><p>Track the formal CAPA record created from the approved equipment investigation.</p></div>
+      <div><b>{humanize(plan.status)}</b><button onClick={() => onNavigate('rca')}>Review approved RCA</button></div>
+    </header>
+
+    <section className="action-execution-summary">
+      <div><span>Approved cause</span><strong>{humanize(plan.selected_cause_category)}</strong></div>
+      <div><span>Action verification</span><strong>{verifiedActions} of {caPaActions.length} verified</strong></div>
+      <div><span>Next commitment</span><strong>{nextDueAction ? `${humanize(nextDueAction.action_type)} · ${formatDate(nextDueAction.due_date)}` : 'Ready for closure'}</strong></div>
+    </section>
+
+    <section className="capa-report-register">
+      <header><div><span>CAPA register</span><h2>Formal action records</h2><p>Open the record to review its source, actions, evidence, and approval trail.</p></div><strong>1 record</strong></header>
+      <div className="capa-register-columns"><span>Report</span><span>Equipment</span><span>Source</span><span>Target</span><span>Status</span><span/></div>
+      <button className="capa-register-row" onClick={() => setReportOpen(true)}>
+        <div><span>CAPA report</span><strong>Lubrication contamination on KO-3201</strong><small>{plan.plan_id}</small></div>
+        <span>KO-3201</span><span>Approved RCA</span><time>{nextDueAction ? formatDate(nextDueAction.due_date) : 'Completed'}</time><b>{humanize(plan.status)}</b><i>›</i>
+      </button>
+    </section>
+
+    <section className="capa-closure-note"><div><span>Closure rule</span><strong>Completion alone cannot close CAPA.</strong></div><p>Corrective and preventive actions must pass their documented effectiveness checks.</p><b>{verifiedActions}/{caPaActions.length} verified</b></section>
+
+    {reportOpen && <CapaReportModal plan={plan} sourceSummary={sourceSummary} busyActionId={busyActionId} onAdvance={advanceAction} onClose={() => setReportOpen(false)}/>}
     {workflowError && <p className="workflow-error">{workflowError}</p>}
-  </>}</div>;
+  </div>;
+}
+
+function CapaReportModal({ plan, sourceSummary, busyActionId, onAdvance, onClose }: { plan: ActionPlan; sourceSummary: string; busyActionId: string | null; onAdvance: (actionId: string, status: string) => void; onClose: () => void }) {
+  const containment = plan.actions.find((action) => action.action_type === 'CONTAINMENT');
+  const plannedActions = plan.actions.filter((action) => action.action_type !== 'CONTAINMENT');
+  const issueDate = containment?.due_date ?? plannedActions[0]?.due_date ?? 'Not recorded';
+  const allVerified = plannedActions.every((action) => action.status === 'CLOSED');
+
+  return <div className="capa-report-overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <article className="capa-report-modal" role="dialog" aria-modal="true" aria-labelledby="capa-report-title">
+      <header className="capa-document-header">
+        <div><span>CALIBER · Manufacturing Reliability</span><h2 id="capa-report-title">Corrective and Preventive Action Report</h2></div>
+        <button onClick={onClose} aria-label="Close CAPA report">×</button>
+      </header>
+
+      <div className="capa-report-scroll">
+        <section className="capa-document-control">
+          <DocumentField label="Report number" value={plan.plan_id}/><DocumentField label="Revision" value="01"/><DocumentField label="Status" value={humanize(plan.status)}/><DocumentField label="Issue date" value={formatDate(issueDate)}/>
+          <DocumentField label="Equipment" value="KO-3201"/><DocumentField label="Source record" value={plan.rca_id}/><DocumentField label="Record type" value="Equipment problem"/><DocumentField label="Classification" value="Reliability / Process safety"/>
+        </section>
+
+        <ReportSection number="1" title="Problem and investigation basis">
+          <ReportLine label="Approved root cause" value={humanize(plan.selected_cause_category)}/>
+          <ReportLine label="Investigation conclusion" value={sourceSummary}/>
+          <ReportLine label="CAPA objective" value="Restore KO-3201 lubrication integrity and prevent recurrence of the confirmed degradation pattern on comparable equipment."/>
+        </ReportSection>
+
+        <ReportSection number="2" title="Immediate correction and containment">
+          {containment ? <ActionStatement action={containment}/> : <p>No containment action recorded.</p>}
+        </ReportSection>
+
+        <ReportSection number="3" title="Corrective and preventive action plan">
+          <div className="capa-action-table">
+            <div className="capa-action-table-head"><span>Type and action</span><span>Owner</span><span>Target</span><span>Status</span></div>
+            {plannedActions.map((action) => <ActionTableRow action={action} busy={busyActionId === action.action_id} key={action.action_id} onAdvance={onAdvance}/>)}
+          </div>
+        </ReportSection>
+
+        <ReportSection number="4" title="Implementation and change control">
+          {plannedActions.map((action) => <div className="capa-control-record" key={action.action_id}><strong>{humanize(action.action_type)}</strong><dl><div><dt>Affected scope</dt><dd>{action.affected_scope ?? 'Affected equipment'}</dd></div><div><dt>Execution route</dt><dd>{action.execution_route ?? 'Managed action plan'}</dd></div><div><dt>Change control</dt><dd>{action.change_control ?? 'Review before execution'}</dd></div></dl></div>)}
+        </ReportSection>
+
+        <ReportSection number="5" title="Verification of implementation and effectiveness">
+          <div className="capa-verification-table"><div className="capa-verification-head"><span>Action</span><span>Implementation evidence</span><span>Effectiveness criteria</span><span>Result</span></div>{plannedActions.map((action) => <div className="capa-verification-row" key={action.action_id}><strong>{humanize(action.action_type)}</strong><p>{action.completion_criteria}</p><p>{action.effectiveness_check}</p><b>{action.status === 'CLOSED' ? 'Effective' : action.status === 'EFFECTIVENESS_REVIEW' ? 'Under review' : 'Pending'}</b></div>)}</div>
+        </ReportSection>
+
+        <ReportSection number="6" title="Approval and closure record">
+          <div className="capa-approval-grid"><DocumentField label="RCA disposition" value="Approved"/><DocumentField label="CAPA disposition" value={humanize(plan.status)}/><DocumentField label="Effectiveness review" value={allVerified ? 'Accepted' : 'Pending'}/><DocumentField label="Closure authorization" value={allVerified ? 'Ready for approval' : 'Not available'}/></div>
+          <ActionHistory actions={plan.actions}/>
+        </ReportSection>
+      </div>
+
+      <footer><span>Controlled report · Generated from governed RCA and action records</span><button onClick={onClose}>Close report</button></footer>
+    </article>
+  </div>;
+}
+
+function ActionStatement({ action }: { action: ActionItem }) {
+  return <div className="capa-action-statement"><p>{action.guidance}</p><dl><div><dt>Responsible owner</dt><dd>{action.owner_role}</dd></div><div><dt>Due date</dt><dd>{formatDate(action.due_date)}</dd></div><div><dt>Status</dt><dd>{humanize(action.status)}</dd></div></dl><ReportLine label="Evidence required" value={action.completion_criteria}/></div>;
+}
+
+function ActionTableRow({ action, busy, onAdvance }: { action: ActionItem; busy: boolean; onAdvance: (actionId: string, status: string) => void }) {
+  const nextStatus = nextActionStatus(action.status);
+  return <div className="capa-action-table-row"><div><span>{humanize(action.action_type)}</span><strong>{action.title}</strong><p>{action.guidance}</p></div><span>{action.owner_role}</span><time>{formatDate(action.due_date)}</time><div><b>{humanize(action.status)}</b>{nextStatus && <button disabled={busy} onClick={() => onAdvance(action.action_id, action.status)}>{busy ? 'Updating…' : actionTransitionLabel(nextStatus)}</button>}</div></div>;
+}
+
+function ActionHistory({ actions }: { actions: ActionItem[] }) {
+  const history = actions.flatMap((action) => (action.status_history ?? []).map((entry) => ({ ...entry, actionType: action.action_type })));
+  return <div className="capa-report-history"><h4>Record history</h4>{history.length ? history.map((entry, index) => <div key={`${entry.occurred_at}-${index}`}><time>{formatDate(entry.occurred_at)}</time><p><strong>{humanize(entry.actionType)} · {entry.actor}</strong>{entry.note}</p><b>{humanize(entry.new_status)}</b></div>) : <p>No recorded transition yet.</p>}</div>;
+}
+
+function DocumentField({ label, value }: { label: string; value: string }) {
+  return <div className="capa-document-field"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function ReportLine({ label, value }: { label: string; value: string }) {
+  return <div className="capa-report-line"><strong>{label}</strong><p>{value}</p></div>;
+}
+
+function ReportSection({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
+  return <section className="capa-report-section"><header><span>{number}</span><h3>{title}</h3></header><div>{children}</div></section>;
 }

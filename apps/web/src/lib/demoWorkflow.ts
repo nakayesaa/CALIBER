@@ -127,6 +127,9 @@ export const demoActionPlan: ActionPlan = {
       status: 'IN_PROGRESS',
       completion_criteria: 'Ingress pressure test passes, bearing clearances meet specification, and oil moisture and cleanliness meet the approved limits.',
       effectiveness_check: 'During a 24-hour controlled run, lube-oil pressure remains stable and vibration and bearing temperature remain within baseline control bands.',
+      affected_scope: 'KO-3201 lubrication circuit',
+      execution_route: 'Corrective maintenance',
+      change_control: 'MOC screening before execution',
     },
     {
       action_id: 'action-preventive-001',
@@ -139,6 +142,9 @@ export const demoActionPlan: ActionPlan = {
       status: 'APPROVED',
       completion_criteria: 'Monitoring task, alarm limit, owner, route frequency, and response procedure are active in the reliability workflow.',
       effectiveness_check: 'For 90 operating days, moisture stays below the alert limit with no recurring multi-signal degradation event.',
+      affected_scope: 'Comparable critical compressors',
+      execution_route: 'Reliability program update',
+      change_control: 'Procedure and alarm review',
     },
   ],
 };

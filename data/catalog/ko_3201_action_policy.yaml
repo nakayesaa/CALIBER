@@ -22,6 +22,9 @@ cause_policies:
         due_in_days: 7
         completion_criteria: "Ingress source is documented, repaired, and post-work oil quality meets specification."
         effectiveness_check: "No increasing water trend is observed during the defined post-repair monitoring window."
+        affected_scope: "KO-3201 lubrication circuit"
+        execution_route: "Corrective maintenance"
+        change_control: "MOC screening before execution"
       - template_id: "lubrication-preventive"
         action_type: "PREVENTIVE"
         title: "Strengthen lubrication condition monitoring"
@@ -31,6 +34,9 @@ cause_policies:
         due_in_days: 30
         completion_criteria: "Approved monitoring and maintenance changes are assigned to the affected asset population."
         effectiveness_check: "Revised tasks are completed on schedule and detect no uncontrolled contamination trend."
+        affected_scope: "Comparable critical compressors"
+        execution_route: "Reliability program update"
+        change_control: "Procedure and alarm review"
 
   - cause_category: "BEARING_DEGRADATION"
     actions:

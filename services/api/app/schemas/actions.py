@@ -44,6 +44,9 @@ class ActionTemplate(ActionModel):
     due_in_days: int = Field(ge=0)
     completion_criteria: str
     effectiveness_check: str
+    affected_scope: str | None = None
+    execution_route: str | None = None
+    change_control: str | None = None
 
 
 class CauseActionPolicy(ActionModel):
@@ -107,6 +110,9 @@ class ActionItem(ActionModel):
     status: ActionStatus
     completion_criteria: str
     effectiveness_check: str
+    affected_scope: str | None = None
+    execution_route: str | None = None
+    change_control: str | None = None
     status_history: list[ActionStatusTransition] = Field(default_factory=list)
 
 

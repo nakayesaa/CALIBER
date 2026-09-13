@@ -58,6 +58,9 @@ def build_action_plan(
             status=ActionStatus.PROPOSED,
             completion_criteria=template.completion_criteria,
             effectiveness_check=template.effectiveness_check,
+            affected_scope=template.affected_scope,
+            execution_route=template.execution_route,
+            change_control=template.change_control,
         )
         for template in cause_policy.actions
     ]
