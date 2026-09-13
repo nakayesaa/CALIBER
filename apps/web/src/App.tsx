@@ -4,14 +4,12 @@ import { ActionsPage } from './pages/ActionsPage';
 import { AssetPage } from './pages/AssetPage';
 import { DataFoundationPage } from './pages/DataFoundationPage';
 import { OverviewPage } from './pages/OverviewPage';
-import { OverviewV2Page } from './pages/OverviewV2Page';
 import { InvestigationPage } from './pages/InvestigationPage';
 import { ProblemTankPage } from './pages/ProblemTankPage';
 import { RcaPage } from './pages/RcaPage';
 
 const pages: Record<PageId, React.ComponentType<{ onNavigate: (page: PageId) => void }>> = {
   overview: OverviewPage,
-  'overview-v2': OverviewV2Page,
   problems: ProblemTankPage,
   investigation: InvestigationPage,
   assets: AssetPage,
