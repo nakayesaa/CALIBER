@@ -32,7 +32,7 @@ async function loadOverview(): Promise<OverviewData> {
 
 export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const [selectedCondition, setSelectedCondition] = useState<ConditionField>('water_in_oil_ppm');
-  const [selectedProgression, setSelectedProgression] = useState<number | null>(null);
+  const [selectedProgression, setSelectedProgression] = useState<number | null | undefined>(undefined);
   const resource = useApiResource('overview', loadOverview);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
@@ -81,7 +81,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       </article>
 
       <article className="overview-timeline-card">
-        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><button onClick={() => setSelectedProgression(0)}>View all <Icon name="arrow"/></button></header>
+        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><button onClick={() => setSelectedProgression(null)}>View all <Icon name="arrow"/></button></header>
         <div className="overview-schedule">
           <div className="overview-time-rule"><span>First signal</span><i/></div>
           <ScheduleEvent title="Oil condition began to deviate" detail="Water-in-oil became persistent before the broader equipment response." date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="Warning" meta="1 leading signal" tone="warning" onClick={() => setSelectedProgression(0)}/>
@@ -123,7 +123,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       </article>
     </section>
 
-    {selectedProgression !== null && alert && detail ? <EventProgressionExplorer assetTag={overview.asset.tag} alert={alert} transitions={detail.state_transitions} telemetry={telemetry.points} initialSelection={selectedProgression} onClose={() => setSelectedProgression(null)}/> : null}
+    {selectedProgression !== undefined && alert && detail ? <EventProgressionExplorer assetTag={overview.asset.tag} alert={alert} transitions={detail.state_transitions} telemetry={telemetry.points} initialSelection={selectedProgression} onClose={() => setSelectedProgression(undefined)}/> : null}
   </div>;
 }
 

@@ -1,7 +1,7 @@
 import { useState, type PointerEvent } from 'react';
 import type { TelemetryPoint } from '../lib/api';
 
-type SignalField = keyof Pick<TelemetryPoint,
+export type SignalField = keyof Pick<TelemetryPoint,
   'anomaly_score' | 'radial_vibration_micron' | 'water_in_oil_ppm' |
   'lube_oil_pressure_barg' | 'bearing_metal_temperature_degc' |
   'feed_rate_tph' | 'discharge_pressure_barg'>;
@@ -20,9 +20,10 @@ interface SignalChartProps {
   points: TelemetryPoint[];
   field: SignalField;
   threshold?: number;
+  highlightTimestamp?: string;
 }
 
-export function SignalChart({ points, field, threshold }: SignalChartProps) {
+export function SignalChart({ points, field, threshold, highlightTimestamp }: SignalChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   if (!points.length) return <div className="chart-empty">No telemetry points</div>;
 
@@ -38,6 +39,8 @@ export function SignalChart({ points, field, threshold }: SignalChartProps) {
   const thresholdY = threshold === undefined ? null : 96 - (threshold - min) / span * 88;
   const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
   const hoveredCoordinate = hoveredIndex === null ? null : coordinates[hoveredIndex];
+  const highlightedIndex = highlightTimestamp ? nearestPointIndex(points, highlightTimestamp) : null;
+  const highlightedCoordinate = highlightedIndex === null ? null : coordinates[highlightedIndex];
 
   function trackPointer(event: PointerEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -51,6 +54,7 @@ export function SignalChart({ points, field, threshold }: SignalChartProps) {
         <path className="grid-line" d="M0 25H100M0 50H100M0 75H100"/>
         {thresholdY !== null && <path className="threshold-path" d={`M0 ${thresholdY}H100`}/>}
         <path className="data-path" d={path}/>
+        {highlightedCoordinate && <line className="event-marker-line" x1={highlightedCoordinate.x} x2={highlightedCoordinate.x} y1="4" y2="96"/>}
         {hoveredCoordinate && <line className="tracking-line" x1={hoveredCoordinate.x} x2={hoveredCoordinate.x} y1="4" y2="96"/>}
       </svg>
       {hoveredPoint && hoveredCoordinate && <div className={`chart-tooltip${hoveredCoordinate.x > 72 ? ' align-right' : hoveredCoordinate.x < 28 ? ' align-left' : ''}`} style={{ left: `${hoveredCoordinate.x}%`, top: `${Math.min(82, Math.max(12, hoveredCoordinate.y))}%` }}>
@@ -60,6 +64,20 @@ export function SignalChart({ points, field, threshold }: SignalChartProps) {
       </div>}
     </div>
   );
+}
+
+function nearestPointIndex(points: TelemetryPoint[], timestamp: string): number {
+  const target = new Date(timestamp).getTime();
+  let nearest = 0;
+  let distance = Number.POSITIVE_INFINITY;
+  points.forEach((point, index) => {
+    const nextDistance = Math.abs(new Date(point.timestamp).getTime() - target);
+    if (nextDistance < distance) {
+      nearest = index;
+      distance = nextDistance;
+    }
+  });
+  return nearest;
 }
 
 function formatTimestamp(value: string): string {
