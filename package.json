@@ -6,6 +6,7 @@
     "apps/web"
   ],
   "scripts": {
+    "start": "bash scripts/start-dev.sh",
     "dev": "npm run dev --workspace=@caliber/web",
     "build": "npm run build --workspace=@caliber/web",
     "preview": "npm run preview --workspace=@caliber/web",

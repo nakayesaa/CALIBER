@@ -1,10 +1,11 @@
-.PHONY: help install web-dev web-build api-install api-dev canonical scenario \
+.PHONY: help install dev web-dev web-build api-install api-dev canonical scenario \
 	features train-preflight train alerts retrieval rca-preflight rca actions \
 	db-seed test check
 
 help:
 	@echo "CALIBER development commands"
 	@echo "  make install      Install web dependencies"
+	@echo "  make dev          Start the API and web app together"
 	@echo "  make web-dev      Start the Vite UI"
 	@echo "  make web-build    Build the UI"
 	@echo "  make api-install  Create API virtualenv and install dependencies"
@@ -25,6 +26,9 @@ help:
 
 install:
 	npm install
+
+dev:
+	bash scripts/start-dev.sh
 
 web-dev:
 	npm run dev
