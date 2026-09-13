@@ -139,23 +139,26 @@ export interface RCARecord {
   };
 }
 
+export type ActionType = 'CONTAINMENT' | 'CORRECTIVE' | 'PREVENTIVE';
+export type ActionStatus = 'PROPOSED' | 'APPROVED' | 'IN_PROGRESS' | 'EFFECTIVENESS_REVIEW' | 'CLOSED' | 'REJECTED';
+
 export interface ActionItem {
   action_id: string;
-  action_type: string;
+  action_type: ActionType;
   title: string;
   guidance: string;
   owner_role: string;
   priority: string;
   due_date: string;
-  status: string;
+  status: ActionStatus;
   completion_criteria: string;
   effectiveness_check: string;
   affected_scope?: string | null;
   execution_route?: string | null;
   change_control?: string | null;
   status_history?: Array<{
-    previous_status: string;
-    new_status: string;
+    previous_status: ActionStatus;
+    new_status: ActionStatus;
     actor: string;
     occurred_at: string;
     note: string;
@@ -168,7 +171,7 @@ export interface ActionPlan {
   alert_id: string;
   selected_hypothesis_id: string;
   selected_cause_category: string;
-  status: string;
+  status: ActionStatus;
   actions: ActionItem[];
 }
 
@@ -227,7 +230,7 @@ export const api = {
     request<ActionPlan>(`/rca/${rcaId}/action-plans`, {
       method: 'POST', body: JSON.stringify({ hypothesis_id: hypothesisId }),
     }),
-  updateActionStatus: (actionId: string, status: string, actor: string, note: string) =>
+  updateActionStatus: (actionId: string, status: ActionStatus, actor: string, note: string) =>
     request<ActionPlan>(`/actions/${actionId}/status`, {
       method: 'PATCH', body: JSON.stringify({ status, actor, note }),
     }),

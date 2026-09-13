@@ -4,7 +4,7 @@ import type { PageId } from '../components/AppShell';
 import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
+import { api, type ActionStatus, type AlertDetail, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
@@ -121,7 +121,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     ), 4);
   }
 
-  function updateAction(actionId: string, currentStatus: string) {
+  function updateAction(actionId: string, currentStatus: ActionStatus) {
     const nextStatus = nextActionStatus(currentStatus);
     if (!nextStatus) return;
     return runWorkflow(() => api.updateActionStatus(

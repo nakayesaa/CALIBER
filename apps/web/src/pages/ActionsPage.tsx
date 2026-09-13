@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react';
 
 import type { PageId } from '../components/AppShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
-import { api, type ActionItem, type ActionPlan } from '../lib/api';
+import { api, type ActionItem, type ActionPlan, type ActionStatus } from '../lib/api';
 import { actionsForAlert } from '../lib/demoWorkflow';
 import { formatDate, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
-
-const workflowStates = ['PROPOSED', 'APPROVED', 'IN_PROGRESS', 'EFFECTIVENESS_REVIEW', 'CLOSED'];
 
 async function loadActions() {
   const alerts = await api.alerts('asset-ko-3201');
@@ -40,7 +38,7 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
   const pendingActions = caPaActions.filter((action) => action.status !== 'CLOSED');
   const nextDueAction = [...pendingActions].sort((left, right) => left.due_date.localeCompare(right.due_date))[0];
 
-  async function advanceAction(actionId: string, status: string) {
+  async function advanceAction(actionId: string, status: ActionStatus) {
     const nextStatus = nextActionStatus(status);
     if (!nextStatus) return;
     setBusyActionId(actionId);
@@ -85,7 +83,7 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
   </div>;
 }
 
-function CapaReportModal({ plan, sourceSummary, busyActionId, onAdvance, onClose }: { plan: ActionPlan; sourceSummary: string; busyActionId: string | null; onAdvance: (actionId: string, status: string) => void; onClose: () => void }) {
+function CapaReportModal({ plan, sourceSummary, busyActionId, onAdvance, onClose }: { plan: ActionPlan; sourceSummary: string; busyActionId: string | null; onAdvance: (actionId: string, status: ActionStatus) => void; onClose: () => void }) {
   const containment = plan.actions.find((action) => action.action_type === 'CONTAINMENT');
   const plannedActions = plan.actions.filter((action) => action.action_type !== 'CONTAINMENT');
   const issueDate = containment?.due_date ?? plannedActions[0]?.due_date ?? 'Not recorded';
@@ -144,7 +142,7 @@ function ActionStatement({ action }: { action: ActionItem }) {
   return <div className="capa-action-statement"><p>{action.guidance}</p><dl><div><dt>Responsible owner</dt><dd>{action.owner_role}</dd></div><div><dt>Due date</dt><dd>{formatDate(action.due_date)}</dd></div><div><dt>Status</dt><dd>{humanize(action.status)}</dd></div></dl><ReportLine label="Evidence required" value={action.completion_criteria}/></div>;
 }
 
-function ActionTableRow({ action, busy, onAdvance }: { action: ActionItem; busy: boolean; onAdvance: (actionId: string, status: string) => void }) {
+function ActionTableRow({ action, busy, onAdvance }: { action: ActionItem; busy: boolean; onAdvance: (actionId: string, status: ActionStatus) => void }) {
   const nextStatus = nextActionStatus(action.status);
   return <div className="capa-action-table-row"><div><span>{humanize(action.action_type)}</span><strong>{action.title}</strong><p>{action.guidance}</p></div><span>{action.owner_role}</span><time>{formatDate(action.due_date)}</time><div><b>{humanize(action.status)}</b>{nextStatus && <button disabled={busy} onClick={() => onAdvance(action.action_id, action.status)}>{busy ? 'Updating…' : actionTransitionLabel(nextStatus)}</button>}</div></div>;
 }
