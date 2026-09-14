@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { PageId } from '../components/AppShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { TraceButton } from '../components/TraceabilityContext';
-import { api, type ActionItem, type ActionPlan, type ActionStatus } from '../lib/api';
+import { api, type ActionItem, type ActionPlan, type ActionStatus, type EffectivenessMetric, type EffectivenessReview } from '../lib/api';
 import { actionsForAlert } from '../lib/demoWorkflow';
 import { formatDate, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
@@ -11,7 +11,12 @@ import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
 
 async function loadActions() {
   const alerts = await api.alerts('asset-ko-3201');
-  return alerts[0] ? api.alertDetail(alerts[0].alert_id) : null;
+  if (!alerts[0]) return null;
+  const [detail, effectiveness] = await Promise.all([
+    api.alertDetail(alerts[0].alert_id),
+    api.effectiveness(alerts[0].asset_id),
+  ]);
+  return { detail, effectiveness };
 }
 
 export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
@@ -30,12 +35,12 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
   if (resource.loading) return <LoadingState/>;
   if (resource.error) return <ErrorState message={resource.error}/>;
 
-  const plans = resource.data ? actionsForAlert(resource.data.alert.alert_id, resource.data.action_plans, Boolean(resource.data.rca)) : [];
+  const plans = resource.data ? actionsForAlert(resource.data.detail.alert.alert_id, resource.data.detail.action_plans, Boolean(resource.data.detail.rca)) : [];
   if (!plans.length) return <EmptyState title="No CAPA report created yet" description="An approved RCA hypothesis unlocks containment, corrective, and preventive work."/>;
 
   const plan = plans[0];
+  const { effectiveness } = resource.data!;
   const caPaActions = plan.actions.filter((action) => action.action_type === 'CORRECTIVE' || action.action_type === 'PREVENTIVE');
-  const verifiedActions = caPaActions.filter((action) => action.status === 'CLOSED').length;
   const pendingActions = caPaActions.filter((action) => action.status !== 'CLOSED');
   const nextDueAction = [...pendingActions].sort((left, right) => left.due_date.localeCompare(right.due_date))[0];
 
@@ -54,7 +59,8 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
     }
   }
 
-  const sourceSummary = resource.data?.rca?.generation.executive_summary ?? 'Approved investigation links the equipment degradation to lubrication contamination.';
+  const sourceSummary = resource.data?.detail.rca?.generation.executive_summary ?? 'Approved investigation links the equipment degradation to lubrication contamination.';
+  const improvedSignals = effectiveness.metrics.filter((metric) => metric.outcome === 'IMPROVED').length;
 
   return <div className="decision-workspace action-workspace">
     <header className="decision-workspace-heading">
@@ -64,8 +70,8 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
 
     <section className="action-execution-summary">
       <div><span>Approved cause</span><strong>{humanize(plan.selected_cause_category)}</strong></div>
-      <div><span>Action verification</span><strong>{verifiedActions} of {caPaActions.length} verified</strong></div>
-      <div><span>Next commitment</span><strong>{nextDueAction ? `${humanize(nextDueAction.action_type)} · ${formatDate(nextDueAction.due_date)}` : 'Ready for closure'}</strong></div>
+      <div><span>Observed recovery</span><strong>{improvedSignals} of {effectiveness.metrics.length} signals improved</strong></div>
+      <div><span>Closure decision</span><strong>{effectiveness.closure_eligible ? 'Eligible for closure' : humanize(effectiveness.approval_status)}</strong></div>
     </section>
 
     <section className="capa-report-register">
@@ -77,18 +83,17 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
       </button>
     </section>
 
-    <section className="capa-closure-note"><div><span>Closure rule</span><strong>Completion alone cannot close CAPA.</strong></div><p>Corrective and preventive actions must pass their documented effectiveness checks.</p><b>{verifiedActions}/{caPaActions.length} verified</b></section>
+    <section className="capa-closure-note"><div><span>Effectiveness result</span><strong>{humanize(effectiveness.result)}</strong></div><p>{effectiveness.recovery_confirmed ? `All anchor signals improved across ${effectiveness.monitoring_periods} normal post-repair weeks with no recurrence detected. Formal closure remains a separate approval.` : effectiveness.explanation}</p><TraceButton traceId="recovery-effectiveness">View evidence</TraceButton></section>
 
-    {reportOpen && <CapaReportModal plan={plan} sourceSummary={sourceSummary} busyActionId={busyActionId} onAdvance={advanceAction} onClose={() => setReportOpen(false)}/>}
+    {reportOpen && <CapaReportModal plan={plan} effectiveness={effectiveness} sourceSummary={sourceSummary} busyActionId={busyActionId} onAdvance={advanceAction} onClose={() => setReportOpen(false)}/>}
     {workflowError && <p className="workflow-error">{workflowError}</p>}
   </div>;
 }
 
-function CapaReportModal({ plan, sourceSummary, busyActionId, onAdvance, onClose }: { plan: ActionPlan; sourceSummary: string; busyActionId: string | null; onAdvance: (actionId: string, status: ActionStatus) => void; onClose: () => void }) {
+function CapaReportModal({ plan, effectiveness, sourceSummary, busyActionId, onAdvance, onClose }: { plan: ActionPlan; effectiveness: EffectivenessReview; sourceSummary: string; busyActionId: string | null; onAdvance: (actionId: string, status: ActionStatus) => void; onClose: () => void }) {
   const containment = plan.actions.find((action) => action.action_type === 'CONTAINMENT');
   const plannedActions = plan.actions.filter((action) => action.action_type !== 'CONTAINMENT');
   const issueDate = containment?.due_date ?? plannedActions[0]?.due_date ?? 'Not recorded';
-  const allVerified = plannedActions.every((action) => action.status === 'CLOSED');
 
   return <div className="capa-report-overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <article className="capa-report-modal" role="dialog" aria-modal="true" aria-labelledby="capa-report-title">
@@ -125,11 +130,12 @@ function CapaReportModal({ plan, sourceSummary, busyActionId, onAdvance, onClose
         </ReportSection>
 
         <ReportSection number="5" title="Verification of implementation and effectiveness">
-          <div className="capa-verification-table"><div className="capa-verification-head"><span>Action</span><span>Implementation evidence</span><span>Effectiveness criteria</span><span>Result</span></div>{plannedActions.map((action) => <div className="capa-verification-row" key={action.action_id}><strong>{humanize(action.action_type)}</strong><p>{action.completion_criteria}</p><p>{action.effectiveness_check}</p><b>{action.status === 'CLOSED' ? 'Effective' : action.status === 'EFFECTIVENESS_REVIEW' ? 'Under review' : 'Pending'}</b></div>)}</div>
+          <EffectivenessEvidence review={effectiveness}/>
+          <div className="capa-verification-table"><div className="capa-verification-head"><span>Action</span><span>Implementation evidence</span><span>Effectiveness criteria</span><span>Action status</span></div>{plannedActions.map((action) => <div className="capa-verification-row" key={action.action_id}><strong>{humanize(action.action_type)}</strong><p>{action.completion_criteria}</p><p>{action.effectiveness_check}</p><b>{humanize(action.status)}</b></div>)}</div>
         </ReportSection>
 
         <ReportSection number="6" title="Approval and closure record">
-          <div className="capa-approval-grid"><DocumentField label="RCA disposition" value="Approved"/><DocumentField label="CAPA disposition" value={humanize(plan.status)}/><DocumentField label="Effectiveness review" value={allVerified ? 'Accepted' : 'Pending'}/><DocumentField label="Closure authorization" value={allVerified ? 'Ready for approval' : 'Not available'}/></div>
+          <div className="capa-approval-grid"><DocumentField label="RCA disposition" value="Approved"/><DocumentField label="CAPA disposition" value={humanize(plan.status)}/><DocumentField label="Effectiveness review" value={humanize(effectiveness.result)}/><DocumentField label="Closure authorization" value={effectiveness.closure_eligible ? 'Eligible' : 'Pending approval'}/></div>
           <ActionHistory actions={plan.actions}/>
         </ReportSection>
       </div>
@@ -137,6 +143,23 @@ function CapaReportModal({ plan, sourceSummary, busyActionId, onAdvance, onClose
       <footer><span>Controlled report · Generated from governed RCA and action records</span><button onClick={onClose}>Close report</button></footer>
     </article>
   </div>;
+}
+
+function EffectivenessEvidence({ review }: { review: EffectivenessReview }) {
+  return <div className="capa-effectiveness-evidence">
+    <header><div><span>Post-repair monitoring</span><strong>{humanize(review.result)}</strong></div><p>{review.monitoring_periods} normal weekly observations · {review.recurrence_detected ? 'Recurrence detected' : 'No recurrence detected'}</p><TraceButton traceId="recovery-effectiveness">Source evidence</TraceButton></header>
+    <div className="capa-recovery-grid">{review.metrics.map((metric) => <RecoveryMetric metric={metric} key={metric.signal_key}/>)}</div>
+    <footer><span>Monitoring window</span><strong>{formatDate(review.monitoring_start)} – {formatDate(review.monitoring_end)}</strong><p>{review.explanation}</p></footer>
+  </div>;
+}
+
+function RecoveryMetric({ metric }: { metric: EffectivenessMetric }) {
+  const scale = Math.max(Math.abs(metric.before), Math.abs(metric.after), 1);
+  return <article className="capa-recovery-metric">
+    <header><strong>{metric.label}</strong><b>{humanize(metric.outcome)}</b></header>
+    <div><span>Before</span><i><b style={{ width: `${Math.abs(metric.before) / scale * 100}%` }}/></i><strong>{metric.before.toLocaleString()} {metric.unit}</strong></div>
+    <div><span>After</span><i><b style={{ width: `${Math.abs(metric.after) / scale * 100}%` }}/></i><strong>{metric.after.toLocaleString()} {metric.unit}</strong></div>
+  </article>;
 }
 
 function ActionStatement({ action }: { action: ActionItem }) {

@@ -53,6 +53,38 @@ export interface ProductionImpact {
   };
 }
 
+export interface EffectivenessMetric {
+  signal_key: string;
+  label: string;
+  unit: string;
+  direction_of_concern: 'HIGH' | 'LOW';
+  before: number;
+  after: number;
+  improvement_percent: number;
+  outcome: 'IMPROVED' | 'STABLE' | 'DETERIORATED';
+}
+
+export interface EffectivenessReview {
+  effectiveness_check_id: string;
+  rca_case_id: string;
+  incident_id: string;
+  asset_id: string;
+  monitoring_start: string;
+  monitoring_end: string;
+  monitoring_periods: number;
+  baseline_window: string;
+  result: 'PENDING' | 'INITIAL_EFFECTIVE' | 'EFFECTIVE' | 'INCONCLUSIVE' | 'INEFFECTIVE' | 'RECURRENCE';
+  recurrence_detected: boolean;
+  recovery_confirmed: boolean;
+  approval_status: 'PENDING_REVIEW' | 'APPROVED';
+  closure_eligible: boolean;
+  explanation: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  source_reference: string;
+  metrics: EffectivenessMetric[];
+}
+
 export interface TelemetryPoint {
   timestamp: string;
   operating_mode: string;
@@ -302,6 +334,7 @@ export const api = {
   status: () => request<SystemStatus>('/status'),
   assets: () => request<AssetSummary[]>('/assets'),
   assetOverview: (assetId: string) => request<AssetOverview>(`/assets/${assetId}/overview`),
+  effectiveness: (assetId: string) => request<EffectivenessReview>(`/assets/${assetId}/effectiveness`),
   dataSources: () => request<DataSourceSummary[]>('/data-sources'),
   dataSource: (sourceKey: string) => request<DataSourceDetail>(`/data-sources/${sourceKey}`),
   traceClaim: (traceId: string) => request<TraceClaim>(`/traceability/claims/${traceId}`),
