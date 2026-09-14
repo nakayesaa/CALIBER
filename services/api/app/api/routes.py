@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from services.api.app.schemas.actions import ActionPlan
 from services.api.app.schemas.alerts import AlertEvent
 from services.api.app.schemas.effectiveness import EffectivenessReview
+from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.api import (
     ActionPlanCreateRequest,
     ActionStatusUpdate,
@@ -168,6 +169,18 @@ def alert_detail(alert_id: str, backend: Backend) -> AlertDetail:
         return backend.alert_detail(alert_id)
     except ArtifactNotFoundError as error:
         raise not_found(error) from error
+
+
+@router.get(
+    "/alerts/{alert_id}/driver-analysis",
+    response_model=DriverAnalysis,
+    tags=["alerts"],
+)
+def alert_driver_analysis(alert_id: str, backend: Backend) -> DriverAnalysis:
+    try:
+        return backend.driver_analysis(alert_id)
+    except (ArtifactNotFoundError, FileNotFoundError) as error:
+        raise not_found(FileNotFoundError(str(error))) from error
 
 
 @router.get(

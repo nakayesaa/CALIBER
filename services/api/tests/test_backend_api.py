@@ -90,6 +90,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
         "ko_3201_rca_generation.yaml",
         "ko_3201_action_policy.yaml",
         "ko_3201_production_impact.yaml",
+        "ko_3201_feature_config.yaml",
         "source_manifest.yaml",
     ]:
         shutil.copy2(ROOT / "data/catalog" / name, catalog / name)
@@ -116,6 +117,7 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     effectiveness_response = client.get(
         "/api/v1/assets/asset-ko-3201/effectiveness"
     )
+    driver_response = client.get(f"/api/v1/alerts/{ALERT_ID}/driver-analysis")
 
     assert status_response.status_code == 200
     assert status_response.json()["api_status"] == "ready"
@@ -155,6 +157,15 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     assert effectiveness["monitoring_periods"] == 5
     assert len(effectiveness["metrics"]) == 4
     assert all(metric["outcome"] == "IMPROVED" for metric in effectiveness["metrics"])
+    assert driver_response.status_code == 200
+    driver_analysis = driver_response.json()
+    assert driver_analysis["method"] == "GROUPED_COUNTERFACTUAL_BASELINE_REPLACEMENT"
+    assert len(driver_analysis["contributions"]) == 4
+    assert sum(
+        contribution["contribution_percent"]
+        for contribution in driver_analysis["contributions"]
+    ) == pytest.approx(100.0, abs=0.01)
+    assert driver_analysis["contributions"][0]["signal_key"] == "water_in_oil"
 
 
 def test_rca_review_and_action_workflow(client: TestClient) -> None:

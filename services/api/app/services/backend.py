@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from services.api.app.schemas.actions import ActionPlan, ActionStatus
 from services.api.app.schemas.alerts import AlertEvent
 from services.api.app.schemas.effectiveness import EffectivenessReview
+from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.api import (
     AlertDetail,
     AssetOverview,
@@ -35,6 +36,7 @@ from services.api.app.services.actions.workflow import (
 from services.api.app.services.artifacts import KO3201ArtifactRepository
 from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
 from services.api.app.services.effectiveness import build_effectiveness_review
+from services.api.app.services.driver_analysis import DriverAnalysisService
 from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
     RCAProvider,
@@ -69,6 +71,7 @@ class BackendService:
         self.repository = repository or KO3201ArtifactRepository(self.root)
         self.provider_factory = provider_factory or OpenAIRCAProvider
         self.traceability = TraceabilityService(self.root)
+        self.driver_analysis_service = DriverAnalysisService(self.root)
         self._mutation_lock = threading.RLock()
         load_dotenv(self.root / ".env", override=False)
 
@@ -119,6 +122,10 @@ class BackendService:
     def effectiveness_review(self, asset_id: str) -> EffectivenessReview | None:
         check = self.repository.effectiveness_check(asset_id)
         return build_effectiveness_review(check) if check else None
+
+    def driver_analysis(self, alert_id: str) -> DriverAnalysis:
+        alert = self.repository.get_alert(alert_id)
+        return self.driver_analysis_service.for_alert(alert)
 
     def telemetry(
         self,
