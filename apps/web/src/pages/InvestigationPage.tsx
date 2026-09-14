@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { PageId } from '../components/AppShell';
 import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
+import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type ActionStatus, type AlertDetail, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
@@ -23,7 +24,7 @@ const signalDefinitions: Array<{ field: SignalField; label: string; unit: string
   { field: 'discharge_pressure_barg', label: 'Discharge pressure', unit: 'barg', source: 'Production Data · Sheet2' },
 ];
 
-const storySteps = ['Detection', 'Variables', 'Probable RCA', 'Source trace', 'CA/PA'];
+const storySteps = ['Detection', 'Variables', 'Probable RCA', 'CA/PA'];
 
 interface InvestigationData {
   detail: AlertDetail;
@@ -110,7 +111,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
         'Leading cause accepted against the available evidence.',
       );
       await api.createActionPlan(approved.rca_id, selectedHypothesis.hypothesis_id);
-    }, 4);
+    }, 3);
   }
 
   function createPlan() {
@@ -118,7 +119,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     return runWorkflow(() => api.createActionPlan(
       detail.rca!.rca_id,
       detail.rca!.generation.hypotheses[0].hypothesis_id,
-    ), 4);
+    ), 3);
   }
 
   function updateAction(actionId: string, currentStatus: ActionStatus) {
@@ -151,7 +152,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     <section className="investigation-section" hidden={activeStep !== 0}>
       <div className="investigation-hero-grid">
         <article className="degradation-chart panel">
-          <header><div><span>Anomaly trajectory</span><h3>From first deviation to intervention</h3></div><div><span>Peak score</span><strong>{formatSignal(alert.peak_anomaly_score)}</strong></div></header>
+          <header><div><span>Anomaly trajectory</span><h3>From first deviation to intervention</h3></div><div><span>Peak score</span><strong>{formatSignal(alert.peak_anomaly_score)}</strong><TraceButton traceId="health-trajectory">View sources</TraceButton></div></header>
           <div className="degradation-chart-canvas"><SignalChart points={telemetry.points} field="anomaly_score" threshold={opening.anomaly_threshold}/></div>
           <div className="degradation-dates"><span>{formatDate(windowStart)} · context</span><span>{formatDate(alert.first_signal_at)} · first signal</span><span>{formatDate(windowEnd)} · response</span></div>
         </article>
@@ -173,7 +174,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
         <div className="investigation-signal-chart">
           <header><div><span>{selectedSignal.label}</span><h3>Degradation-window trend</h3></div><div><span>Window peak</span><strong>{selectedValues.length ? formatSignal(Math.max(...selectedValues)) : '—'} {selectedSignal.unit}</strong></div></header>
           <SignalChart points={telemetry.points} field={selectedField}/>
-          <p>Source: {selectedSignal.source}</p>
+          <div className="investigation-trace-footer"><p>Source: {selectedSignal.source}</p><TraceButton traceId="condition-insights">Inspect lineage</TraceButton></div>
         </div>
       </article>
     </section>
@@ -181,7 +182,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     <section className="investigation-section" hidden={activeStep !== 2}>
       <div className="rca-story-grid">
         <article className="leading-cause panel">
-          <span>Leading hypothesis · {hypothesis ? Math.round(hypothesis.confidence * 100) : 0}% confidence</span>
+          <header className="investigation-trace-heading"><span>Leading hypothesis · {hypothesis ? Math.round(hypothesis.confidence * 100) : 0}% confidence</span><TraceButton traceId="rca-indication">View evidence sources</TraceButton></header>
           <h3>{hypothesis?.title ?? 'RCA awaiting review'}</h3>
           <p>{hypothesis?.mechanism ?? 'No root-cause hypothesis is available.'}</p>
           <div><strong>Why this ranks first</strong><p>{hypothesis?.rationale}</p></div>
@@ -207,16 +208,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 3}>
-      <div className="source-trace-list panel">
-        <SourceRow label="Hourly operating context" source="Production Data - RCA2 KO-3201.xlsx" detail="Feed rate, discharge pressure, operating status, shutdown and restart context" use="Detection and operating context" href="https://drive.google.com/file/d/1xHVQZcSJZg0-Tknd2PjZ8mJVByQsFDMr"/>
-        <SourceRow label="Equipment condition" source="Equipment Performance - RCA2 KO-3201.xlsx" detail="Vibration, oil water content, oil pressure, bearing temperature and engineering limits" use="Variable evidence and thresholds" href="https://drive.google.com/file/d/1JbDwEz1q3NRxW4OVrJR9q9M7ec2Nn0Ch"/>
-        <SourceRow label="Anomaly decision" source="KO-3201 Isolation Forest v1" detail="Canonical hourly features scored against a calibrated decision threshold" use="Detection, severity and drivers"/>
-        <SourceRow label="Historical context" source="Incident Database.xlsx" detail="Governed corpus of 380 historical manufacturing incidents" use="Similar-incident retrieval" href="https://drive.google.com/file/d/12zoQhytgMpmOlR-cKeF-WPmw-Tn5fk6Z"/>
-        <SourceRow label="Reported RCA history" source="RCA2 - KO-3201 High Radial Vibration Trip.pptx" detail="Reported chronology, root-cause statements, actions and impact" use="RCA grounding and validation" href="https://drive.google.com/file/d/1Fwbx5RIeBsHEftLaVNbYgFUDSEcvB9iX"/>
-      </div>
-    </section>
-
-    <section className="investigation-section" hidden={activeStep !== 4}>
+      <div className="investigation-section-trace"><TraceButton traceId="capa-plan">View CA/PA sources and lineage</TraceButton></div>
       <div className="investigation-action-list panel">
         <header><span>Priority and action</span><span>Owner</span><span>Status</span><span>Due date</span></header>
         {actions.map((action) => {
@@ -260,9 +252,4 @@ function WorkflowControls({ rcaStatus, hasPlan, busy, error, draftMode, onCreate
     </div>
     {error && <p>{error}</p>}
   </div>;
-}
-
-function SourceRow({ label, source, detail, use, href }: { label: string; source: string; detail: string; use: string; href?: string }) {
-  const name = href ? <a href={href} target="_blank" rel="noreferrer">{source} <Icon name="arrow"/></a> : <strong>{source}</strong>;
-  return <div><span>{label}</span><div>{name}<p>{detail}</p></div><b>{use}</b></div>;
 }

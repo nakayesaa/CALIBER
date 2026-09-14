@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -202,16 +203,25 @@ class TraceabilityService:
 
     def _rca_claim(self, alert: AlertEvent) -> TraceClaim:
         evidence = self._read_csv("data/normalized/ko_3201/evidence.csv")
-        hypotheses = self._read_csv("data/normalized/ko_3201/hypotheses.csv")
-        leading = hypotheses.sort_values("rank").iloc[0]
+        record_path = self.root / "data/rca/ko_3201/v1/rca_record.json"
+        if record_path.is_file():
+            record = self._read_json("data/rca/ko_3201/v1/rca_record.json")
+            leading_title = str(record["generation"]["hypotheses"][0]["title"])
+            provenance = "HUMAN_VERIFIED" if record["status"] == "APPROVED" else "AI_SYNTHESIS"
+            evidence_as_of = str(record["evidence_as_of"])
+        else:
+            hypotheses = self._read_csv("data/normalized/ko_3201/hypotheses.csv")
+            leading_title = str(hypotheses.sort_values("rank").iloc[0]["statement"])
+            provenance = "RECORDED"
+            evidence_as_of = alert.last_evidence_at
         return self._claim(
             trace_id="rca-indication",
             title="Leading probable root cause",
-            value=str(leading["statement"]),
+            value=leading_title,
             unit=None,
-            provenance="AI_SYNTHESIS",
+            provenance=provenance,
             summary="The RCA service combines model evidence, source-reported findings, and retrieved incident analogues into ranked hypotheses that require engineering review.",
-            as_of=alert.last_evidence_at,
+            as_of=evidence_as_of,
             calculation=[
                 "Retrieve similar incidents from the governed incident corpus.",
                 "Assemble supporting, contradicting, and missing evidence.",
@@ -235,11 +245,20 @@ class TraceabilityService:
         )
 
     def _capa_claim(self, alert: AlertEvent) -> TraceClaim:
-        actions = self._read_csv("data/normalized/ko_3201/actions.csv")
+        plan_paths = sorted(
+            (self.root / "data/actions/ko_3201/v1/plans").glob("*.json")
+        )
+        if not plan_paths:
+            actions = self._read_csv("data/normalized/ko_3201/actions.csv")
+            preview_columns = ["action_type", "description", "owner", "priority", "status", "due_date"]
+        else:
+            plan = json.loads(plan_paths[0].read_text(encoding="utf-8"))
+            actions = pd.DataFrame(plan["actions"])
+            preview_columns = ["action_type", "title", "owner_role", "priority", "status", "due_date"]
         return self._claim(
             trace_id="capa-plan",
             title="Corrective and preventive action plan",
-            value=f"{len(actions)} governed actions",
+            value=f"{len(actions)} controlled actions",
             unit=None,
             provenance="HUMAN_VERIFIED",
             summary="Containment, corrective, and preventive work is linked to the approved RCA with owner, due date, completion evidence, and effectiveness criteria.",
@@ -258,7 +277,7 @@ class TraceabilityService:
             ],
             preview=self._preview(
                 actions,
-                ["action_type", "description", "owner", "priority", "status", "due_date"],
+                preview_columns,
             ),
         )
 
@@ -428,6 +447,9 @@ class TraceabilityService:
 
     def _read_csv(self, relative_path: str) -> pd.DataFrame:
         return pd.read_csv(self.root / relative_path)
+
+    def _read_json(self, relative_path: str) -> dict[str, Any]:
+        return json.loads((self.root / relative_path).read_text(encoding="utf-8"))
 
     @staticmethod
     def _preview(frame: pd.DataFrame, columns: list[str]) -> TraceRecordPreview:

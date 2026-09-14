@@ -252,7 +252,7 @@ def test_traceability_connects_claims_to_governed_sources(client: TestClient) ->
 
     assert rca_response.status_code == 200
     rca = rca_response.json()
-    assert rca["provenance"] == "AI_SYNTHESIS"
+    assert rca["provenance"] == "RECORDED"
     assert {source["source_key"] for source in rca["sources"]} == {
         "equipment_performance_ko_3201",
         "incident_database",
