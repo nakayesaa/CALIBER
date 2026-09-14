@@ -123,9 +123,13 @@ class BackendService:
         check = self.repository.effectiveness_check(asset_id)
         return build_effectiveness_review(check) if check else None
 
-    def driver_analysis(self, alert_id: str) -> DriverAnalysis:
+    def driver_analysis(
+        self,
+        alert_id: str,
+        requested_at: datetime | None = None,
+    ) -> DriverAnalysis:
         alert = self.repository.get_alert(alert_id)
-        return self.driver_analysis_service.for_alert(alert)
+        return self.driver_analysis_service.for_alert(alert, requested_at)
 
     def telemetry(
         self,

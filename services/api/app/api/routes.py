@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -176,11 +177,17 @@ def alert_detail(alert_id: str, backend: Backend) -> AlertDetail:
     response_model=DriverAnalysis,
     tags=["alerts"],
 )
-def alert_driver_analysis(alert_id: str, backend: Backend) -> DriverAnalysis:
+def alert_driver_analysis(
+    alert_id: str,
+    backend: Backend,
+    timestamp: datetime | None = None,
+) -> DriverAnalysis:
     try:
-        return backend.driver_analysis(alert_id)
+        return backend.driver_analysis(alert_id, timestamp)
     except (ArtifactNotFoundError, FileNotFoundError) as error:
         raise not_found(FileNotFoundError(str(error))) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get(

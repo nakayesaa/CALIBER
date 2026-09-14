@@ -167,6 +167,16 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     ) == pytest.approx(100.0, abs=0.01)
     assert driver_analysis["contributions"][0]["signal_key"] == "water_in_oil"
 
+    closed_at = alert_response.json()["alert"]["closed_at"]
+    milestone_response = client.get(
+        f"/api/v1/alerts/{ALERT_ID}/driver-analysis",
+        params={"timestamp": closed_at},
+    )
+    assert milestone_response.status_code == 200
+    milestone = milestone_response.json()
+    assert milestone["as_of"] < closed_at
+    assert milestone["contributions"][0]["signal_key"] == "bearing_temperature"
+
 
 def test_rca_review_and_action_workflow(client: TestClient) -> None:
     generated = client.post(

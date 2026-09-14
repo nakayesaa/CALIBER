@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -21,15 +22,30 @@ class DriverAnalysisService:
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
 
-    def for_alert(self, alert: AlertEvent) -> DriverAnalysis:
+    def for_alert(
+        self,
+        alert: AlertEvent,
+        requested_at: datetime | None = None,
+    ) -> DriverAnalysis:
         scenario = self._read_csv("data/synthetic/ko_3201/v1/hourly_scenario.csv")
         scores = self._read_csv("data/scored/ko_3201/v1/hourly_anomaly_scores.csv")
         config = self._load_config()
         scenario["timestamp"] = pd.to_datetime(scenario["timestamp"], errors="raise")
         scores["timestamp"] = pd.to_datetime(scores["timestamp"], errors="raise")
-        peak_time = pd.Timestamp(alert.peak_score_at)
-        peak_scenario = self._single_row(scenario, peak_time, "scenario")
-        peak_score = self._single_row(scores, peak_time, "model score")
+        requested_time = pd.Timestamp(requested_at or alert.peak_score_at)
+        if requested_time.tzinfo is None:
+            raise ValueError("Driver analysis timestamp must include a timezone")
+        eligible_scores = scores.loc[
+            scores["timestamp"].le(requested_time)
+            & scores["score_status"].eq("SCORED")
+        ]
+        if eligible_scores.empty:
+            raise ValueError(
+                f"No scored evidence is available by {requested_time.isoformat()}"
+            )
+        evidence_time = pd.Timestamp(eligible_scores.iloc[-1]["timestamp"])
+        evidence_scenario = self._single_row(scenario, evidence_time, "scenario")
+        evidence_score = eligible_scores.iloc[-1]
         baseline_rows = scenario.loc[
             scenario["scenario_phase"].eq("HEALTHY_BASELINE")
             & scenario["operating_mode"].eq("RUNNING_STEADY")
@@ -40,7 +56,7 @@ class DriverAnalysisService:
 
         alert_window = scenario.loc[
             scenario["timestamp"].between(
-                pd.Timestamp(alert.first_signal_at), peak_time, inclusive="both"
+                pd.Timestamp(alert.first_signal_at), evidence_time, inclusive="both"
             )
         ]
         first_alarms = {
@@ -66,8 +82,8 @@ class DriverAnalysisService:
             self._signal_contribution(
                 signal_key,
                 signal,
-                peak_scenario,
-                peak_score,
+                evidence_scenario,
+                evidence_score,
                 baseline_rows,
                 alert_window,
                 first_alarms[signal_key],
@@ -80,8 +96,8 @@ class DriverAnalysisService:
             alert_id=alert.alert_id,
             asset_id=alert.asset_id,
             model_id=alert.model_id,
-            as_of=peak_time.to_pydatetime(),
-            anomaly_score=float(peak_score["anomaly_score"]),
+            as_of=evidence_time.to_pydatetime(),
+            anomaly_score=float(evidence_score["anomaly_score"]),
             method="GROUPED_COUNTERFACTUAL_BASELINE_REPLACEMENT",
             interpretation=(
                 "Contribution estimates how much the raw model anomaly decreases "
@@ -95,21 +111,21 @@ class DriverAnalysisService:
         self,
         signal_key: str,
         signal: ConditionSignalConfig,
-        peak_scenario: pd.Series,
-        peak_score: pd.Series,
+        evidence_scenario: pd.Series,
+        evidence_score: pd.Series,
         baseline_rows: pd.DataFrame,
         alert_window: pd.DataFrame,
         first_alarm: pd.Timestamp | None,
         chronology_rank: int | None,
     ) -> SignalContribution:
         source_field = signal.source_column
-        value = float(peak_scenario[source_field])
+        value = float(evidence_scenario[source_field])
         contribution_column = f"contribution_pct__condition__{signal_key}"
         impact_column = f"model_impact__condition__{signal_key}"
         missing = {
             column
             for column in (contribution_column, impact_column)
-            if column not in peak_score.index
+            if column not in evidence_score.index
         }
         if missing:
             raise ValueError(
@@ -132,8 +148,8 @@ class DriverAnalysisService:
             first_alarm_at=first_alarm.to_pydatetime() if first_alarm is not None else None,
             alarm_persistence_hours=self._persistence(alert_window[source_field], signal),
             chronology_rank=chronology_rank,
-            raw_model_impact=float(peak_score[impact_column]),
-            contribution_percent=float(peak_score[contribution_column]),
+            raw_model_impact=float(evidence_score[impact_column]),
+            contribution_percent=float(evidence_score[contribution_column]),
         )
 
     @staticmethod
