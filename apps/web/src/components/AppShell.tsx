@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import { SidebarIcon, type SidebarIconName } from './SidebarIcon';
+import { SourceInspector } from './SourceInspector';
+import { useTraceability } from './TraceabilityContext';
 
 export type PageId = 'overview' | 'problems' | 'investigation' | 'assets' | 'rca' | 'actions' | 'data';
 
@@ -20,13 +22,14 @@ interface AppShellProps {
 }
 
 export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
+  const { target } = useTraceability();
   const activeLabel = activePage === 'investigation'
     ? 'Problem investigation'
     : navigation.find(({ id }) => id === activePage)?.label ?? 'Overview';
 
   return (
     <main className="page">
-      <section className="app-shell">
+      <section className={`app-shell${target ? ' trace-open' : ''}`}>
         <aside className="rail">
           <button className="brand" aria-label="CALIBER home" onClick={() => onNavigate('overview')}><span/><span/></button>
           <nav aria-label="Primary navigation">
@@ -57,6 +60,7 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
             {children}
           </div>
         </div>
+        <SourceInspector/>
       </section>
     </main>
   );

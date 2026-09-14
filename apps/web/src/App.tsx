@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppShell, type PageId } from './components/AppShell';
+import { TraceabilityProvider } from './components/TraceabilityContext';
 import { ActionsPage } from './pages/ActionsPage';
 import { AssetPage } from './pages/AssetPage';
 import { DataFoundationPage } from './pages/DataFoundationPage';
@@ -35,5 +36,5 @@ export function App() {
     setActivePage(page);
   };
   const Page = pages[activePage];
-  return <AppShell activePage={activePage} onNavigate={navigate}><Page onNavigate={navigate}/></AppShell>;
+  return <TraceabilityProvider><AppShell activePage={activePage} onNavigate={navigate}><Page onNavigate={navigate}/></AppShell></TraceabilityProvider>;
 }

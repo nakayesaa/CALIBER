@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { PageId } from '../components/AppShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
+import { TraceButton } from '../components/TraceabilityContext';
 import { api, type ActionItem, type ActionPlan, type ActionStatus } from '../lib/api';
 import { actionsForAlert } from '../lib/demoWorkflow';
 import { formatDate, humanize } from '../lib/format';
@@ -58,7 +59,7 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
   return <div className="decision-workspace action-workspace">
     <header className="decision-workspace-heading">
       <div><span>KO-3201 · Controlled records</span><h1>Corrective and preventive action</h1><p>Track the formal CAPA record created from the approved equipment investigation.</p></div>
-      <div><b>{humanize(plan.status)}</b><button onClick={() => onNavigate('rca')}>Review approved RCA</button></div>
+      <div><b>{humanize(plan.status)}</b><TraceButton traceId="capa-plan">View supporting sources</TraceButton><button onClick={() => onNavigate('rca')}>Review approved RCA</button></div>
     </header>
 
     <section className="action-execution-summary">

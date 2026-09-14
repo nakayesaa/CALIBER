@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { PageId } from '../components/AppShell';
 import { SignalChart } from '../components/SignalChart';
+import { TraceButton } from '../components/TraceabilityContext';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type TelemetrySeries } from '../lib/api';
 import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
@@ -42,7 +43,7 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
   return <div className="decision-workspace rca-workspace">
     <header className="decision-workspace-heading">
       <div><span>KO-3201 · {detail.alert.alert_id}</span><h1>Root cause analysis</h1><p>Trace the probable cause from equipment evidence, historical analogues, and explicit validation boundaries.</p></div>
-      <div><b>{humanize(rca.status)}</b><button onClick={() => onNavigate('actions')}>Open CA/PA plan</button></div>
+      <div><b>{humanize(rca.status)}</b><TraceButton traceId="rca-indication">View supporting sources</TraceButton><button onClick={() => onNavigate('actions')}>Open CA/PA plan</button></div>
     </header>
 
     <section className="rca-decision-grid">

@@ -5,6 +5,7 @@ import { conditionSignals } from '../lib/conditionSignals';
 import { buildEventMilestones } from '../lib/eventProgression';
 import { formatDateTime, formatSignal, humanize } from '../lib/format';
 import { SignalChart, type SignalField } from './SignalChart';
+import { TraceButton } from './TraceabilityContext';
 
 interface EventProgressionExplorerProps {
   assetTag: string;
@@ -81,7 +82,7 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
           <header><span>Analysis at this point</span><b>Evidence-based indication</b></header>
           <h4>{selected.synthesis.title}</h4>
           <p>{selected.synthesis.detail}</p>
-          <footer><span>Derived from</span><b>Hourly telemetry and alert decision state</b></footer>
+          <footer><span>Derived from hourly telemetry and alert decisions</span><TraceButton traceId="event-progression">View sources</TraceButton></footer>
         </section>
       </section>}
 

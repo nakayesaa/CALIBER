@@ -218,6 +218,74 @@ export interface AlertDetail {
   action_plans: ActionPlan[];
 }
 
+export interface SourceFieldMapping {
+  source_field: string;
+  canonical_field: string;
+  unit: string;
+  cadence: string;
+  status: string;
+}
+
+export interface SourceQualityIssue {
+  issue_id: string;
+  severity: string;
+  flag: string;
+  description: string;
+  resolution_status: string;
+}
+
+export interface DataSourceSummary {
+  source_key: string;
+  title: string;
+  domain: string;
+  role: string;
+  cadence: string;
+  status: 'CONNECTED' | 'REVIEW_REQUIRED' | 'REFERENCE';
+  mapping_count: number;
+  quality_issue_count: number;
+  record_count: number | null;
+  modified_at: string;
+  source_url: string;
+}
+
+export interface DataSourceDetail {
+  source: DataSourceSummary;
+  local_path: string;
+  parser: string;
+  checksum: string;
+  mappings: SourceFieldMapping[];
+  quality_issues: SourceQualityIssue[];
+}
+
+export interface TraceClaim {
+  trace_id: string;
+  title: string;
+  value: string;
+  unit: string | null;
+  provenance: 'RECORDED' | 'STANDARDIZED' | 'CALCULATED' | 'MODEL_OUTPUT' | 'AI_SYNTHESIS' | 'HUMAN_VERIFIED';
+  summary: string;
+  as_of: string;
+  calculation: string[];
+  lineage: Array<{
+    sequence: number;
+    kind: 'SOURCE' | 'CANONICAL' | 'RULE' | 'MODEL' | 'AI' | 'VIEW';
+    label: string;
+    reference: string;
+  }>;
+  sources: Array<{
+    source_key: string;
+    title: string;
+    location: string;
+    role: string;
+    mappings: SourceFieldMapping[];
+  }>;
+  quality_issues: SourceQualityIssue[];
+  preview: {
+    columns: string[];
+    rows: Array<Record<string, string | number | boolean | null>>;
+  } | null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -234,6 +302,9 @@ export const api = {
   status: () => request<SystemStatus>('/status'),
   assets: () => request<AssetSummary[]>('/assets'),
   assetOverview: (assetId: string) => request<AssetOverview>(`/assets/${assetId}/overview`),
+  dataSources: () => request<DataSourceSummary[]>('/data-sources'),
+  dataSource: (sourceKey: string) => request<DataSourceDetail>(`/data-sources/${sourceKey}`),
+  traceClaim: (traceId: string) => request<TraceClaim>(`/traceability/claims/${traceId}`),
   telemetry: (assetId: string, maxPoints = 360, start?: string, end?: string) => {
     const query = new URLSearchParams({ max_points: String(maxPoints) });
     if (start) query.set('start', start);

@@ -4,6 +4,7 @@ import type { PageId } from '../components/AppShell';
 import { EventProgressionExplorer } from '../components/EventProgressionExplorer';
 import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
+import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetrySeries } from '../lib/api';
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
@@ -89,7 +90,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       <article className="overview-health-card">
         <header>
           <div><span className="overview-title-icon"><Icon name="pulse"/></span><div><h2>Equipment health trajectory</h2><p>KO-3201 · {healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
-          <div className="overview-health-controls"><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{(['6M', '3M', '1M'] as const).map((range) => <button className={healthRange === range ? 'active' : ''} key={range} onClick={() => setHealthRange(range)}>{range}</button>)}</nav></div>
+          <div className="overview-health-controls"><TraceButton traceId="health-trajectory">View sources</TraceButton><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{(['6M', '3M', '1M'] as const).map((range) => <button className={healthRange === range ? 'active' : ''} key={range} onClick={() => setHealthRange(range)}>{range}</button>)}</nav></div>
         </header>
         <div className="overview-health-body">
           <div className="overview-chart-metric"><span>Visible peak score</span><strong>{formatSignal(visiblePeakScore)}</strong><p>Threshold <b>50</b></p></div>
@@ -99,12 +100,12 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
         <div className="overview-health-context">
           <div><span>Leading condition</span><strong>Water in oil</strong><b>{formatSignal(latest?.water_in_oil_ppm ?? 0)} ppm</b></div>
           <div><span>Correlated response</span><strong>Radial vibration</strong><b>{formatSignal(latest?.radial_vibration_micron ?? 0)} µm</b></div>
-          <div><span>Estimated production shortfall</span><strong>{productionImpact ? `~${Math.round(productionImpact.estimated_shortfall_tonnes).toLocaleString()} tonnes` : 'Unavailable'}</strong><b>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h offline` : 'No event window'}</b></div>
+          <div><span>Estimated production shortfall</span><strong>{productionImpact ? `~${Math.round(productionImpact.estimated_shortfall_tonnes).toLocaleString()} tonnes` : 'Unavailable'}</strong><TraceButton traceId="production-shortfall">{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h · View calculation` : 'View calculation'}</TraceButton></div>
         </div>
       </article>
 
       <article className="overview-timeline-card">
-        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><button onClick={() => setSelectedProgression(null)}>View all <Icon name="arrow"/></button></header>
+        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><div className="overview-card-actions"><TraceButton traceId="event-progression">Sources</TraceButton><button onClick={() => setSelectedProgression(null)}>View all <Icon name="arrow"/></button></div></header>
         <div className="overview-schedule">
           <div className="overview-time-rule"><span>First signal</span><i/></div>
           <ScheduleEvent title="Oil condition began to deviate" detail="Water-in-oil became persistent before the broader equipment response." date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="Warning" meta="1 leading signal" tone="warning" onClick={() => setSelectedProgression(0)}/>
@@ -116,7 +117,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 
     <section className="overview-bottom-grid">
       <article className="overview-condition-card">
-        <header><div><h2>{signalMode === 'condition' ? 'Condition insights' : 'Operating performance'}</h2><p>{signalMode === 'condition' ? 'Explore how equipment condition contributed to the event' : 'Compare KO-3201 load and delivery against plant operation'}</p></div><nav className="overview-signal-mode" aria-label="Equipment signal group"><button className={signalMode === 'condition' ? 'active' : ''} onClick={() => selectSignalMode('condition')}>Condition</button><button className={signalMode === 'operating' ? 'active' : ''} onClick={() => selectSignalMode('operating')}>Operating</button></nav></header>
+        <header><div><h2>{signalMode === 'condition' ? 'Condition insights' : 'Operating performance'}</h2><p>{signalMode === 'condition' ? 'Explore how equipment condition contributed to the event' : 'Compare KO-3201 load and delivery against plant operation'}</p></div><div className="overview-card-actions"><TraceButton traceId={signalMode === 'condition' ? 'condition-insights' : 'production-shortfall'}>View sources</TraceButton><nav className="overview-signal-mode" aria-label="Equipment signal group"><button className={signalMode === 'condition' ? 'active' : ''} onClick={() => selectSignalMode('condition')}>Condition</button><button className={signalMode === 'operating' ? 'active' : ''} onClick={() => selectSignalMode('operating')}>Operating</button></nav></div></header>
         <nav className="overview-condition-tabs" aria-label={`${signalMode} variables`}>
           {availableSignals.map((signal) => <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{formatSignal(Number(latest?.[signal.field] ?? 0))} {signal.unit}</strong></button>)}
         </nav>
@@ -140,13 +141,13 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 
       <article className="overview-decision-card">
         <section className="overview-decision-half overview-rca-half">
-          <header><div><span>Root cause analysis</span><b>{rca ? humanize(rca.status) : 'Pending'}</b></div><button onClick={() => onNavigate('rca')} aria-label="Open RCA workspace"><Icon name="arrow"/></button></header>
+          <header><div><span>Root cause analysis</span><b>{rca ? humanize(rca.status) : 'Pending'}</b></div><div className="overview-card-actions"><TraceButton traceId="rca-indication">Sources</TraceButton><button onClick={() => onNavigate('rca')} aria-label="Open RCA workspace"><Icon name="arrow"/></button></div></header>
           <h3>{rca?.generation.hypotheses[0]?.title ?? 'Evidence package ready for review'}</h3>
           <p>{rca?.generation.hypotheses[0]?.rationale ?? 'Review the signal sequence and historical analogues to establish a probable cause.'}</p>
           <dl><div><dt>Confidence</dt><dd>{confidence}%</dd></div><div><dt>Evidence</dt><dd>{rca?.generation.hypotheses[0]?.supporting_evidence_ids.length ?? 0} items</dd></div><div><dt>Similar cases</dt><dd>{detail?.similar_incidents.length ?? 0}</dd></div></dl>
         </section>
         <section className="overview-decision-half overview-capa-half">
-          <header><div><span>CA/PA progress</span><b>{verifiedCaPa}/{caPaActions.length} verified</b></div><button onClick={() => onNavigate('actions')} aria-label="Open CA/PA tracker"><Icon name="arrow"/></button></header>
+          <header><div><span>CA/PA progress</span><b>{verifiedCaPa}/{caPaActions.length} verified</b></div><div className="overview-card-actions"><TraceButton traceId="capa-plan">Sources</TraceButton><button onClick={() => onNavigate('actions')} aria-label="Open CA/PA tracker"><Icon name="arrow"/></button></div></header>
           <div className="overview-capa-row"><span>Corrective</span><div><strong>{correctiveAction?.title ?? 'Awaiting approved RCA'}</strong><small>{correctiveAction?.owner_role ?? 'Unassigned'}</small></div><b>{humanize(correctiveAction?.status ?? 'Pending')}</b></div>
           <div className="overview-capa-row"><span>Preventive</span><div><strong>{preventiveAction?.title ?? 'Awaiting approved RCA'}</strong><small>{preventiveAction?.owner_role ?? 'Unassigned'}</small></div><b>{humanize(preventiveAction?.status ?? 'Pending')}</b></div>
           <footer><span>Next attention</span><strong>{activeAction?.title ?? 'Approve RCA and assign actions'}</strong></footer>
