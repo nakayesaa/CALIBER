@@ -377,7 +377,10 @@ export const api = {
   alerts: (assetId?: string) =>
     request<AlertEvent[]>(`/alerts${assetId ? `?asset_id=${assetId}` : ''}`),
   alertDetail: (alertId: string) => request<AlertDetail>(`/alerts/${alertId}`),
-  driverAnalysis: (alertId: string) => request<DriverAnalysis>(`/alerts/${alertId}/driver-analysis`),
+  driverAnalysis: (alertId: string, timestamp?: string) => {
+    const query = timestamp ? `?${new URLSearchParams({ timestamp })}` : '';
+    return request<DriverAnalysis>(`/alerts/${alertId}/driver-analysis${query}`);
+  },
   generateRca: (alertId: string, requestedBy: string, mode: 'ai' | 'prepared') =>
     request<RCARecord>(`/alerts/${alertId}/rca`, {
       method: 'POST', body: JSON.stringify({ requested_by: requestedBy, mode }),

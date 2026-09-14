@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { AlertEvent, AlertStateTransition, TelemetryPoint } from '../lib/api';
+import { api, type AlertEvent, type AlertStateTransition, type DriverAnalysis, type TelemetryPoint } from '../lib/api';
 import { conditionSignals } from '../lib/conditionSignals';
 import { buildEventMilestones } from '../lib/eventProgression';
 import { formatDateTime, formatSignal, humanize } from '../lib/format';
@@ -23,6 +23,9 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
   );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(() => normalizeIndex(initialSelection, milestones.length));
   const [selectedSignal, setSelectedSignal] = useState<SignalField>('anomaly_score');
+  const [driverAnalysis, setDriverAnalysis] = useState<DriverAnalysis | null>(null);
+  const [driverError, setDriverError] = useState<string | null>(null);
+  const [driverLoading, setDriverLoading] = useState(false);
   const selected = selectedIndex === null ? undefined : milestones[selectedIndex];
   const chartPoints = useMemo(
     () => selected ? telemetryAround(telemetry, selected.timestamp) : [],
@@ -40,6 +43,32 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [onClose]);
+
+  useEffect(() => {
+    if (!selected) {
+      setDriverAnalysis(null);
+      setDriverError(null);
+      setDriverLoading(false);
+      return;
+    }
+    let active = true;
+    setDriverAnalysis(null);
+    setDriverError(null);
+    setDriverLoading(true);
+    api.driverAnalysis(alert.alert_id, selected.timestamp)
+      .then((analysis) => {
+        if (active) setDriverAnalysis(analysis);
+      })
+      .catch((error: unknown) => {
+        if (active) setDriverError(error instanceof Error ? error.message : 'Driver explanation unavailable');
+      })
+      .finally(() => {
+        if (active) setDriverLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [alert.alert_id, selected]);
 
   const snapshot = selected?.snapshot;
   const expanded = Boolean(selected);
@@ -72,6 +101,20 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
           <div className="overview-snapshot-grid">
             {conditionSignals.map((signal) => <div key={signal.field}><span>{signal.label}</span><strong>{formatReading(snapshot?.[signal.field])} <small>{signal.unit}</small></strong></div>)}
           </div>
+        </section>
+        <section className="overview-driver-breakdown" aria-live="polite">
+          <header><div><h4>Signal contribution</h4><span>Local model explanation</span></div><time>{driverAnalysis ? `Evidence at ${formatDateTime(driverAnalysis.as_of)}` : 'Selected milestone'}</time></header>
+          {driverLoading && <p className="overview-driver-state">Calculating milestone contribution…</p>}
+          {driverError && <p className="overview-driver-state">{driverError}</p>}
+          {driverAnalysis && <div>{driverAnalysis.contributions.map((contribution, index) => {
+            const signal = conditionSignals.find((candidate) => candidate.field === contribution.source_field);
+            return <article key={contribution.signal_key}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <div><header><strong>{signal?.label ?? humanize(contribution.signal_key)}</strong><small>{formatSignal(contribution.value)} {signal?.unit ?? contribution.unit} · {humanize(contribution.engineering_state)}</small></header><i><b style={{ width: `${contribution.contribution_percent}%` }}/></i></div>
+              <strong>{formatSignal(contribution.contribution_percent)}%</strong>
+            </article>;
+          })}</div>}
+          <footer>Contribution explains the model score at this event. It does not prove physical causality.</footer>
         </section>
         <section className="overview-evidence-strip">
           <div><span>Anomaly score</span><strong>{snapshot?.anomaly_score == null ? 'Not scored' : formatSignal(snapshot.anomaly_score)}</strong></div>
