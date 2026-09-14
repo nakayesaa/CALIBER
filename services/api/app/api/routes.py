@@ -21,12 +21,18 @@ from services.api.app.schemas.api import (
 )
 from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
+from services.api.app.schemas.traceability import (
+    DataSourceDetail,
+    DataSourceSummary,
+    TraceClaim,
+)
 from services.api.app.services.artifacts import ArtifactNotFoundError
 from services.api.app.services.backend import (
     BackendService,
     LLMConfigurationError,
     LLMGenerationError,
 )
+from services.api.app.services.traceability import TraceabilityNotFoundError
 
 
 router = APIRouter(prefix="/api/v1")
@@ -50,6 +56,39 @@ def conflict(error: ValueError) -> HTTPException:
 @router.get("/status", response_model=SystemStatus, tags=["system"])
 def project_status(backend: Backend) -> SystemStatus:
     return backend.status()
+
+
+@router.get(
+    "/data-sources",
+    response_model=list[DataSourceSummary],
+    tags=["traceability"],
+)
+def list_data_sources(backend: Backend) -> list[DataSourceSummary]:
+    return backend.list_data_sources()
+
+
+@router.get(
+    "/data-sources/{source_key}",
+    response_model=DataSourceDetail,
+    tags=["traceability"],
+)
+def data_source_detail(source_key: str, backend: Backend) -> DataSourceDetail:
+    try:
+        return backend.data_source_detail(source_key)
+    except TraceabilityNotFoundError as error:
+        raise not_found(FileNotFoundError(error.args[0])) from error
+
+
+@router.get(
+    "/traceability/claims/{trace_id}",
+    response_model=TraceClaim,
+    tags=["traceability"],
+)
+def traceability_claim(trace_id: str, backend: Backend) -> TraceClaim:
+    try:
+        return backend.traceability_claim(trace_id)
+    except TraceabilityNotFoundError as error:
+        raise not_found(FileNotFoundError(error.args[0])) from error
 
 
 @router.get("/assets", response_model=list[AssetSummary], tags=["assets"])

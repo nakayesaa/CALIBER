@@ -18,11 +18,13 @@ from services.api.app.schemas.api import (
     AlertDetail,
     AssetOverview,
     AssetSummary,
+    ProductionImpact,
     SystemStatus,
     TelemetrySeries,
 )
 from services.api.app.schemas.rca import RCAGenerationConfig, RCARecord, RCAStatus
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
+from services.api.app.schemas.traceability import DataSourceDetail, DataSourceSummary, TraceClaim
 from services.api.app.services.actions.workflow import (
     build_action_plan,
     load_action_policy,
@@ -39,6 +41,7 @@ from services.api.app.services.rca.generation import (
     transition_rca,
 )
 from services.api.app.services.production_impact import load_production_impact_policy
+from services.api.app.services.traceability import TraceabilityService
 
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Jakarta")
@@ -63,6 +66,7 @@ class BackendService:
         self.root = root.resolve()
         self.repository = repository or KO3201ArtifactRepository(self.root)
         self.provider_factory = provider_factory or OpenAIRCAProvider
+        self.traceability = TraceabilityService(self.root)
         self._mutation_lock = threading.RLock()
         load_dotenv(self.root / ".env", override=False)
 
@@ -84,14 +88,7 @@ class BackendService:
         start, end, latest_state = self.repository.timeline_summary(asset_id)
         alerts = [alert for alert in self.repository.list_alerts() if alert.asset_id == asset_id]
         highest = max(alerts, key=lambda alert: alert.highest_severity_rank, default=None)
-        production_impact = None
-        if highest is not None:
-            policy = load_production_impact_policy(
-                self.root / "data/catalog/ko_3201_production_impact.yaml"
-            )
-            production_impact = self.repository.production_impact(
-                asset_id, highest, policy
-            )
+        production_impact = self._production_impact(asset_id, highest)
         return AssetOverview(
             asset=asset,
             timeline_start=start.to_pydatetime(),
@@ -101,6 +98,20 @@ class BackendService:
             alert_count=len(alerts),
             production_impact=production_impact,
         )
+
+    def list_data_sources(self) -> list[DataSourceSummary]:
+        return self.traceability.list_sources()
+
+    def data_source_detail(self, source_key: str) -> DataSourceDetail:
+        return self.traceability.source_detail(source_key)
+
+    def traceability_claim(self, trace_id: str) -> TraceClaim:
+        alert = max(
+            self.repository.list_alerts(),
+            key=lambda candidate: candidate.highest_severity_rank,
+        )
+        impact = self._production_impact(alert.asset_id, alert)
+        return self.traceability.claim(trace_id, alert, impact)
 
     def telemetry(
         self,
@@ -251,6 +262,16 @@ class BackendService:
             if record is not None and record.rca_id == rca_id:
                 return record
         raise FileNotFoundError(f"RCA not found: {rca_id}")
+
+    def _production_impact(
+        self, asset_id: str, alert: AlertEvent | None
+    ) -> ProductionImpact | None:
+        if alert is None:
+            return None
+        policy = load_production_impact_policy(
+            self.root / "data/catalog/ko_3201_production_impact.yaml"
+        )
+        return self.repository.production_impact(asset_id, alert, policy)
 
     @staticmethod
     def _aware_time(value: datetime | None) -> datetime:

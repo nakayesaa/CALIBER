@@ -90,8 +90,10 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
         "ko_3201_rca_generation.yaml",
         "ko_3201_action_policy.yaml",
         "ko_3201_production_impact.yaml",
+        "source_manifest.yaml",
     ]:
         shutil.copy2(ROOT / "data/catalog" / name, catalog / name)
+    shutil.copy2(ROOT / "data/catalog/signal_mapping.csv", catalog / "signal_mapping.csv")
 
     monkeypatch.setenv("CALIBER_LLM_ENABLED", "true")
     monkeypatch.setenv("OPENAI_API_KEY", "test-only-placeholder")
@@ -221,3 +223,42 @@ def test_missing_resources_return_404(client: TestClient) -> None:
     assert client.get("/api/v1/assets/missing/overview").status_code == 404
     assert client.get("/api/v1/alerts/missing").status_code == 404
     assert client.get("/api/v1/action-plans/missing").status_code == 404
+    assert client.get("/api/v1/data-sources/missing").status_code == 404
+    assert client.get("/api/v1/traceability/claims/missing").status_code == 404
+
+
+def test_traceability_connects_claims_to_governed_sources(client: TestClient) -> None:
+    sources_response = client.get("/api/v1/data-sources")
+    impact_response = client.get(
+        "/api/v1/traceability/claims/production-shortfall"
+    )
+    rca_response = client.get("/api/v1/traceability/claims/rca-indication")
+
+    assert sources_response.status_code == 200
+    sources = sources_response.json()
+    assert len(sources) == 5
+    production = next(
+        source for source in sources if source["source_key"] == "production_ko_3201"
+    )
+    assert production["mapping_count"] == 7
+    assert production["record_count"] == 720
+
+    assert impact_response.status_code == 200
+    impact = impact_response.json()
+    assert impact["provenance"] == "CALCULATED"
+    assert impact["value"] == "1,762.8"
+    assert impact["sources"][0]["source_key"] == "production_ko_3201"
+    assert len(impact["preview"]["rows"]) == 8
+
+    assert rca_response.status_code == 200
+    rca = rca_response.json()
+    assert rca["provenance"] == "AI_SYNTHESIS"
+    assert {source["source_key"] for source in rca["sources"]} == {
+        "equipment_performance_ko_3201",
+        "incident_database",
+        "rca_ko_3201",
+    }
+    assert any(
+        issue["flag"] == "SOURCE_DISAGREEMENT"
+        for issue in rca["quality_issues"]
+    )
