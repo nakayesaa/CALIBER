@@ -137,6 +137,36 @@ export interface AlertStateTransition {
   reason: string;
 }
 
+export interface SignalContribution {
+  driver_name: string;
+  signal_key: string;
+  source_field: string;
+  unit: string;
+  direction_of_concern: 'HIGH' | 'LOW';
+  value: number;
+  healthy_baseline: number;
+  alarm_limit: number;
+  trip_limit: number;
+  engineering_state: 'NORMAL' | 'ALARM' | 'TRIP';
+  trend: 'RISING' | 'FALLING' | 'STABLE';
+  first_alarm_at: string | null;
+  alarm_persistence_hours: number;
+  chronology_rank: number | null;
+  raw_model_impact: number;
+  contribution_percent: number;
+}
+
+export interface DriverAnalysis {
+  alert_id: string;
+  asset_id: string;
+  model_id: string;
+  as_of: string;
+  anomaly_score: number;
+  method: 'GROUPED_COUNTERFACTUAL_BASELINE_REPLACEMENT';
+  interpretation: string;
+  contributions: SignalContribution[];
+}
+
 export interface SimilarIncident {
   rank: number;
   incident_id: string;
@@ -347,6 +377,7 @@ export const api = {
   alerts: (assetId?: string) =>
     request<AlertEvent[]>(`/alerts${assetId ? `?asset_id=${assetId}` : ''}`),
   alertDetail: (alertId: string) => request<AlertDetail>(`/alerts/${alertId}`),
+  driverAnalysis: (alertId: string) => request<DriverAnalysis>(`/alerts/${alertId}/driver-analysis`),
   generateRca: (alertId: string, requestedBy: string, mode: 'ai' | 'prepared') =>
     request<RCARecord>(`/alerts/${alertId}/rca`, {
       method: 'POST', body: JSON.stringify({ requested_by: requestedBy, mode }),

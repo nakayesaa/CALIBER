@@ -6,9 +6,10 @@ import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type AlertEvent, type AssetOverview, type EffectivenessReview, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type AlertEvent, type AssetOverview, type DriverAnalysis, type EffectivenessReview, type TelemetrySeries } from '../lib/api';
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
+import { contributionForField, contributionRank } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { selectIncidentWindow, type HealthTimeRange } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
@@ -22,6 +23,7 @@ interface OverviewData {
   alerts: AlertEvent[];
   detail: AlertDetail | null;
   effectiveness: EffectivenessReview;
+  driverAnalysis: DriverAnalysis | null;
 }
 
 async function loadOverview(): Promise<OverviewData> {
@@ -31,8 +33,10 @@ async function loadOverview(): Promise<OverviewData> {
     api.alerts(ASSET_ID),
     api.effectiveness(ASSET_ID),
   ]);
-  const detail = alerts[0] ? await api.alertDetail(alerts[0].alert_id) : null;
-  return { overview, telemetry, alerts, detail, effectiveness };
+  const [detail, driverAnalysis] = alerts[0]
+    ? await Promise.all([api.alertDetail(alerts[0].alert_id), api.driverAnalysis(alerts[0].alert_id)])
+    : [null, null];
+  return { overview, telemetry, alerts, detail, effectiveness, driverAnalysis };
 }
 
 export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
@@ -44,14 +48,15 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
 
-  const { overview, telemetry, alerts, detail, effectiveness } = resource.data;
+  const { overview, telemetry, alerts, detail, effectiveness, driverAnalysis } = resource.data;
   const productionImpact = overview.production_impact;
   const alert = alerts[0];
   const eventAnchor = productionImpact?.window_start ?? alert?.peak_score_at;
   const healthPoints = selectIncidentWindow(telemetry.points, healthRange, eventAnchor);
   const healthStart = healthPoints[0]?.timestamp ?? overview.timeline_start;
   const healthEnd = healthPoints.at(-1)?.timestamp ?? overview.timeline_end;
-  const visiblePeakScore = Math.max(...healthPoints.map((point) => point.anomaly_score ?? 0));
+  const actionablePoints = healthPoints.filter((point) => !['NORMAL', 'SUPPRESSED'].includes(point.decision_state));
+  const visiblePeakScore = Math.max(...actionablePoints.map((point) => point.anomaly_score ?? 0), 0);
   const healthMarker = healthRange === '6M' ? alert?.first_signal_at : eventAnchor;
   const escalationTransition = detail?.state_transitions.find((transition) => transition.new_state === alert?.highest_severity);
   const escalationIndex = Math.max((detail?.state_transitions.findIndex((transition) => transition === escalationTransition) ?? 0) + 1, 1);
@@ -67,11 +72,9 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 
   const availableSignals: readonly EquipmentSignal[] = signalMode === 'condition' ? conditionSignals : operatingSignals;
   const selectedSignal = availableSignals.find((signal) => signal.field === selectedSignalField) ?? availableSignals[0];
+  const selectedContribution = contributionForField(driverAnalysis, selectedSignal.field);
   const selectedValues = telemetry.points.map((point) => Number(point[selectedSignal.field]));
   const selectedLatest = selectedValues.at(-1) ?? 0;
-  const selectedFirst = selectedValues[0] ?? 0;
-  const selectedPeak = selectedValues.length ? Math.max(...selectedValues) : 0;
-  const selectedDelta = selectedLatest - selectedFirst;
   const onlineShare = telemetry.points.length
     ? telemetry.points.filter((point) => point.run_status === 'ON').length / telemetry.points.length * 100
     : 0;
@@ -94,7 +97,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
           <div className="overview-health-controls"><TraceButton traceId="health-trajectory">View sources</TraceButton><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{(['6M', '3M', '1M'] as const).map((range) => <button className={healthRange === range ? 'active' : ''} key={range} onClick={() => setHealthRange(range)}>{range}</button>)}</nav></div>
         </header>
         <div className="overview-health-body">
-          <div className="overview-chart-metric"><span>Visible peak score</span><strong>{formatSignal(visiblePeakScore)}</strong><p>Threshold <b>50</b></p></div>
+          <div className="overview-chart-metric"><span>Actionable peak</span><strong>{formatSignal(visiblePeakScore)}</strong><p>Threshold <b>50</b></p></div>
           <div className="overview-chart"><SignalChart points={healthPoints} field="anomaly_score" threshold={50} highlightTimestamp={healthMarker} yPaddingRatio={0.22}/></div>
           <div className="overview-chart-axis"><span>{formatDate(healthStart)}</span><b>{healthRange === '6M' ? `${formatDate(alert?.first_signal_at ?? healthStart)} · first signal` : `${formatDate(eventAnchor ?? healthStart)} · trip event`}</b><span>{formatDate(healthEnd)}</span></div>
         </div>
@@ -120,15 +123,18 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       <article className="overview-condition-card">
         <header><div><h2>{signalMode === 'condition' ? 'Condition insights' : 'Operating performance'}</h2><p>{signalMode === 'condition' ? 'Explore how equipment condition contributed to the event' : 'Compare KO-3201 load and delivery against plant operation'}</p></div><div className="overview-card-actions"><TraceButton traceId={signalMode === 'condition' ? 'condition-insights' : 'production-shortfall'}>View sources</TraceButton><nav className="overview-signal-mode" aria-label="Equipment signal group"><button className={signalMode === 'condition' ? 'active' : ''} onClick={() => selectSignalMode('condition')}>Condition</button><button className={signalMode === 'operating' ? 'active' : ''} onClick={() => selectSignalMode('operating')}>Operating</button></nav></div></header>
         <nav className="overview-condition-tabs" aria-label={`${signalMode} variables`}>
-          {availableSignals.map((signal) => <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{formatSignal(Number(latest?.[signal.field] ?? 0))} {signal.unit}</strong></button>)}
+          {availableSignals.map((signal) => {
+            const contribution = contributionForField(driverAnalysis, signal.field);
+            return <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{signalMode === 'condition' && contribution ? `${formatSignal(contribution.contribution_percent)}% contribution` : `${formatSignal(Number(latest?.[signal.field] ?? 0))} ${signal.unit}`}</strong></button>;
+          })}
         </nav>
         <div className="overview-condition-visual">
           {signalMode === 'condition'
             ? <div className="overview-condition-summary">
-                <span>{selectedSignal.role}</span>
-                <strong>{formatSignal(selectedLatest)} <small>{selectedSignal.unit}</small></strong>
-                <p>Latest reading</p>
-                <dl><div><dt>Window peak</dt><dd>{formatSignal(selectedPeak)} {selectedSignal.unit}</dd></div><div><dt>Net movement</dt><dd>{selectedDelta >= 0 ? '+' : ''}{formatSignal(selectedDelta)} {selectedSignal.unit}</dd></div></dl>
+                <span>{selectedContribution && driverAnalysis ? `#${contributionRank(driverAnalysis, selectedContribution)} model contributor` : selectedSignal.role}</span>
+                <strong>{selectedContribution ? formatSignal(selectedContribution.contribution_percent) : formatSignal(selectedLatest)} <small>{selectedContribution ? '%' : selectedSignal.unit}</small></strong>
+                <p>{selectedContribution ? 'At actionable event peak' : 'Latest reading'}</p>
+                <dl><div><dt>Event reading</dt><dd>{selectedContribution ? formatSignal(selectedContribution.value) : formatSignal(selectedLatest)} {selectedSignal.unit}</dd></div><div><dt>Alarm persistence</dt><dd>{selectedContribution ? `${selectedContribution.alarm_persistence_hours.toLocaleString()} h` : '—'}</dd></div></dl>
               </div>
             : <div className="overview-condition-summary overview-production-summary">
                 <span>Estimated production shortfall</span>
@@ -136,7 +142,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
                 <p>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h offline · contextual healthy median` : 'No qualifying offline event window'}</p>
                 <dl><div><dt>Expected feed</dt><dd>{productionImpact ? `${formatSignal(productionImpact.baseline.expected_feed_tph)} t/h` : '—'}</dd></div><div><dt>Baseline evidence</dt><dd>{productionImpact ? `${productionImpact.baseline.healthy_sample_count.toLocaleString()} h · ${humanize(productionImpact.baseline.confidence)}` : '—'}</dd></div></dl>
               </div>}
-          <div className="overview-condition-chart"><SignalChart points={telemetry.points} field={selectedSignal.field} highlightTimestamp={alert?.first_signal_at} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(overview.timeline_start)}</span><b>{signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(alert?.first_signal_at ?? overview.timeline_start)} · event onset`}</b><span>{formatDate(overview.timeline_end)}</span></div></div>
+          <div className="overview-condition-chart"><SignalChart points={telemetry.points} field={selectedSignal.field} highlightTimestamp={signalMode === 'condition' ? driverAnalysis?.as_of : alert?.first_signal_at} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(overview.timeline_start)}</span><b>{signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(driverAnalysis?.as_of ?? alert?.peak_score_at ?? overview.timeline_start)} · contribution snapshot`}</b><span>{formatDate(overview.timeline_end)}</span></div></div>
         </div>
       </article>
 

@@ -70,7 +70,7 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, show
       {hoveredPoint && hoveredCoordinate && <div className={`chart-tooltip${hoveredCoordinate.x > 72 ? ' align-right' : hoveredCoordinate.x < 28 ? ' align-left' : ''}`} style={{ left: `${hoveredCoordinate.x}%`, top: `${Math.min(82, Math.max(12, hoveredCoordinate.y))}%` }}>
         <time>{formatTimestamp(hoveredPoint.timestamp)}</time>
         <strong>{formatValue(Number(hoveredPoint[field]))} {signalMetadata[field].unit}</strong>
-        <span>{signalMetadata[field].label}{showRunStatus ? ` · ${hoveredPoint.run_status}` : ''}</span>
+        <span>{signalMetadata[field].label}{field === 'anomaly_score' ? ` · ${formatDecisionState(hoveredPoint.decision_state)}` : showRunStatus ? ` · ${hoveredPoint.run_status}` : ''}</span>
       </div>}
     </div>
   );
@@ -117,4 +117,8 @@ function formatTimestamp(value: string): string {
 
 function formatValue(value: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 }).format(value);
+}
+
+function formatDecisionState(value: string): string {
+  return value.toLowerCase().replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
 }

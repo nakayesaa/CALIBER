@@ -5,8 +5,9 @@ import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type ActionStatus, type AlertDetail, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
+import { api, type ActionStatus, type AlertDetail, type DriverAnalysis, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
+import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
@@ -30,6 +31,7 @@ interface InvestigationData {
   detail: AlertDetail;
   telemetry: TelemetrySeries;
   system: SystemStatus;
+  driverAnalysis: DriverAnalysis;
   windowStart: string;
   windowEnd: string;
 }
@@ -39,14 +41,17 @@ async function loadInvestigation(): Promise<InvestigationData> {
   const alert = alerts[0];
   if (!alert) throw new Error('No problem is available for investigation');
 
-  const detail = await api.alertDetail(alert.alert_id);
+  const [detail, driverAnalysis] = await Promise.all([
+    api.alertDetail(alert.alert_id),
+    api.driverAnalysis(alert.alert_id),
+  ]);
   const start = new Date(alert.first_signal_at);
   start.setHours(start.getHours() - 72);
   const end = new Date(alert.closed_at ?? alert.peak_score_at);
   end.setHours(end.getHours() + 72);
   const telemetry = await api.telemetry(alert.asset_id, 1800, start.toISOString(), end.toISOString());
 
-  return { detail, telemetry, system, windowStart: start.toISOString(), windowEnd: end.toISOString() };
+  return { detail, telemetry, system, driverAnalysis, windowStart: start.toISOString(), windowEnd: end.toISOString() };
 }
 
 export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
@@ -58,7 +63,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Investigation data unavailable'}/>;
 
-  const { detail, telemetry, system, windowStart, windowEnd } = resource.data;
+  const { detail, telemetry, system, driverAnalysis, windowStart, windowEnd } = resource.data;
   const { alert, opening_snapshot: opening, similar_incidents: incidents } = detail;
   const rca = rcaForAlert(alert.alert_id, detail.rca);
   const plans = actionsForAlert(alert.alert_id, detail.action_plans, Boolean(detail.rca));
@@ -169,7 +174,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     <section className="investigation-section" hidden={activeStep !== 1}>
       <article className="investigation-signal-panel panel">
         <nav aria-label="Investigated variables">
-          {signalDefinitions.map((signal) => <button key={signal.field} className={selectedField === signal.field ? 'active' : ''} onClick={() => setSelectedField(signal.field)}><span>{signal.label}</span><strong>{latestPoint ? formatSignal(Number(latestPoint[signal.field])) : '—'} <small>{signal.unit}</small></strong><i>{signal.source}</i></button>)}
+          {signalDefinitions.map((signal) => { const contribution = contributionForField(driverAnalysis, signal.field); return <button key={signal.field} className={selectedField === signal.field ? 'active' : ''} onClick={() => setSelectedField(signal.field)}><span>{signal.label}</span><strong>{contribution ? `${formatSignal(contribution.contribution_percent)}%` : latestPoint ? formatSignal(Number(latestPoint[signal.field])) : '—'} <small>{contribution ? 'contribution' : signal.unit}</small></strong><i>{signal.source}</i></button>; })}
         </nav>
         <div className="investigation-signal-chart">
           <header><div><span>{selectedSignal.label}</span><h3>Degradation-window trend</h3></div><div><span>Window peak</span><strong>{selectedValues.length ? formatSignal(Math.max(...selectedValues)) : '—'} {selectedSignal.unit}</strong></div></header>
@@ -200,9 +205,9 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
           />
         </article>
         <article className="cause-evidence panel">
-          <header><span>Evidence chain</span><strong>{opening.top_drivers.length} model drivers</strong></header>
-          {opening.top_drivers.map((driver, index) => <div key={driver.name}><span>{String(index + 1).padStart(2, '0')}</span><p>{humanize(driver.name.replaceAll('.', '_'))}</p><strong>{formatSignal(driver.score)}</strong></div>)}
-          <footer>{incidents.length} historical analogues retrieved · best match {incidents[0] ? `${Math.round(incidents[0].hybrid_score * 100)}%` : '—'}</footer>
+          <header><span>Model contribution at peak</span><strong>{driverAnalysis.contributions.length} condition drivers</strong></header>
+          {driverAnalysis.contributions.map((driver, index) => <div key={driver.driver_name}><span>{String(index + 1).padStart(2, '0')}</span><p>{humanize(driver.signal_key)}</p><strong>{formatSignal(driver.contribution_percent)}%</strong></div>)}
+          <footer>Counterfactual model explanation · {incidents.length} historical analogues retrieved</footer>
         </article>
       </div>
     </section>
