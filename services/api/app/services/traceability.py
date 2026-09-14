@@ -12,6 +12,7 @@ import yaml
 
 from services.api.app.schemas.alerts import AlertEvent
 from services.api.app.schemas.api import ProductionImpact
+from services.api.app.schemas.effectiveness import EffectivenessReview
 from services.api.app.schemas.traceability import (
     DataSourceDetail,
     DataSourceSummary,
@@ -51,6 +52,7 @@ class TraceabilityService:
         trace_id: str,
         alert: AlertEvent,
         production_impact: ProductionImpact | None,
+        effectiveness: EffectivenessReview | None,
     ) -> TraceClaim:
         builders: dict[str, Callable[[], TraceClaim]] = {
             "health-trajectory": lambda: self._health_claim(alert),
@@ -61,6 +63,9 @@ class TraceabilityService:
             "event-progression": lambda: self._event_claim(alert),
             "rca-indication": lambda: self._rca_claim(alert),
             "capa-plan": lambda: self._capa_claim(alert),
+            "recovery-effectiveness": lambda: self._effectiveness_claim(
+                alert, effectiveness
+            ),
         }
         builder = builders.get(trace_id)
         if builder is None:
@@ -68,6 +73,47 @@ class TraceabilityService:
                 f"Traceability claim not found: {trace_id}"
             )
         return builder()
+
+    def _effectiveness_claim(
+        self,
+        alert: AlertEvent,
+        review: EffectivenessReview | None,
+    ) -> TraceClaim:
+        if review is None:
+            raise TraceabilityNotFoundError("Effectiveness evidence is unavailable")
+        preview = pd.DataFrame(
+            [
+                {
+                    "signal": metric.label,
+                    "before": metric.before,
+                    "after": metric.after,
+                    "unit": metric.unit,
+                    "outcome": metric.outcome,
+                }
+                for metric in review.metrics
+            ]
+        )
+        return self._claim(
+            trace_id="recovery-effectiveness",
+            title="Recovery and effectiveness evidence",
+            value="Recovery confirmed" if review.recovery_confirmed else "Review required",
+            unit=None,
+            provenance="HUMAN_VERIFIED" if review.approval_status == "APPROVED" else "CALCULATED",
+            summary="Post-repair condition observations are compared with the pre-intervention state, while recurrence and authorization remain separate closure decisions.",
+            as_of=review.monitoring_end.isoformat(),
+            calculation=[
+                "Compare each anchor signal before intervention with its post-repair monitoring result.",
+                f"Confirm signal direction across {review.monitoring_periods} normal weekly observations.",
+                "Check for a recurring multi-signal degradation pattern before requesting closure approval.",
+            ],
+            source_keys=["equipment_performance_ko_3201"],
+            lineage=[
+                ("SOURCE", "Post-repair condition history", "equipment_performance_ko_3201"),
+                ("CANONICAL", "Effectiveness check", "effectiveness_checks.csv"),
+                ("VIEW", "Effectiveness review", "actions.effectiveness-review"),
+            ],
+            preview=self._preview(preview, list(preview.columns)),
+        )
 
     def _health_claim(self, alert: AlertEvent) -> TraceClaim:
         scores = self._read_csv("data/scored/ko_3201/v1/hourly_anomaly_scores.csv")

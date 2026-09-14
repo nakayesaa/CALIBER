@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from services.api.app.schemas.actions import ActionPlan
 from services.api.app.schemas.alerts import AlertEvent
+from services.api.app.schemas.effectiveness import EffectivenessReview
 from services.api.app.schemas.api import (
     ActionPlanCreateRequest,
     ActionStatusUpdate,
@@ -109,6 +110,24 @@ def asset_overview(asset_id: str, backend: Backend) -> AssetOverview:
         return backend.asset_overview(asset_id)
     except ArtifactNotFoundError as error:
         raise not_found(error) from error
+
+
+@router.get(
+    "/assets/{asset_id}/effectiveness",
+    response_model=EffectivenessReview,
+    tags=["actions"],
+)
+def asset_effectiveness(asset_id: str, backend: Backend) -> EffectivenessReview:
+    try:
+        review = backend.effectiveness_review(asset_id)
+    except ArtifactNotFoundError as error:
+        raise not_found(error) from error
+    if review is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Effectiveness review not found for asset: {asset_id}",
+        )
+    return review
 
 
 @router.get(

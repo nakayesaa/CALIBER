@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from services.api.app.schemas.actions import ActionPlan
 from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
+from services.api.app.schemas.canonical import EffectivenessCheck
 from services.api.app.schemas.api import (
     AssetSummary,
     ProductionImpact,
@@ -222,6 +223,23 @@ class KO3201ArtifactRepository:
             "data/alerts/ko_3201/v1/hourly_alert_decisions.csv"
         )
         return calculate_production_impact(scenario, decisions, alert, policy)
+
+    def effectiveness_check(self, asset_id: str) -> EffectivenessCheck | None:
+        self.get_asset(asset_id)
+        frame = self._read_csv(
+            "data/normalized/ko_3201/effectiveness_checks.csv"
+        )
+        matching = frame.loc[frame["asset_id"].astype(str).eq(asset_id)]
+        if matching.empty:
+            return None
+        if len(matching) > 1:
+            raise ValueError(f"Multiple effectiveness checks found for {asset_id}")
+        record = matching.iloc[0].to_dict()
+        record["comparison_metrics"] = json.loads(str(record["comparison_metrics"]))
+        for field in ("approved_by", "approved_at"):
+            if pd.isna(record[field]):
+                record[field] = None
+        return EffectivenessCheck.model_validate(record)
 
     def get_rca(self, alert_id: str) -> RCARecord | None:
         path = self._rca_path()

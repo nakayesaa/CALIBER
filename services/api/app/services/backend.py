@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from services.api.app.schemas.actions import ActionPlan, ActionStatus
 from services.api.app.schemas.alerts import AlertEvent
+from services.api.app.schemas.effectiveness import EffectivenessReview
 from services.api.app.schemas.api import (
     AlertDetail,
     AssetOverview,
@@ -33,6 +34,7 @@ from services.api.app.services.actions.workflow import (
 )
 from services.api.app.services.artifacts import KO3201ArtifactRepository
 from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
+from services.api.app.services.effectiveness import build_effectiveness_review
 from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
     RCAProvider,
@@ -111,7 +113,12 @@ class BackendService:
             key=lambda candidate: candidate.highest_severity_rank,
         )
         impact = self._production_impact(alert.asset_id, alert)
-        return self.traceability.claim(trace_id, alert, impact)
+        effectiveness = self.effectiveness_review(alert.asset_id)
+        return self.traceability.claim(trace_id, alert, impact, effectiveness)
+
+    def effectiveness_review(self, asset_id: str) -> EffectivenessReview | None:
+        check = self.repository.effectiveness_check(asset_id)
+        return build_effectiveness_review(check) if check else None
 
     def telemetry(
         self,

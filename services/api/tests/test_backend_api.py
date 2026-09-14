@@ -113,6 +113,9 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
         params={"max_points": 20},
     )
     alert_response = client.get(f"/api/v1/alerts/{ALERT_ID}")
+    effectiveness_response = client.get(
+        "/api/v1/assets/asset-ko-3201/effectiveness"
+    )
 
     assert status_response.status_code == 200
     assert status_response.json()["api_status"] == "ready"
@@ -143,6 +146,15 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     assert alert_response.json()["opening_snapshot"]["breached_signals"] == [
         "water_in_oil"
     ]
+    assert effectiveness_response.status_code == 200
+    effectiveness = effectiveness_response.json()
+    assert effectiveness["result"] == "INITIAL_EFFECTIVE"
+    assert effectiveness["recovery_confirmed"] is True
+    assert effectiveness["approval_status"] == "PENDING_REVIEW"
+    assert effectiveness["closure_eligible"] is False
+    assert effectiveness["monitoring_periods"] == 5
+    assert len(effectiveness["metrics"]) == 4
+    assert all(metric["outcome"] == "IMPROVED" for metric in effectiveness["metrics"])
 
 
 def test_rca_review_and_action_workflow(client: TestClient) -> None:
@@ -233,6 +245,9 @@ def test_traceability_connects_claims_to_governed_sources(client: TestClient) ->
         "/api/v1/traceability/claims/production-shortfall"
     )
     rca_response = client.get("/api/v1/traceability/claims/rca-indication")
+    recovery_response = client.get(
+        "/api/v1/traceability/claims/recovery-effectiveness"
+    )
 
     assert sources_response.status_code == 200
     sources = sources_response.json()
@@ -262,3 +277,8 @@ def test_traceability_connects_claims_to_governed_sources(client: TestClient) ->
         issue["flag"] == "SOURCE_DISAGREEMENT"
         for issue in rca["quality_issues"]
     )
+    assert recovery_response.status_code == 200
+    recovery = recovery_response.json()
+    assert recovery["value"] == "Recovery confirmed"
+    assert recovery["provenance"] == "CALCULATED"
+    assert len(recovery["preview"]["rows"]) == 4
