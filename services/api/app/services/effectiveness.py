@@ -33,6 +33,11 @@ METRIC_DEFINITIONS = {
 
 
 def build_effectiveness_review(check: EffectivenessCheck) -> EffectivenessReview:
+    missing_metrics = set(METRIC_DEFINITIONS) - set(check.comparison_metrics)
+    if missing_metrics:
+        raise ValueError(
+            f"Effectiveness check is missing metrics: {sorted(missing_metrics)}"
+        )
     metrics = [
         _build_metric(signal_key, check.comparison_metrics[signal_key])
         for signal_key in METRIC_DEFINITIONS

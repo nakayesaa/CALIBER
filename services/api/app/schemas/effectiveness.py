@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict
 
 
 class EffectivenessModel(BaseModel):
@@ -28,8 +27,8 @@ class EffectivenessReview(EffectivenessModel):
     rca_case_id: str
     incident_id: str
     asset_id: str
-    monitoring_start: datetime
-    monitoring_end: datetime
+    monitoring_start: AwareDatetime
+    monitoring_end: AwareDatetime
     monitoring_periods: int
     baseline_window: str
     result: Literal[
@@ -46,6 +45,6 @@ class EffectivenessReview(EffectivenessModel):
     closure_eligible: bool
     explanation: str
     approved_by: str | None
-    approved_at: datetime | None
+    approved_at: AwareDatetime | None
     source_reference: str
     metrics: list[EffectivenessMetric]
