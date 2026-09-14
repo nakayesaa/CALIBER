@@ -232,6 +232,12 @@ def build_scored_timeline(
         "top_driver_1_score",
         "top_driver_2_score",
         "top_driver_3_score",
+        *[
+            column
+            for column in timeline
+            if column.startswith("model_impact__")
+            or column.startswith("contribution_pct__")
+        ],
     ]
     for column in numeric_columns:
         if column in timeline:

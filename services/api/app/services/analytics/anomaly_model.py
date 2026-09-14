@@ -352,6 +352,9 @@ def score_feature_table(
     for rank in range(1, maximum_drivers + 1):
         output[f"top_driver_{rank}"] = ""
         output[f"top_driver_{rank}_score"] = np.nan
+    contribution_columns = counterfactual_column_names(bundle, "condition.")
+    for column in contribution_columns:
+        output[column] = np.nan
 
     eligible = feature_table["model_scoring_eligible"].astype(bool)
     matrix = numeric_matrix(feature_table.loc[eligible], list(bundle.feature_columns))
@@ -363,10 +366,107 @@ def score_feature_table(
     output.loc[eligible, "is_anomaly"] = (
         raw_scores >= bundle.score_transform.threshold_raw_score
     )
+    contributions = counterfactual_driver_contributions(
+        scaled,
+        bundle,
+        driver_prefix="condition.",
+        full_raw_scores=raw_scores,
+    )
+    for column, values in contributions.items():
+        output.loc[eligible, column] = values
     driver_ranking = rank_drivers(scaled, bundle, maximum_drivers)
     for column in driver_ranking:
         output.loc[eligible, column] = driver_ranking[column].to_numpy()
     return output
+
+
+def counterfactual_column_names(
+    bundle: AnomalyModelBundle,
+    driver_prefix: str,
+) -> list[str]:
+    names = [
+        profile.driver_name
+        for profile in bundle.driver_profiles
+        if profile.driver_name.startswith(driver_prefix)
+    ]
+    return [
+        column
+        for name in names
+        for column in (
+            f"model_impact__{name.replace('.', '__')}",
+            f"contribution_pct__{name.replace('.', '__')}",
+        )
+    ]
+
+
+def counterfactual_driver_contributions(
+    scaled_matrix: np.ndarray,
+    bundle: AnomalyModelBundle,
+    driver_prefix: str,
+    full_raw_scores: np.ndarray | None = None,
+) -> dict[str, np.ndarray]:
+    """Estimate driver impact by restoring one feature group to baseline.
+
+    Zero is the fitted RobustScaler center, so each counterfactual replaces a
+    signal's model inputs with its healthy calibration median. The result is a
+    local model explanation, not a claim of physical causality.
+    """
+
+    full_scores = (
+        raw_anomaly_scores(bundle.estimator, scaled_matrix)
+        if full_raw_scores is None
+        else np.asarray(full_raw_scores, dtype=float)
+    )
+    if full_scores.shape != (len(scaled_matrix),):
+        raise ValueError("Full raw scores do not match the scoring matrix")
+    positions = {name: index for index, name in enumerate(bundle.feature_columns)}
+    selected_profiles = [
+        profile
+        for profile in bundle.driver_profiles
+        if profile.driver_name.startswith(driver_prefix)
+    ]
+    if not selected_profiles:
+        raise ValueError(f"No model drivers match prefix: {driver_prefix}")
+
+    impacts: list[np.ndarray] = []
+    for profile in selected_profiles:
+        domain, signal = profile.driver_name.split(".", maxsplit=1)
+        feature_prefix = f"{domain}__{signal}__"
+        group_positions = [
+            position
+            for name, position in positions.items()
+            if name.startswith(feature_prefix)
+        ]
+        if not group_positions:
+            raise ValueError(f"No model features found for {profile.driver_name}")
+        counterfactual = scaled_matrix.copy()
+        counterfactual[:, group_positions] = 0.0
+        without_driver = raw_anomaly_scores(bundle.estimator, counterfactual)
+        impacts.append(np.maximum(full_scores - without_driver, 0.0))
+
+    impact_matrix = np.column_stack(impacts)
+    shares = normalize_driver_impacts(impact_matrix)
+    result: dict[str, np.ndarray] = {}
+    for index, profile in enumerate(selected_profiles):
+        suffix = profile.driver_name.replace(".", "__")
+        result[f"model_impact__{suffix}"] = impact_matrix[:, index]
+        result[f"contribution_pct__{suffix}"] = shares[:, index]
+    return result
+
+
+def normalize_driver_impacts(impacts: np.ndarray) -> np.ndarray:
+    values = np.asarray(impacts, dtype=float)
+    if values.ndim != 2 or values.shape[1] == 0:
+        raise ValueError("Driver impacts must be a non-empty two-dimensional matrix")
+    if not np.isfinite(values).all() or (values < 0).any():
+        raise ValueError("Driver impacts must be finite and non-negative")
+    totals = values.sum(axis=1, keepdims=True)
+    return np.divide(
+        values * 100.0,
+        totals,
+        out=np.zeros_like(values),
+        where=totals > np.finfo(float).eps,
+    )
 
 
 def rank_drivers(

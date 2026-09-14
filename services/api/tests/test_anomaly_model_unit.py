@@ -11,6 +11,7 @@ from services.api.app.services.analytics.anomaly_model import (
     calibrate_score_transform,
     chronological_split,
     driver_feature_groups,
+    normalize_driver_impacts,
     numeric_matrix,
 )
 
@@ -81,3 +82,13 @@ def test_numeric_matrix_rejects_non_finite_values() -> None:
     frame = pd.DataFrame({"a": [1.0, np.nan], "b": [2.0, 3.0]})
     with pytest.raises(ValueError, match="non-finite"):
         numeric_matrix(frame, ["a", "b"])
+
+
+def test_driver_impact_shares_are_normalized_per_observation() -> None:
+    impacts = np.array([[0.19, 0.12, 0.06, 0.04], [0.0, 0.0, 0.0, 0.0]])
+
+    shares = normalize_driver_impacts(impacts)
+
+    assert shares[0].sum() == pytest.approx(100.0)
+    assert shares[0, 0] > shares[0, 1] > shares[0, 2] > shares[0, 3]
+    assert shares[1].tolist() == [0.0, 0.0, 0.0, 0.0]
