@@ -13,11 +13,20 @@ from pydantic import BaseModel
 
 from services.api.app.schemas.actions import ActionPlan
 from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
-from services.api.app.schemas.api import AssetSummary, TelemetryPoint, TelemetrySeries
+from services.api.app.schemas.api import (
+    AssetSummary,
+    ProductionImpact,
+    TelemetryPoint,
+    TelemetrySeries,
+)
 from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import (
     IncidentRetrievalResult,
     RAGEvidencePackage,
+)
+from services.api.app.services.production_impact import (
+    ProductionImpactPolicy,
+    calculate_production_impact,
 )
 
 
@@ -200,6 +209,19 @@ class KO3201ArtifactRepository:
         if timestamps.empty or decisions.empty:
             raise ArtifactNotFoundError("Timeline is empty")
         return timestamps.min(), timestamps.max(), str(decisions.iloc[-1]["decision_state"])
+
+    def production_impact(
+        self,
+        asset_id: str,
+        alert: AlertEvent,
+        policy: ProductionImpactPolicy,
+    ) -> ProductionImpact | None:
+        self.get_asset(asset_id)
+        scenario = self._read_csv("data/synthetic/ko_3201/v1/hourly_scenario.csv")
+        decisions = self._read_csv(
+            "data/alerts/ko_3201/v1/hourly_alert_decisions.csv"
+        )
+        return calculate_production_impact(scenario, decisions, alert, policy)
 
     def get_rca(self, alert_id: str) -> RCARecord | None:
         path = self._rca_path()

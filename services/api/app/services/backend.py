@@ -38,6 +38,7 @@ from services.api.app.services.rca.generation import (
     load_generation_config,
     transition_rca,
 )
+from services.api.app.services.production_impact import load_production_impact_policy
 
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Jakarta")
@@ -83,6 +84,14 @@ class BackendService:
         start, end, latest_state = self.repository.timeline_summary(asset_id)
         alerts = [alert for alert in self.repository.list_alerts() if alert.asset_id == asset_id]
         highest = max(alerts, key=lambda alert: alert.highest_severity_rank, default=None)
+        production_impact = None
+        if highest is not None:
+            policy = load_production_impact_policy(
+                self.root / "data/catalog/ko_3201_production_impact.yaml"
+            )
+            production_impact = self.repository.production_impact(
+                asset_id, highest, policy
+            )
         return AssetOverview(
             asset=asset,
             timeline_start=start.to_pydatetime(),
@@ -90,6 +99,7 @@ class BackendService:
             latest_decision_state=latest_state,
             highest_alert_severity=highest.highest_severity if highest else None,
             alert_count=len(alerts),
+            production_impact=production_impact,
         )
 
     def telemetry(

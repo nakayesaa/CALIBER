@@ -40,6 +40,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
 
   const { overview, telemetry, alerts, detail } = resource.data;
+  const productionImpact = overview.production_impact;
   const alert = alerts[0];
   const escalationTransition = detail?.state_transitions.find((transition) => transition.new_state === alert?.highest_severity);
   const escalationIndex = Math.max((detail?.state_transitions.findIndex((transition) => transition === escalationTransition) ?? 0) + 1, 1);
@@ -90,7 +91,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
         <div className="overview-health-context">
           <div><span>Leading condition</span><strong>Water in oil</strong><b>{formatSignal(latest?.water_in_oil_ppm ?? 0)} ppm</b></div>
           <div><span>Correlated response</span><strong>Radial vibration</strong><b>{formatSignal(latest?.radial_vibration_micron ?? 0)} µm</b></div>
-          <div><span>Incident window</span><strong>{formatSignal((alert?.duration_hours ?? 0) / 24)} days</strong><b>{alert?.breached_signals.length ?? 0} signals</b></div>
+          <div><span>Estimated production shortfall</span><strong>{productionImpact ? `~${Math.round(productionImpact.estimated_shortfall_tonnes).toLocaleString()} tonnes` : 'Unavailable'}</strong><b>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h offline` : 'No event window'}</b></div>
         </div>
       </article>
 
@@ -112,15 +113,20 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
           {availableSignals.map((signal) => <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{formatSignal(Number(latest?.[signal.field] ?? 0))} {signal.unit}</strong></button>)}
         </nav>
         <div className="overview-condition-visual">
-          <div className="overview-condition-summary">
-            <span>{selectedSignal.role}</span>
-            <strong>{formatSignal(selectedLatest)} <small>{selectedSignal.unit}</small></strong>
-            <p>Latest reading</p>
-            {signalMode === 'condition'
-              ? <dl><div><dt>Window peak</dt><dd>{formatSignal(selectedPeak)} {selectedSignal.unit}</dd></div><div><dt>Net movement</dt><dd>{selectedDelta >= 0 ? '+' : ''}{formatSignal(selectedDelta)} {selectedSignal.unit}</dd></div></dl>
-              : <dl><div><dt>Run status</dt><dd>{humanize(latest?.run_status ?? 'Unknown')}</dd></div><div><dt>Online share</dt><dd>{formatSignal(onlineShare)}%</dd></div></dl>}
-          </div>
-          <div className="overview-condition-chart"><SignalChart points={telemetry.points} field={selectedSignal.field} highlightTimestamp={alert?.first_signal_at} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(overview.timeline_start)}</span><b>{signalMode === 'operating' ? `Stopped windows shaded · ${formatSignal(onlineShare)}% online` : `${formatDate(alert?.first_signal_at ?? overview.timeline_start)} · event onset`}</b><span>{formatDate(overview.timeline_end)}</span></div></div>
+          {signalMode === 'condition'
+            ? <div className="overview-condition-summary">
+                <span>{selectedSignal.role}</span>
+                <strong>{formatSignal(selectedLatest)} <small>{selectedSignal.unit}</small></strong>
+                <p>Latest reading</p>
+                <dl><div><dt>Window peak</dt><dd>{formatSignal(selectedPeak)} {selectedSignal.unit}</dd></div><div><dt>Net movement</dt><dd>{selectedDelta >= 0 ? '+' : ''}{formatSignal(selectedDelta)} {selectedSignal.unit}</dd></div></dl>
+              </div>
+            : <div className="overview-condition-summary overview-production-summary">
+                <span>Estimated production shortfall</span>
+                <strong>{productionImpact ? Math.round(productionImpact.estimated_shortfall_tonnes).toLocaleString() : '—'} <small>tonnes</small></strong>
+                <p>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h offline · contextual healthy median` : 'No qualifying offline event window'}</p>
+                <dl><div><dt>Expected feed</dt><dd>{productionImpact ? `${formatSignal(productionImpact.baseline.expected_feed_tph)} t/h` : '—'}</dd></div><div><dt>Baseline evidence</dt><dd>{productionImpact ? `${productionImpact.baseline.healthy_sample_count.toLocaleString()} h · ${humanize(productionImpact.baseline.confidence)}` : '—'}</dd></div></dl>
+              </div>}
+          <div className="overview-condition-chart"><SignalChart points={telemetry.points} field={selectedSignal.field} highlightTimestamp={alert?.first_signal_at} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(overview.timeline_start)}</span><b>{signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(alert?.first_signal_at ?? overview.timeline_start)} · event onset`}</b><span>{formatDate(overview.timeline_end)}</span></div></div>
         </div>
       </article>
 

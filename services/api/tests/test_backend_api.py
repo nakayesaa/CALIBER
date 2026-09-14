@@ -86,7 +86,11 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
         shutil.copytree(source, destination)
     catalog = tmp_path / "data/catalog"
     catalog.mkdir(parents=True)
-    for name in ["ko_3201_rca_generation.yaml", "ko_3201_action_policy.yaml"]:
+    for name in [
+        "ko_3201_rca_generation.yaml",
+        "ko_3201_action_policy.yaml",
+        "ko_3201_production_impact.yaml",
+    ]:
         shutil.copy2(ROOT / "data/catalog" / name, catalog / name)
 
     monkeypatch.setenv("CALIBER_LLM_ENABLED", "true")
@@ -112,6 +116,13 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     assert status_response.json()["api_status"] == "ready"
     assert assets_response.json()[0]["tag"] == "KO-3201"
     assert overview_response.json()["alert_count"] == 1
+    impact = overview_response.json()["production_impact"]
+    assert impact["provenance"] == "CALCULATED"
+    assert impact["offline_hours"] == pytest.approx(32.0)
+    assert impact["estimated_shortfall_tonnes"] == pytest.approx(1762.803, abs=0.01)
+    assert impact["baseline"]["expected_feed_tph"] == pytest.approx(55.1075)
+    assert impact["baseline"]["healthy_sample_count"] == 1159
+    assert impact["baseline"]["confidence"] == "HIGH"
     assert telemetry_response.json()["total_points"] == 4368
     assert telemetry_response.json()["returned_points"] == 20
     first_point = telemetry_response.json()["points"][0]

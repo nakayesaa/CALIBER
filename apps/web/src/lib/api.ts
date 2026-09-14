@@ -28,6 +28,29 @@ export interface AssetOverview {
   latest_decision_state: string;
   highest_alert_severity: string | null;
   alert_count: number;
+  production_impact: ProductionImpact | null;
+}
+
+export interface ProductionImpact {
+  metric: 'PRODUCTION_SHORTFALL';
+  provenance: 'CALCULATED';
+  window_start: string;
+  window_end: string;
+  offline_hours: number;
+  actual_feed_tonnes: number;
+  expected_feed_tonnes: number;
+  estimated_shortfall_tonnes: number;
+  baseline: {
+    method: 'CONTEXTUAL_HEALTHY_MEDIAN';
+    expected_feed_tph: number;
+    representative_plant_rate_tph: number;
+    plant_rate_tolerance_tph: number;
+    healthy_sample_count: number;
+    reference_start: string;
+    reference_end: string;
+    confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+    source_reference: string;
+  };
 }
 
 export interface TelemetryPoint {

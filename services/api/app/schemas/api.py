@@ -38,6 +38,30 @@ class AssetSummary(APIModel):
     monitoring_method: str
 
 
+class ProductionBaseline(APIModel):
+    method: Literal["CONTEXTUAL_HEALTHY_MEDIAN"]
+    expected_feed_tph: float
+    representative_plant_rate_tph: float
+    plant_rate_tolerance_tph: float
+    healthy_sample_count: int
+    reference_start: AwareDatetime
+    reference_end: AwareDatetime
+    confidence: Literal["HIGH", "MEDIUM", "LOW"]
+    source_reference: str
+
+
+class ProductionImpact(APIModel):
+    metric: Literal["PRODUCTION_SHORTFALL"]
+    provenance: Literal["CALCULATED"]
+    window_start: AwareDatetime
+    window_end: AwareDatetime
+    offline_hours: float
+    actual_feed_tonnes: float
+    expected_feed_tonnes: float
+    estimated_shortfall_tonnes: float
+    baseline: ProductionBaseline
+
+
 class AssetOverview(APIModel):
     asset: AssetSummary
     timeline_start: AwareDatetime
@@ -45,6 +69,7 @@ class AssetOverview(APIModel):
     latest_decision_state: str
     highest_alert_severity: str | None
     alert_count: int
+    production_impact: ProductionImpact | None
 
 
 class TelemetryPoint(APIModel):

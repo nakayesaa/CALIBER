@@ -1,0 +1,6 @@
+policy_id: ko-3201-production-impact-v1
+pre_trip_load_window_hours: 24
+plant_rate_tolerance_tph: 1.0
+minimum_comparable_samples: 168
+high_confidence_samples: 720
+source_reference: data/synthetic/ko_3201/v1/hourly_scenario.csv#derived-from-production-data-sheet2
