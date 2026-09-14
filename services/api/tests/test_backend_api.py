@@ -114,6 +114,14 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     assert overview_response.json()["alert_count"] == 1
     assert telemetry_response.json()["total_points"] == 4368
     assert telemetry_response.json()["returned_points"] == 20
+    first_point = telemetry_response.json()["points"][0]
+    operating_fields = {
+        "feed_rate_tph",
+        "discharge_pressure_barg",
+        "motor_current_a",
+        "plant_rate_tph",
+    }
+    assert operating_fields <= first_point.keys()
     assert len(alert_response.json()["similar_incidents"]) == 8
     assert [
         transition["new_state"]

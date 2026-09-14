@@ -154,6 +154,8 @@ class KO3201ArtifactRepository:
             "bearing_metal_temperature_degc",
             "feed_rate_tph",
             "discharge_pressure_barg",
+            "motor_current_a",
+            "plant_rate_tph",
         ]
         score_columns = [
             "timestamp",

@@ -40,6 +40,8 @@ export interface TelemetryPoint {
   bearing_metal_temperature_degc: number;
   feed_rate_tph: number;
   discharge_pressure_barg: number;
+  motor_current_a: number;
+  plant_rate_tph: number;
   anomaly_score: number | null;
   anomaly_threshold: number;
   is_anomaly: boolean;

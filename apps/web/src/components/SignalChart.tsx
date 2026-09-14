@@ -4,7 +4,7 @@ import type { TelemetryPoint } from '../lib/api';
 export type SignalField = keyof Pick<TelemetryPoint,
   'anomaly_score' | 'radial_vibration_micron' | 'water_in_oil_ppm' |
   'lube_oil_pressure_barg' | 'bearing_metal_temperature_degc' |
-  'feed_rate_tph' | 'discharge_pressure_barg'>;
+  'feed_rate_tph' | 'discharge_pressure_barg' | 'motor_current_a' | 'plant_rate_tph'>;
 
 const signalMetadata: Record<SignalField, { label: string; unit: string }> = {
   anomaly_score: { label: 'Anomaly score', unit: '' },
@@ -14,6 +14,8 @@ const signalMetadata: Record<SignalField, { label: string; unit: string }> = {
   bearing_metal_temperature_degc: { label: 'Bearing temperature', unit: '°C' },
   feed_rate_tph: { label: 'Feed rate', unit: 'tph' },
   discharge_pressure_barg: { label: 'Discharge pressure', unit: 'barg' },
+  motor_current_a: { label: 'Motor current', unit: 'A' },
+  plant_rate_tph: { label: 'Plant rate', unit: 'tph' },
 };
 
 interface SignalChartProps {
@@ -21,9 +23,10 @@ interface SignalChartProps {
   field: SignalField;
   threshold?: number;
   highlightTimestamp?: string;
+  showRunStatus?: boolean;
 }
 
-export function SignalChart({ points, field, threshold, highlightTimestamp }: SignalChartProps) {
+export function SignalChart({ points, field, threshold, highlightTimestamp, showRunStatus = false }: SignalChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   if (!points.length) return <div className="chart-empty">No telemetry points</div>;
 
@@ -41,6 +44,7 @@ export function SignalChart({ points, field, threshold, highlightTimestamp }: Si
   const hoveredCoordinate = hoveredIndex === null ? null : coordinates[hoveredIndex];
   const highlightedIndex = highlightTimestamp ? nearestPointIndex(points, highlightTimestamp) : null;
   const highlightedCoordinate = highlightedIndex === null ? null : coordinates[highlightedIndex];
+  const stoppedRanges = showRunStatus ? runStatusRanges(points) : [];
 
   function trackPointer(event: PointerEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -51,6 +55,7 @@ export function SignalChart({ points, field, threshold, highlightTimestamp }: Si
   return (
     <div className="interactive-chart" onPointerMove={trackPointer} onPointerLeave={() => setHoveredIndex(null)}>
       <svg className="line-chart" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${signalMetadata[field].label} trend`}>
+        {stoppedRanges.map((range) => <rect className="run-status-off" x={range.start} y="4" width={range.width} height="92" key={`${range.start}-${range.width}`}/>)}
         <path className="grid-line" d="M0 25H100M0 50H100M0 75H100"/>
         {thresholdY !== null && <path className="threshold-path" d={`M0 ${thresholdY}H100`}/>}
         <path className="data-path" d={path}/>
@@ -60,10 +65,25 @@ export function SignalChart({ points, field, threshold, highlightTimestamp }: Si
       {hoveredPoint && hoveredCoordinate && <div className={`chart-tooltip${hoveredCoordinate.x > 72 ? ' align-right' : hoveredCoordinate.x < 28 ? ' align-left' : ''}`} style={{ left: `${hoveredCoordinate.x}%`, top: `${Math.min(82, Math.max(12, hoveredCoordinate.y))}%` }}>
         <time>{formatTimestamp(hoveredPoint.timestamp)}</time>
         <strong>{formatValue(Number(hoveredPoint[field]))} {signalMetadata[field].unit}</strong>
-        <span>{signalMetadata[field].label}</span>
+        <span>{signalMetadata[field].label}{showRunStatus ? ` · ${hoveredPoint.run_status}` : ''}</span>
       </div>}
     </div>
   );
+}
+
+function runStatusRanges(points: TelemetryPoint[]): Array<{ start: number; width: number }> {
+  const ranges: Array<{ start: number; width: number }> = [];
+  let rangeStart: number | null = null;
+  points.forEach((point, index) => {
+    if (point.run_status === 'OFF' && rangeStart === null) rangeStart = index;
+    if (rangeStart === null || (point.run_status === 'OFF' && index !== points.length - 1)) return;
+    const start = rangeStart;
+    const end = point.run_status === 'OFF' ? index + 1 : index;
+    const denominator = Math.max(points.length, 1);
+    ranges.push({ start: start / denominator * 100, width: Math.max((end - start) / denominator * 100, .25) });
+    rangeStart = null;
+  });
+  return ranges;
 }
 
 function nearestPointIndex(points: TelemetryPoint[], timestamp: string): number {

@@ -57,6 +57,8 @@ class TelemetryPoint(APIModel):
     bearing_metal_temperature_degc: float
     feed_rate_tph: float
     discharge_pressure_barg: float
+    motor_current_a: float
+    plant_rate_tph: float
     anomaly_score: float | None
     anomaly_threshold: float
     is_anomaly: bool

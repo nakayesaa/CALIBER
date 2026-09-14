@@ -6,12 +6,13 @@ import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type AlertEvent, type AssetOverview, type TelemetrySeries } from '../lib/api';
-import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
+import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 
 const ASSET_ID = 'asset-ko-3201';
+type SignalMode = 'condition' | 'operating';
 
 interface OverviewData {
   overview: AssetOverview;
@@ -31,7 +32,8 @@ async function loadOverview(): Promise<OverviewData> {
 }
 
 export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
-  const [selectedCondition, setSelectedCondition] = useState<ConditionField>('water_in_oil_ppm');
+  const [signalMode, setSignalMode] = useState<SignalMode>('condition');
+  const [selectedSignalField, setSelectedSignalField] = useState<EquipmentSignalField>('water_in_oil_ppm');
   const [selectedProgression, setSelectedProgression] = useState<number | null | undefined>(undefined);
   const resource = useApiResource('overview', loadOverview);
   if (resource.loading) return <LoadingState/>;
@@ -52,12 +54,21 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const verifiedCaPa = caPaActions.filter((action) => action.status === 'CLOSED').length;
   const confidence = Math.round((rca?.generation.hypotheses[0]?.confidence ?? 0) * 100);
 
-  const selectedSignal = conditionSignals.find((signal) => signal.field === selectedCondition)!;
-  const selectedValues = telemetry.points.map((point) => Number(point[selectedCondition]));
+  const availableSignals: readonly EquipmentSignal[] = signalMode === 'condition' ? conditionSignals : operatingSignals;
+  const selectedSignal = availableSignals.find((signal) => signal.field === selectedSignalField) ?? availableSignals[0];
+  const selectedValues = telemetry.points.map((point) => Number(point[selectedSignal.field]));
   const selectedLatest = selectedValues.at(-1) ?? 0;
   const selectedFirst = selectedValues[0] ?? 0;
   const selectedPeak = selectedValues.length ? Math.max(...selectedValues) : 0;
   const selectedDelta = selectedLatest - selectedFirst;
+  const onlineShare = telemetry.points.length
+    ? telemetry.points.filter((point) => point.run_status === 'ON').length / telemetry.points.length * 100
+    : 0;
+
+  function selectSignalMode(mode: SignalMode) {
+    setSignalMode(mode);
+    setSelectedSignalField((mode === 'condition' ? conditionSignals : operatingSignals)[0].field);
+  }
 
   return <div className="overview-dashboard">
     <header className="overview-heading">
@@ -96,18 +107,20 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 
     <section className="overview-bottom-grid">
       <article className="overview-condition-card">
-        <header><div><h2>Condition insights</h2><p>Explore how each variable contributed to the event</p></div><button onClick={() => onNavigate('assets')}>All equipment data <Icon name="arrow"/></button></header>
-        <nav className="overview-condition-tabs" aria-label="Condition variables">
-          {conditionSignals.map((signal) => <button className={selectedCondition === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedCondition(signal.field)}><span>{signal.label}</span><strong>{formatSignal(Number(latest?.[signal.field] ?? 0))} {signal.unit}</strong></button>)}
+        <header><div><h2>{signalMode === 'condition' ? 'Condition insights' : 'Operating performance'}</h2><p>{signalMode === 'condition' ? 'Explore how equipment condition contributed to the event' : 'Compare KO-3201 load and delivery against plant operation'}</p></div><nav className="overview-signal-mode" aria-label="Equipment signal group"><button className={signalMode === 'condition' ? 'active' : ''} onClick={() => selectSignalMode('condition')}>Condition</button><button className={signalMode === 'operating' ? 'active' : ''} onClick={() => selectSignalMode('operating')}>Operating</button></nav></header>
+        <nav className="overview-condition-tabs" aria-label={`${signalMode} variables`}>
+          {availableSignals.map((signal) => <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{formatSignal(Number(latest?.[signal.field] ?? 0))} {signal.unit}</strong></button>)}
         </nav>
         <div className="overview-condition-visual">
           <div className="overview-condition-summary">
             <span>{selectedSignal.role}</span>
             <strong>{formatSignal(selectedLatest)} <small>{selectedSignal.unit}</small></strong>
             <p>Latest reading</p>
-            <dl><div><dt>Window peak</dt><dd>{formatSignal(selectedPeak)} {selectedSignal.unit}</dd></div><div><dt>Net movement</dt><dd>{selectedDelta >= 0 ? '+' : ''}{formatSignal(selectedDelta)} {selectedSignal.unit}</dd></div></dl>
+            {signalMode === 'condition'
+              ? <dl><div><dt>Window peak</dt><dd>{formatSignal(selectedPeak)} {selectedSignal.unit}</dd></div><div><dt>Net movement</dt><dd>{selectedDelta >= 0 ? '+' : ''}{formatSignal(selectedDelta)} {selectedSignal.unit}</dd></div></dl>
+              : <dl><div><dt>Run status</dt><dd>{humanize(latest?.run_status ?? 'Unknown')}</dd></div><div><dt>Online share</dt><dd>{formatSignal(onlineShare)}%</dd></div></dl>}
           </div>
-          <div className="overview-condition-chart"><SignalChart points={telemetry.points} field={selectedCondition}/><div><span>{formatDate(overview.timeline_start)}</span><b>{formatDate(alert?.first_signal_at ?? overview.timeline_start)} · event onset</b><span>{formatDate(overview.timeline_end)}</span></div></div>
+          <div className="overview-condition-chart"><SignalChart points={telemetry.points} field={selectedSignal.field} highlightTimestamp={alert?.first_signal_at} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(overview.timeline_start)}</span><b>{signalMode === 'operating' ? `Stopped windows shaded · ${formatSignal(onlineShare)}% online` : `${formatDate(alert?.first_signal_at ?? overview.timeline_start)} · event onset`}</b><span>{formatDate(overview.timeline_end)}</span></div></div>
         </div>
       </article>
 
