@@ -9,6 +9,7 @@ import { api, type AlertDetail, type AlertEvent, type AssetOverview, type Teleme
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
+import { selectIncidentWindow, type HealthTimeRange } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 
 const ASSET_ID = 'asset-ko-3201';
@@ -32,6 +33,7 @@ async function loadOverview(): Promise<OverviewData> {
 }
 
 export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+  const [healthRange, setHealthRange] = useState<HealthTimeRange>('6M');
   const [signalMode, setSignalMode] = useState<SignalMode>('condition');
   const [selectedSignalField, setSelectedSignalField] = useState<EquipmentSignalField>('water_in_oil_ppm');
   const [selectedProgression, setSelectedProgression] = useState<number | null | undefined>(undefined);
@@ -42,6 +44,12 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const { overview, telemetry, alerts, detail } = resource.data;
   const productionImpact = overview.production_impact;
   const alert = alerts[0];
+  const eventAnchor = productionImpact?.window_start ?? alert?.peak_score_at;
+  const healthPoints = selectIncidentWindow(telemetry.points, healthRange, eventAnchor);
+  const healthStart = healthPoints[0]?.timestamp ?? overview.timeline_start;
+  const healthEnd = healthPoints.at(-1)?.timestamp ?? overview.timeline_end;
+  const visiblePeakScore = Math.max(...healthPoints.map((point) => point.anomaly_score ?? 0));
+  const healthMarker = healthRange === '6M' ? alert?.first_signal_at : eventAnchor;
   const escalationTransition = detail?.state_transitions.find((transition) => transition.new_state === alert?.highest_severity);
   const escalationIndex = Math.max((detail?.state_transitions.findIndex((transition) => transition === escalationTransition) ?? 0) + 1, 1);
   const latest = telemetry.points.at(-1);
@@ -80,13 +88,13 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
     <section className="overview-main-grid">
       <article className="overview-health-card">
         <header>
-          <div><span className="overview-title-icon"><Icon name="pulse"/></span><div><h2>Equipment health trajectory</h2><p>KO-3201 · six-month monitoring window</p></div></div>
-          <span className="overview-select">Anomaly score <Icon name="arrow"/></span>
+          <div><span className="overview-title-icon"><Icon name="pulse"/></span><div><h2>Equipment health trajectory</h2><p>KO-3201 · {healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
+          <div className="overview-health-controls"><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{(['6M', '3M', '1M'] as const).map((range) => <button className={healthRange === range ? 'active' : ''} key={range} onClick={() => setHealthRange(range)}>{range}</button>)}</nav></div>
         </header>
         <div className="overview-health-body">
-          <div className="overview-chart-metric"><span>Peak risk score</span><strong>{formatSignal(alert?.peak_anomaly_score ?? 0)}</strong><p>Threshold <b>50</b></p></div>
-          <div className="overview-chart"><SignalChart points={telemetry.points} field="anomaly_score" threshold={50}/></div>
-          <div className="overview-chart-axis"><span>{formatDate(overview.timeline_start)}</span><b>{formatDate(alert?.first_signal_at ?? overview.timeline_start)} · first signal</b><span>{formatDate(overview.timeline_end)}</span></div>
+          <div className="overview-chart-metric"><span>Visible peak score</span><strong>{formatSignal(visiblePeakScore)}</strong><p>Threshold <b>50</b></p></div>
+          <div className="overview-chart"><SignalChart points={healthPoints} field="anomaly_score" threshold={50} highlightTimestamp={healthMarker} yPaddingRatio={0.22}/></div>
+          <div className="overview-chart-axis"><span>{formatDate(healthStart)}</span><b>{healthRange === '6M' ? `${formatDate(alert?.first_signal_at ?? healthStart)} · first signal` : `${formatDate(eventAnchor ?? healthStart)} · trip event`}</b><span>{formatDate(healthEnd)}</span></div>
         </div>
         <div className="overview-health-context">
           <div><span>Leading condition</span><strong>Water in oil</strong><b>{formatSignal(latest?.water_in_oil_ppm ?? 0)} ppm</b></div>

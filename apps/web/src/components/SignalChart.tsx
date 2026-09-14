@@ -24,16 +24,21 @@ interface SignalChartProps {
   threshold?: number;
   highlightTimestamp?: string;
   showRunStatus?: boolean;
+  yPaddingRatio?: number;
 }
 
-export function SignalChart({ points, field, threshold, highlightTimestamp, showRunStatus = false }: SignalChartProps) {
+export function SignalChart({ points, field, threshold, highlightTimestamp, showRunStatus = false, yPaddingRatio = 0 }: SignalChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   if (!points.length) return <div className="chart-empty">No telemetry points</div>;
 
   const values = points.map((point) => Number(point[field] ?? 0));
-  const min = Math.min(...values, threshold ?? Number.POSITIVE_INFINITY);
-  const max = Math.max(...values, threshold ?? Number.NEGATIVE_INFINITY);
-  const span = Math.max(max - min, 1);
+  const rawMin = Math.min(...values, threshold ?? Number.POSITIVE_INFINITY);
+  const rawMax = Math.max(...values, threshold ?? Number.NEGATIVE_INFINITY);
+  const rawSpan = Math.max(rawMax - rawMin, 1);
+  const padding = rawSpan * yPaddingRatio;
+  const min = rawMin - padding;
+  const max = rawMax + padding;
+  const span = max - min;
   const coordinates = values.map((value, index) => ({
     x: values.length === 1 ? 0 : index / (values.length - 1) * 100,
     y: 96 - (value - min) / span * 88,

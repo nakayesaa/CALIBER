@@ -338,8 +338,11 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .overview-title-icon .app-icon { width:23px; height:23px; }
 .overview-health-card h2, .overview-timeline-card h2, .overview-condition-card h2, .overview-decision-card h2 { font-size:17px; line-height:22px; }
 .overview-health-card header p, .overview-timeline-card header p, .overview-condition-card header p { margin-top:2px; color:var(--overview-muted); font-size:11px; }
-.overview-select { padding:8px 10px; display:flex; align-items:center; gap:10px; border:1px solid var(--overview-line); border-radius:9px; color:#53656d; font-size:11px; }
-.overview-select .app-icon { width:10px; height:10px; transform:rotate(90deg); }
+.overview-health-controls { display:flex; align-items:center; gap:9px; color:#53656d; font-size:10px; }
+.overview-range-selector { padding:3px; display:flex; border:1px solid var(--overview-line); border-radius:9px; background:#f4f7f5; }
+.overview-range-selector button { min-width:34px; min-height:27px; padding:0 8px; border-radius:6px; color:var(--overview-muted); font-size:9px; font-weight:650; }
+.overview-range-selector button:hover { color:var(--overview-primary); }
+.overview-range-selector button.active { background:#fff; color:var(--overview-primary); box-shadow:0 1px 3px rgba(31,54,46,.12); }
 .overview-health-body { position:relative; height:195px; margin:0 10px; overflow:hidden; border-radius:14px; background:#eef3f0; }
 .overview-chart-metric { position:absolute; z-index:2; top:15px; left:17px; width:112px; }
 .overview-chart-metric span, .overview-chart-metric p { color:var(--overview-muted); font-size:10px; }
@@ -621,7 +624,7 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
   .overview-heading > div:last-child { width:100%; }
   .overview-heading button { flex:1; justify-content:center; }
   .overview-health-card > header { align-items:flex-start; flex-direction:column; }
-  .overview-select { width:100%; justify-content:space-between; }
+  .overview-health-controls { width:100%; justify-content:space-between; }
   .overview-chart-metric { position:relative; top:auto; left:auto; padding:16px 18px 0; }
   .overview-chart { top:83px; left:18px; }
   .overview-chart-axis { left:18px; }
