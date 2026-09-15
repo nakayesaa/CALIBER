@@ -1,0 +1,351 @@
+export interface SystemStatus {
+  phase: string;
+  api_status: string;
+  pipeline_artifacts: Record<string, boolean>;
+  llm_enabled: boolean;
+}
+
+export interface AssetSummary {
+  asset_id: string;
+  tag: string;
+  name: string;
+  plant_id: string;
+  plant_name: string;
+  equipment_family: string;
+  equipment_type: string;
+  equipment_class: string;
+  discipline: string;
+  criticality: string;
+  monitoring_method: string;
+}
+
+export interface AssetOverview {
+  asset: AssetSummary;
+  timeline_start: string;
+  timeline_end: string;
+  latest_decision_state: string;
+  highest_alert_severity: string | null;
+  alert_count: number;
+  production_impact: ProductionImpact | null;
+}
+
+export interface ProductionImpact {
+  metric: 'PRODUCTION_SHORTFALL';
+  provenance: 'CALCULATED';
+  window_start: string;
+  window_end: string;
+  offline_hours: number;
+  actual_feed_tonnes: number;
+  expected_feed_tonnes: number;
+  estimated_shortfall_tonnes: number;
+  baseline: {
+    method: 'CONTEXTUAL_HEALTHY_MEDIAN';
+    expected_feed_tph: number;
+    representative_plant_rate_tph: number;
+    plant_rate_tolerance_tph: number;
+    healthy_sample_count: number;
+    reference_start: string;
+    reference_end: string;
+    confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+    source_reference: string;
+  };
+}
+
+export interface EffectivenessMetric {
+  signal_key: string;
+  label: string;
+  unit: string;
+  direction_of_concern: 'HIGH' | 'LOW';
+  before: number;
+  after: number;
+  improvement_percent: number;
+  outcome: 'IMPROVED' | 'STABLE' | 'DETERIORATED';
+}
+
+export interface EffectivenessReview {
+  effectiveness_check_id: string;
+  rca_case_id: string;
+  incident_id: string;
+  asset_id: string;
+  monitoring_start: string;
+  monitoring_end: string;
+  monitoring_periods: number;
+  baseline_window: string;
+  result: 'PENDING' | 'INITIAL_EFFECTIVE' | 'EFFECTIVE' | 'INCONCLUSIVE' | 'INEFFECTIVE' | 'RECURRENCE';
+  recurrence_detected: boolean;
+  recovery_confirmed: boolean;
+  approval_status: 'PENDING_REVIEW' | 'APPROVED';
+  closure_eligible: boolean;
+  explanation: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  source_reference: string;
+  metrics: EffectivenessMetric[];
+}
+
+export interface TelemetryPoint {
+  timestamp: string;
+  operating_mode: string;
+  run_status: string;
+  radial_vibration_micron: number;
+  water_in_oil_ppm: number;
+  lube_oil_pressure_barg: number;
+  bearing_metal_temperature_degc: number;
+  feed_rate_tph: number;
+  discharge_pressure_barg: number;
+  motor_current_a: number;
+  plant_rate_tph: number;
+  anomaly_score: number | null;
+  anomaly_threshold: number;
+  is_anomaly: boolean;
+  decision_state: string;
+  severity_rank: number;
+  alarm_breadth: number;
+  breached_signals: string[];
+}
+
+export interface TelemetrySeries {
+  asset_id: string;
+  total_points: number;
+  returned_points: number;
+  points: TelemetryPoint[];
+}
+
+export interface AlertEvent {
+  alert_id: string;
+  asset_id: string;
+  first_signal_at: string;
+  opened_at: string;
+  closed_at: string | null;
+  status: string;
+  highest_severity: string;
+  highest_severity_rank: number;
+  peak_anomaly_score: number;
+  peak_score_at: string;
+  duration_hours: number;
+  primary_driver: string;
+  breached_signals: string[];
+}
+
+export interface AlertStateTransition {
+  alert_id: string;
+  timestamp: string;
+  previous_state: string;
+  new_state: string;
+  reason: string;
+}
+
+export interface SignalContribution {
+  driver_name: string;
+  signal_key: string;
+  source_field: string;
+  unit: string;
+  direction_of_concern: 'HIGH' | 'LOW';
+  value: number;
+  healthy_baseline: number;
+  alarm_limit: number;
+  trip_limit: number;
+  engineering_state: 'NORMAL' | 'ALARM' | 'TRIP';
+  trend: 'RISING' | 'FALLING' | 'STABLE';
+  first_alarm_at: string | null;
+  alarm_persistence_hours: number;
+  chronology_rank: number | null;
+  raw_model_impact: number;
+  contribution_percent: number;
+}
+
+export interface DriverAnalysis {
+  alert_id: string;
+  asset_id: string;
+  model_id: string;
+  as_of: string;
+  anomaly_score: number;
+  method: 'GROUPED_COUNTERFACTUAL_BASELINE_REPLACEMENT';
+  interpretation: string;
+  contributions: SignalContribution[];
+}
+
+export interface SimilarIncident {
+  rank: number;
+  incident_id: string;
+  occurred_at: string;
+  asset_tag: string;
+  title: string;
+  component: string;
+  failure_mechanism: string;
+  observed_symptoms: string[];
+  business_consequences: string[];
+  hybrid_score: number;
+  match_reasons: string[];
+}
+
+export interface RCAHypothesis {
+  hypothesis_id: string;
+  rank: number;
+  category: string;
+  title: string;
+  mechanism: string;
+  confidence: number;
+  rationale: string;
+  supporting_evidence_ids: string[];
+  contradicting_evidence_ids: string[];
+  analogue_incident_ids: string[];
+  missing_evidence: string[];
+  disconfirming_condition: string;
+}
+
+export interface RCARecord {
+  rca_id: string;
+  alert_id: string;
+  status: string;
+  requested_by: string;
+  model: string;
+  provider?: string;
+  status_history?: Array<{
+    previous_status: string;
+    new_status: string;
+    actor: string;
+    occurred_at: string;
+    note: string;
+  }>;
+  generation: {
+    executive_summary: string;
+    hypotheses: RCAHypothesis[];
+    investigation_steps: Array<{
+      step_id: string;
+      priority: string;
+      instruction: string;
+      rationale: string;
+      expected_evidence: string;
+      owner_role: string;
+      safety_gate: boolean;
+    }>;
+    operating_guidance: string;
+  };
+}
+
+export type ActionType = 'CONTAINMENT' | 'CORRECTIVE' | 'PREVENTIVE';
+export type ActionStatus = 'PROPOSED' | 'APPROVED' | 'IN_PROGRESS' | 'EFFECTIVENESS_REVIEW' | 'CLOSED' | 'REJECTED';
+
+export interface ActionItem {
+  action_id: string;
+  action_type: ActionType;
+  title: string;
+  guidance: string;
+  owner_role: string;
+  priority: string;
+  due_date: string;
+  status: ActionStatus;
+  completion_criteria: string;
+  effectiveness_check: string;
+  affected_scope?: string | null;
+  execution_route?: string | null;
+  change_control?: string | null;
+  status_history?: Array<{
+    previous_status: ActionStatus;
+    new_status: ActionStatus;
+    actor: string;
+    occurred_at: string;
+    note: string;
+  }>;
+}
+
+export interface ActionPlan {
+  plan_id: string;
+  rca_id: string;
+  alert_id: string;
+  selected_hypothesis_id: string;
+  selected_cause_category: string;
+  status: ActionStatus;
+  actions: ActionItem[];
+}
+
+export interface AlertDetail {
+  alert: AlertEvent;
+  state_transitions: AlertStateTransition[];
+  opening_snapshot: {
+    timestamp: string;
+    decision_state: string;
+    decision_reason: string;
+    anomaly_score: number;
+    anomaly_threshold: number;
+    alarm_breadth: number;
+    breached_signals: string[];
+    top_drivers: Array<{ name: string; score: number }>;
+  };
+  similar_incidents: SimilarIncident[];
+  rca: RCARecord | null;
+  action_plans: ActionPlan[];
+  prepared_workflow: {
+    rca: RCARecord;
+    action_plans: ActionPlan[];
+  } | null;
+}
+
+export interface SourceFieldMapping {
+  source_field: string;
+  canonical_field: string;
+  unit: string;
+  cadence: string;
+  status: string;
+}
+
+export interface SourceQualityIssue {
+  issue_id: string;
+  severity: string;
+  flag: string;
+  description: string;
+  resolution_status: string;
+}
+
+export interface DataSourceSummary {
+  source_key: string;
+  title: string;
+  domain: string;
+  role: string;
+  cadence: string;
+  status: 'CONNECTED' | 'REVIEW_REQUIRED' | 'REFERENCE';
+  mapping_count: number;
+  quality_issue_count: number;
+  record_count: number | null;
+  modified_at: string;
+  source_url: string;
+}
+
+export interface DataSourceDetail {
+  source: DataSourceSummary;
+  local_path: string;
+  parser: string;
+  checksum: string;
+  mappings: SourceFieldMapping[];
+  quality_issues: SourceQualityIssue[];
+}
+
+export interface TraceClaim {
+  trace_id: string;
+  title: string;
+  value: string;
+  unit: string | null;
+  provenance: 'RECORDED' | 'STANDARDIZED' | 'CALCULATED' | 'MODEL_OUTPUT' | 'AI_SYNTHESIS' | 'HUMAN_VERIFIED';
+  summary: string;
+  as_of: string;
+  calculation: string[];
+  lineage: Array<{
+    sequence: number;
+    kind: 'SOURCE' | 'CANONICAL' | 'RULE' | 'MODEL' | 'AI' | 'VIEW';
+    label: string;
+    reference: string;
+  }>;
+  sources: Array<{
+    source_key: string;
+    title: string;
+    location: string;
+    role: string;
+    mappings: SourceFieldMapping[];
+  }>;
+  quality_issues: SourceQualityIssue[];
+  preview: {
+    columns: string[];
+    rows: Array<Record<string, string | number | boolean | null>>;
+  } | null;
+}

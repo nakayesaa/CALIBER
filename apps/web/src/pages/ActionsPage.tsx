@@ -4,13 +4,14 @@ import type { PageId } from '../components/AppShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { TraceButton } from '../components/TraceabilityContext';
 import { api, type ActionItem, type ActionPlan, type ActionStatus, type EffectivenessMetric, type EffectivenessReview } from '../lib/api';
+import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { formatDate, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
 import { workflowView } from '../lib/workflowView';
 
 async function loadActions() {
-  const alerts = await api.alerts('asset-ko-3201');
+  const alerts = await api.alerts(PRIMARY_ASSET_ID);
   if (!alerts[0]) return null;
   const [detail, effectiveness] = await Promise.all([
     api.alertDetail(alerts[0].alert_id),

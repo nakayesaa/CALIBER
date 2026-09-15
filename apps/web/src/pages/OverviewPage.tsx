@@ -7,6 +7,7 @@ import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type AlertEvent, type AssetOverview, type DriverAnalysis, type EffectivenessReview, type TelemetrySeries } from '../lib/api';
+import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { contributionForField, contributionRank } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
@@ -14,7 +15,6 @@ import { selectIncidentWindow, type HealthTimeRange } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
 
-const ASSET_ID = 'asset-ko-3201';
 type SignalMode = 'condition' | 'operating';
 
 interface OverviewData {
@@ -28,10 +28,10 @@ interface OverviewData {
 
 async function loadOverview(): Promise<OverviewData> {
   const [overview, telemetry, alerts, effectiveness] = await Promise.all([
-    api.assetOverview(ASSET_ID),
-    api.telemetry(ASSET_ID, 5000),
-    api.alerts(ASSET_ID),
-    api.effectiveness(ASSET_ID),
+    api.assetOverview(PRIMARY_ASSET_ID),
+    api.telemetry(PRIMARY_ASSET_ID, 5000),
+    api.alerts(PRIMARY_ASSET_ID),
+    api.effectiveness(PRIMARY_ASSET_ID),
   ]);
   const [detail, driverAnalysis] = alerts[0]
     ? await Promise.all([api.alertDetail(alerts[0].alert_id), api.driverAnalysis(alerts[0].alert_id)])

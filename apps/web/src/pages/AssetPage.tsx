@@ -1,17 +1,18 @@
 import { SignalChart } from '../components/SignalChart';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api } from '../lib/api';
+import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { formatDate, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { Metric, ViewHeader } from './ProblemTankPage';
 
 async function loadAsset() {
-  const [overview, telemetry] = await Promise.all([api.assetOverview('asset-ko-3201'), api.telemetry('asset-ko-3201', 720)]);
+  const [overview, telemetry] = await Promise.all([api.assetOverview(PRIMARY_ASSET_ID), api.telemetry(PRIMARY_ASSET_ID, 720)]);
   return { overview, telemetry };
 }
 
 export function AssetPage() {
-  const resource = useApiResource('asset-ko-3201', loadAsset);
+  const resource = useApiResource(PRIMARY_ASSET_ID, loadAsset);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'No asset data returned'}/>;
   const { overview, telemetry } = resource.data;

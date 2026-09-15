@@ -5,6 +5,7 @@ import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type DriverAnalysis, type TelemetrySeries } from '../lib/api';
+import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatSignal, humanize } from '../lib/format';
@@ -18,7 +19,7 @@ interface RcaWorkspaceData {
 }
 
 async function loadRcaWorkspace(): Promise<RcaWorkspaceData | null> {
-  const alerts = await api.alerts('asset-ko-3201');
+  const alerts = await api.alerts(PRIMARY_ASSET_ID);
   const alert = alerts[0];
   if (!alert) return null;
   const [detail, telemetry, driverAnalysis] = await Promise.all([
