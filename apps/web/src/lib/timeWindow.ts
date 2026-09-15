@@ -7,6 +7,14 @@ export interface TimeWindow {
   end: string;
 }
 
+export interface AlertTimeWindow extends TimeWindow {
+  id: string;
+  alertId: string;
+  fromState: string;
+  toState: string;
+  milestoneIndex: number;
+}
+
 const RANGE_DAYS: Record<Exclude<HealthTimeRange, '6M' | 'DETECTION'>, number> = {
   '3M': 90,
   '1M': 30,
@@ -16,9 +24,28 @@ export function alertDetectionWindow(
   alert: AlertEvent,
   transitions: AlertStateTransition[],
 ): TimeWindow {
-  const warningAt = transitions.find((transition) => transition.new_state === 'WARNING')?.timestamp
-    ?? alert.opened_at;
-  return { start: alert.first_signal_at, end: warningAt };
+  return alertProgressionWindows(alert, transitions).find((window) => window.toState === 'WARNING')
+    ?? { start: alert.first_signal_at, end: alert.opened_at };
+}
+
+export function alertProgressionWindows(
+  alert: AlertEvent,
+  transitions: AlertStateTransition[],
+): AlertTimeWindow[] {
+  const milestones = [
+    { timestamp: alert.first_signal_at, state: 'FIRST_SIGNAL' },
+    ...transitions.map((transition) => ({ timestamp: transition.timestamp, state: transition.new_state })),
+  ];
+
+  return milestones.slice(1).map((milestone, index) => ({
+    id: `${alert.alert_id}:window-${index + 1}`,
+    alertId: alert.alert_id,
+    fromState: milestones[index].state,
+    toState: milestone.state,
+    start: milestones[index].timestamp,
+    end: milestone.timestamp,
+    milestoneIndex: index + 1,
+  }));
 }
 
 export function selectTelemetryWindow(

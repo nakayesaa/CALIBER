@@ -4,7 +4,7 @@ import { api, type AlertEvent, type AlertStateTransition, type DriverAnalysis, t
 import { conditionSignals, operatingSignals } from '../lib/conditionSignals';
 import { buildEventMilestones } from '../lib/eventProgression';
 import { formatDateTime, formatSignal, humanize } from '../lib/format';
-import { alertDetectionWindow } from '../lib/timeWindow';
+import { alertProgressionWindows, selectTelemetryWindow, timeWindowHours } from '../lib/timeWindow';
 import { SignalChart, type SignalField } from './SignalChart';
 import { TraceButton } from './TraceabilityContext';
 
@@ -27,11 +27,12 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
   const [driverAnalysis, setDriverAnalysis] = useState<DriverAnalysis | null>(null);
   const [driverError, setDriverError] = useState<string | null>(null);
   const [driverLoading, setDriverLoading] = useState(false);
-  const detectionWindow = useMemo(() => alertDetectionWindow(alert, transitions), [alert, transitions]);
+  const timeWindows = useMemo(() => alertProgressionWindows(alert, transitions), [alert, transitions]);
   const selected = selectedIndex === null ? undefined : milestones[selectedIndex];
+  const selectedWindow = selectedIndex === null || selectedIndex === 0 ? undefined : timeWindows[selectedIndex - 1];
   const chartPoints = useMemo(
-    () => selected ? telemetryAround(telemetry, selected.timestamp) : [],
-    [selected, telemetry],
+    () => selectedWindow ? selectTelemetryWindow(telemetry, selectedWindow) : selected ? telemetryAround(telemetry, selected.timestamp) : [],
+    [selected, selectedWindow, telemetry],
   );
 
   useEffect(() => {
@@ -77,7 +78,7 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
 
   return <aside className={`overview-progression-explorer${expanded ? ' expanded' : ''}`} aria-label={`${assetTag} event progression explorer`}>
     <header>
-      <div><span>Event explorer</span><h2>{assetTag} progression</h2><p>{expanded ? 'Reviewing the evidence available at the selected hour.' : 'Select a milestone to inspect its equipment evidence.'}</p></div>
+      <div><span>Event explorer</span><h2>{assetTag} progression</h2><p>{expanded ? 'Reviewing the evidence across the selected alert transition.' : 'Select a milestone to inspect its equipment evidence.'}</p></div>
       <button className="overview-modal-close" onClick={onClose} aria-label="Close event progression">×</button>
     </header>
     <div className={`overview-explorer-body${expanded ? ' expanded' : ''}`}>
@@ -90,12 +91,12 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
         </header>
 
         <section className="overview-event-chart">
-          <header><div><h4>Evidence around this event</h4><span>Seven days before and after</span></div><strong>{chartLabel(selectedSignal)}</strong></header>
+          <header><div><h4>Supporting evidence</h4><span>{selectedWindow ? `${humanize(selectedWindow.fromState)} → ${humanize(selectedWindow.toState)} · ${formatSignal(timeWindowHours(selectedWindow))} h` : 'Seven days before and after first signal'}</span></div><strong>{chartLabel(selectedSignal)}</strong></header>
           <nav aria-label="Event chart signal">
             {chartSignals.map((signal) => <button className={selectedSignal === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignal(signal.field)}>{signal.label}</button>)}
           </nav>
-          <div><SignalChart points={chartPoints} field={selectedSignal} threshold={selectedSignal === 'anomaly_score' ? 50 : undefined} highlightTimestamp={selected.timestamp} highlightWindow={detectionWindow} showRunStatus={operatingSignals.some((signal) => signal.field === selectedSignal)}/></div>
-          <footer><span>{formatDateTime(chartPoints[0]?.timestamp ?? selected.timestamp)}</span><b>Selected event</b><span>{formatDateTime(chartPoints.at(-1)?.timestamp ?? selected.timestamp)}</span></footer>
+          <div><SignalChart points={chartPoints} field={selectedSignal} threshold={selectedSignal === 'anomaly_score' ? 50 : undefined} highlightTimestamp={selected.timestamp} highlightWindow={selectedWindow} showRunStatus={operatingSignals.some((signal) => signal.field === selectedSignal)}/></div>
+          <footer><span>{formatDateTime(chartPoints[0]?.timestamp ?? selected.timestamp)}</span><b>{selectedWindow ? `${humanize(selectedWindow.fromState)} → ${humanize(selectedWindow.toState)}` : 'First signal context'}</b><span>{formatDateTime(chartPoints.at(-1)?.timestamp ?? selected.timestamp)}</span></footer>
         </section>
 
         <section className="overview-snapshot-section">
@@ -163,5 +164,5 @@ function telemetryAround(points: TelemetryPoint[], timestamp: string): Telemetry
 
 function chartLabel(field: SignalField): string {
   if (field === 'anomaly_score') return 'Risk score';
-  return conditionSignals.find((signal) => signal.field === field)?.label ?? field;
+  return [...conditionSignals, ...operatingSignals].find((signal) => signal.field === field)?.label ?? field;
 }

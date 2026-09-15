@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { PageId } from '../components/AppShell';
 import { EventProgressionExplorer } from '../components/EventProgressionExplorer';
 import { Icon } from '../components/Icon';
-import { SignalChart } from '../components/SignalChart';
+import { SignalChart, type ChartTimeWindow, type ChartWindowTone } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type AlertEvent, type AssetOverview, type DriverAnalysis, type EffectivenessReview, type TelemetrySeries } from '../lib/api';
@@ -11,7 +11,7 @@ import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { contributionForField, contributionRank } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
-import { alertDetectionWindow, selectIncidentWindow, timeWindowHours, type HealthTimeRange } from '../lib/timeWindow';
+import { alertDetectionWindow, alertProgressionWindows, selectIncidentWindow, timeWindowHours, type AlertTimeWindow, type HealthTimeRange } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
 
@@ -28,6 +28,7 @@ interface OverviewData {
   overview: AssetOverview;
   telemetry: TelemetrySeries;
   alerts: AlertEvent[];
+  alertDetails: AlertDetail[];
   detail: AlertDetail | null;
   effectiveness: EffectivenessReview;
   driverAnalysis: DriverAnalysis | null;
@@ -40,26 +41,34 @@ async function loadOverview(): Promise<OverviewData> {
     api.alerts(PRIMARY_ASSET_ID),
     api.effectiveness(PRIMARY_ASSET_ID),
   ]);
-  const [detail, driverAnalysis] = alerts[0]
-    ? await Promise.all([api.alertDetail(alerts[0].alert_id), api.driverAnalysis(alerts[0].alert_id)])
-    : [null, null];
-  return { overview, telemetry, alerts, detail, effectiveness, driverAnalysis };
+  const [alertDetails, driverAnalysis] = await Promise.all([
+    Promise.all(alerts.map((alert) => api.alertDetail(alert.alert_id))),
+    alerts[0] ? api.driverAnalysis(alerts[0].alert_id) : Promise.resolve(null),
+  ]);
+  return { overview, telemetry, alerts, alertDetails, detail: alertDetails[0] ?? null, effectiveness, driverAnalysis };
+}
+
+interface ProgressionSelection {
+  detail: AlertDetail;
+  milestoneIndex: number | null;
 }
 
 export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const [healthRange, setHealthRange] = useState<HealthTimeRange>('6M');
   const [signalMode, setSignalMode] = useState<SignalMode>('condition');
   const [selectedSignalField, setSelectedSignalField] = useState<EquipmentSignalField>('water_in_oil_ppm');
-  const [selectedProgression, setSelectedProgression] = useState<number | null | undefined>(undefined);
+  const [selectedProgression, setSelectedProgression] = useState<ProgressionSelection | null>(null);
   const resource = useApiResource('overview', loadOverview);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
 
-  const { overview, telemetry, alerts, detail, effectiveness, driverAnalysis } = resource.data;
+  const { overview, telemetry, alerts, alertDetails, detail, effectiveness, driverAnalysis } = resource.data;
   const productionImpact = overview.production_impact;
   const alert = alerts[0];
   const eventAnchor = productionImpact?.window_start ?? alert?.peak_score_at;
   const detectionWindow = alert && detail ? alertDetectionWindow(alert, detail.state_transitions) : undefined;
+  const progressionWindows = alertDetails.flatMap((alertDetail) => alertProgressionWindows(alertDetail.alert, alertDetail.state_transitions));
+  const chartWindows = progressionWindows.map(toChartWindow);
   const detectionHours = detectionWindow ? timeWindowHours(detectionWindow) : 0;
   const detectionFocused = healthRange === 'DETECTION' && Boolean(detectionWindow);
   const healthPoints = selectIncidentWindow(telemetry.points, healthRange, eventAnchor, detectionWindow);
@@ -67,7 +76,6 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const healthEnd = healthPoints.at(-1)?.timestamp ?? overview.timeline_end;
   const actionablePoints = healthPoints.filter((point) => !['NORMAL', 'SUPPRESSED'].includes(point.decision_state));
   const visiblePeakScore = Math.max(...actionablePoints.map((point) => point.anomaly_score ?? 0), 0);
-  const healthMarker = healthRange === '6M' ? alert?.first_signal_at : eventAnchor;
   const escalationTransition = detail?.state_transitions.find((transition) => transition.new_state === alert?.highest_severity);
   const escalationIndex = Math.max((detail?.state_transitions.findIndex((transition) => transition === escalationTransition) ?? 0) + 1, 1);
   const latest = telemetry.points.at(-1);
@@ -95,6 +103,12 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
     setSelectedSignalField((mode === 'condition' ? conditionSignals : operatingSignals)[0].field);
   }
 
+  function openProgressionWindow(windowId: string) {
+    const window = progressionWindows.find((candidate) => candidate.id === windowId);
+    const alertDetail = window && alertDetails.find((candidate) => candidate.alert.alert_id === window.alertId);
+    if (window && alertDetail) setSelectedProgression({ detail: alertDetail, milestoneIndex: window.milestoneIndex });
+  }
+
   return <div className="overview-dashboard">
     <header className="overview-heading">
       <div><span>Manufacturing performance</span><h1>Reliability overview</h1></div>
@@ -109,8 +123,8 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
         </header>
         <div className="overview-health-body">
           <div className="overview-chart-metric"><span>Actionable peak</span><strong>{formatSignal(visiblePeakScore)}</strong><p>Threshold <b>50</b></p></div>
-          <div className="overview-chart"><SignalChart points={healthPoints} field="anomaly_score" threshold={50} highlightTimestamp={detectionFocused ? undefined : healthMarker} highlightWindow={detectionWindow} yPaddingRatio={0.22}/></div>
-          <div className="overview-chart-axis"><span>{formatDate(healthStart)}</span><b>{detectionFocused ? `${formatSignal(detectionHours)} h · first signal to warning` : healthRange === '6M' && detectionWindow ? `${formatDate(detectionWindow.start)} → ${formatDate(detectionWindow.end)} · detection` : `${formatDate(eventAnchor ?? healthStart)} · trip event`}</b><span>{formatDate(healthEnd)}</span></div>
+          <div className="overview-chart"><SignalChart points={healthPoints} field="anomaly_score" threshold={50} highlightWindows={chartWindows} onWindowSelect={openProgressionWindow} yPaddingRatio={0.22}/></div>
+          <div className="overview-chart-axis"><span>{formatDate(healthStart)}</span><b>{detectionFocused ? `${formatSignal(detectionHours)} h · first signal to warning` : `${progressionWindows.length} progression windows · click to inspect`}</b><span>{formatDate(healthEnd)}</span></div>
         </div>
         <div className="overview-health-context">
           <div><span>{detectionFocused ? 'At warning · leading condition' : 'Leading condition'}</span><strong>Water in oil</strong><b>{formatSignal(contextPoint?.water_in_oil_ppm ?? 0)} ppm</b></div>
@@ -120,12 +134,12 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       </article>
 
       <article className="overview-timeline-card">
-        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><div className="overview-card-actions"><TraceButton traceId="event-progression">Sources</TraceButton><button onClick={() => setSelectedProgression(null)}>View all <Icon name="arrow"/></button></div></header>
+        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><div className="overview-card-actions"><TraceButton traceId="event-progression">Sources</TraceButton><button onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: null })}>View all <Icon name="arrow"/></button></div></header>
         <div className="overview-schedule">
           <div className="overview-time-rule"><span>First signal</span><i/></div>
-          <ScheduleEvent title="Oil condition began to deviate" detail="Water-in-oil became persistent before the broader equipment response." date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="Warning" meta="1 leading signal" tone="warning" onClick={() => setSelectedProgression(0)}/>
+          <ScheduleEvent title="Oil condition began to deviate" detail="Water-in-oil became persistent before the broader equipment response." date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="Warning" meta="1 leading signal" tone="warning" onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: 0 })}/>
           <div className="overview-time-rule"><span>Escalation</span><i/></div>
-          <ScheduleEvent title="Condition signals converged" detail="Oil, pressure, thermal, and vibration evidence formed a critical pattern." date={formatDateTime(escalationTransition?.timestamp ?? alert?.opened_at ?? overview.timeline_start)} status={humanize(alert?.highest_severity ?? 'critical')} meta={`${alert?.breached_signals.length ?? 0} correlated signals`} tone="critical" onClick={() => setSelectedProgression(escalationIndex)}/>
+          <ScheduleEvent title="Condition signals converged" detail="Oil, pressure, thermal, and vibration evidence formed a critical pattern." date={formatDateTime(escalationTransition?.timestamp ?? alert?.opened_at ?? overview.timeline_start)} status={humanize(alert?.highest_severity ?? 'critical')} meta={`${alert?.breached_signals.length ?? 0} correlated signals`} tone="critical" onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: escalationIndex })}/>
         </div>
       </article>
     </section>
@@ -161,7 +175,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
                 <p>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h offline · contextual healthy median` : 'No qualifying offline event window'}</p>
                 <dl><div><dt>Expected feed</dt><dd>{productionImpact ? `${formatSignal(productionImpact.baseline.expected_feed_tph)} t/h` : '—'}</dd></div><div><dt>Baseline evidence</dt><dd>{productionImpact ? `${productionImpact.baseline.healthy_sample_count.toLocaleString()} h · ${humanize(productionImpact.baseline.confidence)}` : '—'}</dd></div></dl>
               </div>}
-          <div className="overview-condition-chart"><SignalChart points={healthPoints} field={selectedSignal.field} highlightTimestamp={detectionFocused ? undefined : signalMode === 'condition' ? driverAnalysis?.as_of : alert?.first_signal_at} highlightWindow={detectionWindow} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(healthStart)}</span><b>{detectionFocused ? 'First signal → warning' : signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(driverAnalysis?.as_of ?? alert?.peak_score_at ?? overview.timeline_start)} · contribution snapshot`}</b><span>{formatDate(healthEnd)}</span></div></div>
+          <div className="overview-condition-chart"><SignalChart points={healthPoints} field={selectedSignal.field} highlightTimestamp={detectionFocused ? undefined : signalMode === 'condition' ? driverAnalysis?.as_of : alert?.first_signal_at} highlightWindows={chartWindows} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(healthStart)}</span><b>{detectionFocused ? 'First signal → warning' : signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(driverAnalysis?.as_of ?? alert?.peak_score_at ?? overview.timeline_start)} · contribution snapshot`}</b><span>{formatDate(healthEnd)}</span></div></div>
         </div>
       </article>
 
@@ -181,7 +195,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
       </article>
     </section>
 
-    {selectedProgression !== undefined && alert && detail ? <EventProgressionExplorer assetTag={overview.asset.tag} alert={alert} transitions={detail.state_transitions} telemetry={telemetry.points} initialSelection={selectedProgression} onClose={() => setSelectedProgression(undefined)}/> : null}
+    {selectedProgression ? <EventProgressionExplorer assetTag={overview.asset.tag} alert={selectedProgression.detail.alert} transitions={selectedProgression.detail.state_transitions} telemetry={telemetry.points} initialSelection={selectedProgression.milestoneIndex} onClose={() => setSelectedProgression(null)}/> : null}
   </div>;
 }
 
@@ -191,4 +205,19 @@ function ScheduleEvent({ title, detail, date, status, meta, tone, onClick }: { t
 
 function signedSignal(value: number): string {
   return `${value > 0 ? '+' : ''}${formatSignal(value)}`;
+}
+
+function toChartWindow(window: AlertTimeWindow): ChartTimeWindow {
+  return {
+    id: window.id,
+    start: window.start,
+    end: window.end,
+    label: `${humanize(window.fromState)} → ${humanize(window.toState)}`,
+    tone: windowTone(window.toState),
+  };
+}
+
+function windowTone(state: string): ChartWindowTone {
+  if (state === 'WARNING' || state === 'HIGH' || state === 'CRITICAL' || state === 'CLOSED') return state.toLowerCase() as ChartWindowTone;
+  return 'signal';
 }

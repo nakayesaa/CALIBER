@@ -7,6 +7,14 @@ export type SignalField = keyof Pick<TelemetryPoint,
   'lube_oil_pressure_barg' | 'bearing_metal_temperature_degc' |
   'feed_rate_tph' | 'discharge_pressure_barg' | 'motor_current_a' | 'plant_rate_tph'>;
 
+export type ChartWindowTone = 'signal' | 'warning' | 'high' | 'critical' | 'closed' | 'focus';
+
+export interface ChartTimeWindow extends TimeWindow {
+  id: string;
+  label: string;
+  tone?: ChartWindowTone;
+}
+
 const signalMetadata: Record<SignalField, { label: string; unit: string }> = {
   anomaly_score: { label: 'Anomaly score', unit: '' },
   radial_vibration_micron: { label: 'Radial vibration', unit: 'µm' },
@@ -25,11 +33,13 @@ interface SignalChartProps {
   threshold?: number;
   highlightTimestamp?: string;
   highlightWindow?: TimeWindow;
+  highlightWindows?: readonly ChartTimeWindow[];
+  onWindowSelect?: (windowId: string) => void;
   showRunStatus?: boolean;
   yPaddingRatio?: number;
 }
 
-export function SignalChart({ points, field, threshold, highlightTimestamp, highlightWindow, showRunStatus = false, yPaddingRatio = 0 }: SignalChartProps) {
+export function SignalChart({ points, field, threshold, highlightTimestamp, highlightWindow, highlightWindows, onWindowSelect, showRunStatus = false, yPaddingRatio = 0 }: SignalChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   if (!points.length) return <div className="chart-empty">No telemetry points</div>;
 
@@ -51,7 +61,15 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, high
   const hoveredCoordinate = hoveredIndex === null ? null : coordinates[hoveredIndex];
   const highlightedIndex = highlightTimestamp ? pointIndexWithinRange(points, highlightTimestamp) : null;
   const highlightedCoordinate = highlightedIndex === null ? null : coordinates[highlightedIndex];
-  const windowCoordinates = highlightWindow ? visibleWindowCoordinates(points, coordinates, highlightWindow) : null;
+  const chartWindows: readonly ChartTimeWindow[] = highlightWindows
+    ?? (highlightWindow ? [{ ...highlightWindow, id: 'focus-window', label: 'Evidence window', tone: 'focus' }] : []);
+  const visibleWindows = chartWindows.flatMap((window) => {
+    const position = visibleWindowCoordinates(points, coordinates, window);
+    return position ? [{ ...window, ...position }] : [];
+  });
+  const hoveredWindow = hoveredPoint
+    ? chartWindows.find((window) => timestampInWindow(hoveredPoint.timestamp, window))
+    : undefined;
   const stoppedRanges = showRunStatus ? runStatusRanges(points) : [];
 
   function trackPointer(event: PointerEvent<HTMLDivElement>) {
@@ -61,17 +79,30 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, high
   }
 
   return (
-    <div className="interactive-chart" onPointerMove={trackPointer} onPointerLeave={() => setHoveredIndex(null)}>
+    <div className={`interactive-chart${hoveredWindow && onWindowSelect ? ' window-clickable' : ''}`} onPointerMove={trackPointer} onPointerLeave={() => setHoveredIndex(null)} onClick={() => hoveredWindow && onWindowSelect?.(hoveredWindow.id)}>
       <svg className="line-chart" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${signalMetadata[field].label} trend`}>
         {stoppedRanges.map((range) => <rect className="run-status-off" x={range.start} y="4" width={range.width} height="92" key={`${range.start}-${range.width}`}/>)}
-        {windowCoordinates && <rect className="evidence-window-fill" x={windowCoordinates.start} y="4" width={Math.max(windowCoordinates.end - windowCoordinates.start, .4)} height="92"/>}
+        {visibleWindows.map((window) => <rect
+          className={`evidence-window-fill ${window.tone ?? 'focus'}${onWindowSelect ? ' selectable' : ''}`}
+          x={window.start}
+          y="4"
+          width={Math.max(window.end - window.start, .4)}
+          height="92"
+          key={window.id}
+          role={onWindowSelect ? 'button' : undefined}
+          tabIndex={onWindowSelect ? 0 : undefined}
+          aria-label={onWindowSelect ? `Inspect ${window.label}` : undefined}
+          onClick={(event) => { event.stopPropagation(); onWindowSelect?.(window.id); }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            onWindowSelect?.(window.id);
+          }}
+        />)}
         <path className="grid-line" d="M0 25H100M0 50H100M0 75H100"/>
         {thresholdY !== null && <path className="threshold-path" d={`M0 ${thresholdY}H100`}/>}
         <path className="data-path" d={path}/>
-        {windowCoordinates && <>
-          <line className="window-marker-line window-start-line" x1={windowCoordinates.start} x2={windowCoordinates.start} y1="4" y2="96"/>
-          <line className="window-marker-line window-end-line" x1={windowCoordinates.end} x2={windowCoordinates.end} y1="4" y2="96"/>
-        </>}
+        {visibleWindows.map((window) => <line className={`window-marker-line ${window.tone ?? 'focus'}`} x1={window.end} x2={window.end} y1="4" y2="96" key={`${window.id}-end`}/>)}
         {highlightedCoordinate && <line className="event-marker-line" x1={highlightedCoordinate.x} x2={highlightedCoordinate.x} y1="4" y2="96"/>}
         {hoveredCoordinate && <line className="tracking-line" x1={hoveredCoordinate.x} x2={hoveredCoordinate.x} y1="4" y2="96"/>}
       </svg>
@@ -79,6 +110,7 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, high
         <time>{formatTimestamp(hoveredPoint.timestamp)}</time>
         <strong>{formatValue(Number(hoveredPoint[field]))} {signalMetadata[field].unit}</strong>
         <span>{signalMetadata[field].label}{field === 'anomaly_score' ? ` · ${formatDecisionState(hoveredPoint.decision_state)}` : showRunStatus ? ` · ${hoveredPoint.run_status}` : ''}</span>
+        {hoveredWindow && <span className="chart-window-label">{hoveredWindow.label}{onWindowSelect ? ' · Click for evidence' : ''}</span>}
       </div>}
     </div>
   );
@@ -128,6 +160,11 @@ function visibleWindowCoordinates(
   const startIndex = pointIndexWithinRange(points, new Date(Math.max(windowStart, timelineStart)).toISOString()) ?? 0;
   const endIndex = pointIndexWithinRange(points, new Date(Math.min(windowEnd, timelineEnd)).toISOString()) ?? points.length - 1;
   return { start: coordinates[startIndex].x, end: coordinates[endIndex].x };
+}
+
+function timestampInWindow(timestamp: string, window: TimeWindow): boolean {
+  const value = new Date(timestamp).getTime();
+  return value >= new Date(window.start).getTime() && value <= new Date(window.end).getTime();
 }
 
 function formatTimestamp(value: string): string {
