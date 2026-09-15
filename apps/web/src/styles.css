@@ -175,6 +175,9 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .line-chart .data-path { stroke: #1d554a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .interactive-chart { position: relative; min-width: 0; cursor: crosshair; touch-action: pan-y; }
 .interactive-chart .line-chart { user-select: none; }
+.evidence-window-fill { fill:rgba(199,102,50,.1); }
+.window-marker-line { stroke:#c76632; stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.window-start-line { stroke-dasharray:3 2; }
 .tracking-line { stroke: #60717a; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; opacity: .65; }
 .event-marker-line { stroke:#c85f3b; stroke-width:2.4; vector-effect:non-scaling-stroke; }
 .chart-tooltip { position: absolute; z-index: 5; min-width: 118px; padding: 8px 10px; border: 1px solid #dbe3e7; border-radius: 9px; background: rgba(255,255,255,.96); box-shadow: 0 9px 24px rgba(34,58,70,.14); pointer-events: none; transform: translate(10px,-50%); }
@@ -372,7 +375,9 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .overview-card-actions { display:flex; align-items:center; gap:9px; }
 .overview-range-selector { padding:3px; display:flex; border:1px solid var(--overview-line); border-radius:9px; background:#f4f7f5; }
 .overview-range-selector button { min-width:34px; min-height:27px; padding:0 8px; border-radius:6px; color:var(--overview-muted); font-size:9px; font-weight:650; }
+.overview-range-selector button:last-child { min-width:90px; }
 .overview-range-selector button:hover { color:var(--overview-primary); }
+.overview-range-selector button:disabled { opacity:.4; cursor:not-allowed; }
 .overview-range-selector button.active { background:#fff; color:var(--overview-primary); box-shadow:0 1px 3px rgba(31,54,46,.12); }
 .overview-health-body { position:relative; height:195px; margin:0 10px; overflow:hidden; border-radius:14px; background:#eef3f0; }
 .overview-chart-metric { position:absolute; z-index:2; top:15px; left:17px; width:112px; }
@@ -500,6 +505,7 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .overview-condition-summary dt { color:var(--overview-muted); font-size:8px; }.overview-condition-summary dd { margin:3px 0 0; font-size:10px; font-weight:600; }
 .overview-production-summary > strong { font-size:23px; }
 .overview-production-summary > p { line-height:13px; }
+.overview-window-summary > span { color:#9d5634; }
 .overview-condition-chart { min-width:0; display:grid; grid-template-rows:112px auto; }
 .overview-condition-chart > .interactive-chart { width:100%; height:112px; }
 .overview-condition-chart .line-chart { width:100%; height:100%; margin:0; }

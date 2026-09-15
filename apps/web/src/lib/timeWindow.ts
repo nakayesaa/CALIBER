@@ -1,17 +1,51 @@
-import type { TelemetryPoint } from './api';
+import type { AlertEvent, AlertStateTransition, TelemetryPoint } from './api';
 
-export type HealthTimeRange = '6M' | '3M' | '1M';
+export type HealthTimeRange = '6M' | '3M' | '1M' | 'DETECTION';
 
-const RANGE_DAYS: Record<Exclude<HealthTimeRange, '6M'>, number> = {
+export interface TimeWindow {
+  start: string;
+  end: string;
+}
+
+const RANGE_DAYS: Record<Exclude<HealthTimeRange, '6M' | 'DETECTION'>, number> = {
   '3M': 90,
   '1M': 30,
 };
+
+export function alertDetectionWindow(
+  alert: AlertEvent,
+  transitions: AlertStateTransition[],
+): TimeWindow {
+  const warningAt = transitions.find((transition) => transition.new_state === 'WARNING')?.timestamp
+    ?? alert.opened_at;
+  return { start: alert.first_signal_at, end: warningAt };
+}
+
+export function selectTelemetryWindow(
+  points: TelemetryPoint[],
+  window: TimeWindow,
+): TelemetryPoint[] {
+  const start = new Date(window.start).getTime();
+  const end = new Date(window.end).getTime();
+  return points.filter((point) => {
+    const timestamp = new Date(point.timestamp).getTime();
+    return timestamp >= start && timestamp <= end;
+  });
+}
+
+export function timeWindowHours(window: TimeWindow): number {
+  return Math.max(0, (new Date(window.end).getTime() - new Date(window.start).getTime()) / 3_600_000);
+}
 
 export function selectIncidentWindow(
   points: TelemetryPoint[],
   range: HealthTimeRange,
   anchorTimestamp?: string,
+  detectionWindow?: TimeWindow,
 ): TelemetryPoint[] {
+  if (range === 'DETECTION') {
+    return detectionWindow ? selectTelemetryWindow(points, detectionWindow) : points;
+  }
   if (range === '6M' || !anchorTimestamp || points.length < 2) return points;
 
   const timelineStart = new Date(points[0].timestamp).getTime();

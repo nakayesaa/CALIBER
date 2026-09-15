@@ -8,6 +8,7 @@ import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type ActionStatus, type AlertDetail, type DriverAnalysis, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
+import { alertDetectionWindow, selectTelemetryWindow, timeWindowHours } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
 import { workflowView } from '../lib/workflowView';
@@ -32,8 +33,6 @@ interface InvestigationData {
   telemetry: TelemetrySeries;
   system: SystemStatus;
   driverAnalysis: DriverAnalysis;
-  windowStart: string;
-  windowEnd: string;
 }
 
 async function loadInvestigation(): Promise<InvestigationData> {
@@ -51,7 +50,7 @@ async function loadInvestigation(): Promise<InvestigationData> {
   end.setHours(end.getHours() + 72);
   const telemetry = await api.telemetry(alert.asset_id, 1800, start.toISOString(), end.toISOString());
 
-  return { detail, telemetry, system, driverAnalysis, windowStart: start.toISOString(), windowEnd: end.toISOString() };
+  return { detail, telemetry, system, driverAnalysis };
 }
 
 export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
@@ -63,14 +62,16 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Investigation data unavailable'}/>;
 
-  const { detail, telemetry, system, driverAnalysis, windowStart, windowEnd } = resource.data;
+  const { detail, telemetry, system, driverAnalysis } = resource.data;
   const { alert, opening_snapshot: opening, similar_incidents: incidents } = detail;
+  const detectionWindow = alertDetectionWindow(alert, detail.state_transitions);
+  const detectionPoints = selectTelemetryWindow(telemetry.points, detectionWindow);
   const { rca, actionPlans: plans } = workflowView(detail);
   const actions = plans.flatMap((plan) => plan.actions);
   const hypothesis = rca?.generation.hypotheses[0];
   const selectedSignal = signalDefinitions.find((signal) => signal.field === selectedField)!;
-  const selectedValues = telemetry.points.map((point) => Number(point[selectedField]));
-  const latestPoint = telemetry.points.at(-1);
+  const selectedValues = detectionPoints.map((point) => Number(point[selectedField]));
+  const latestPoint = detectionPoints.at(-1);
 
   async function runWorkflow(operation: () => Promise<unknown>, nextStep?: number) {
     setWorkflowBusy(true);
@@ -152,9 +153,9 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     <section className="investigation-section" hidden={activeStep !== 0}>
       <div className="investigation-hero-grid">
         <article className="degradation-chart panel">
-          <header><div><span>Anomaly trajectory</span><h3>From first deviation to intervention</h3></div><div><span>Peak score</span><strong>{formatSignal(alert.peak_anomaly_score)}</strong><TraceButton traceId="health-trajectory">View sources</TraceButton></div></header>
-          <div className="degradation-chart-canvas"><SignalChart points={telemetry.points} field="anomaly_score" threshold={opening.anomaly_threshold}/></div>
-          <div className="degradation-dates"><span>{formatDate(windowStart)} · context</span><span>{formatDate(alert.first_signal_at)} · first signal</span><span>{formatDate(windowEnd)} · response</span></div>
+          <header><div><span>Anomaly trajectory</span><h3>From first signal to warning</h3></div><div><span>Alert peak</span><strong>{formatSignal(alert.peak_anomaly_score)}</strong><TraceButton traceId="health-trajectory">View sources</TraceButton></div></header>
+          <div className="degradation-chart-canvas"><SignalChart points={telemetry.points} field="anomaly_score" threshold={opening.anomaly_threshold} highlightWindow={detectionWindow}/></div>
+          <div className="degradation-dates"><span>{formatDateTime(detectionWindow.start)} · first signal</span><span>{formatSignal(timeWindowHours(detectionWindow))} h · evidence window</span><span>{formatDateTime(detectionWindow.end)} · warning</span></div>
         </article>
         <article className="investigation-facts panel">
           <div><span>Severity</span><strong>{humanize(alert.highest_severity)}</strong></div>
@@ -173,7 +174,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
         </nav>
         <div className="investigation-signal-chart">
           <header><div><span>{selectedSignal.label}</span><h3>Degradation-window trend</h3></div><div><span>Window peak</span><strong>{selectedValues.length ? formatSignal(Math.max(...selectedValues)) : '—'} {selectedSignal.unit}</strong></div></header>
-          <SignalChart points={telemetry.points} field={selectedField}/>
+          <SignalChart points={detectionPoints} field={selectedField} highlightWindow={detectionWindow}/>
           <div className="investigation-trace-footer"><p>Source: {selectedSignal.source}</p><TraceButton traceId="condition-insights">Inspect lineage</TraceButton></div>
         </div>
       </article>

@@ -1,5 +1,6 @@
 import { useState, type PointerEvent } from 'react';
 import type { TelemetryPoint } from '../lib/api';
+import type { TimeWindow } from '../lib/timeWindow';
 
 export type SignalField = keyof Pick<TelemetryPoint,
   'anomaly_score' | 'radial_vibration_micron' | 'water_in_oil_ppm' |
@@ -23,11 +24,12 @@ interface SignalChartProps {
   field: SignalField;
   threshold?: number;
   highlightTimestamp?: string;
+  highlightWindow?: TimeWindow;
   showRunStatus?: boolean;
   yPaddingRatio?: number;
 }
 
-export function SignalChart({ points, field, threshold, highlightTimestamp, showRunStatus = false, yPaddingRatio = 0 }: SignalChartProps) {
+export function SignalChart({ points, field, threshold, highlightTimestamp, highlightWindow, showRunStatus = false, yPaddingRatio = 0 }: SignalChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   if (!points.length) return <div className="chart-empty">No telemetry points</div>;
 
@@ -47,8 +49,9 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, show
   const thresholdY = threshold === undefined ? null : 96 - (threshold - min) / span * 88;
   const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
   const hoveredCoordinate = hoveredIndex === null ? null : coordinates[hoveredIndex];
-  const highlightedIndex = highlightTimestamp ? nearestPointIndex(points, highlightTimestamp) : null;
+  const highlightedIndex = highlightTimestamp ? pointIndexWithinRange(points, highlightTimestamp) : null;
   const highlightedCoordinate = highlightedIndex === null ? null : coordinates[highlightedIndex];
+  const windowCoordinates = highlightWindow ? visibleWindowCoordinates(points, coordinates, highlightWindow) : null;
   const stoppedRanges = showRunStatus ? runStatusRanges(points) : [];
 
   function trackPointer(event: PointerEvent<HTMLDivElement>) {
@@ -61,9 +64,14 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, show
     <div className="interactive-chart" onPointerMove={trackPointer} onPointerLeave={() => setHoveredIndex(null)}>
       <svg className="line-chart" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${signalMetadata[field].label} trend`}>
         {stoppedRanges.map((range) => <rect className="run-status-off" x={range.start} y="4" width={range.width} height="92" key={`${range.start}-${range.width}`}/>)}
+        {windowCoordinates && <rect className="evidence-window-fill" x={windowCoordinates.start} y="4" width={Math.max(windowCoordinates.end - windowCoordinates.start, .4)} height="92"/>}
         <path className="grid-line" d="M0 25H100M0 50H100M0 75H100"/>
         {thresholdY !== null && <path className="threshold-path" d={`M0 ${thresholdY}H100`}/>}
         <path className="data-path" d={path}/>
+        {windowCoordinates && <>
+          <line className="window-marker-line window-start-line" x1={windowCoordinates.start} x2={windowCoordinates.start} y1="4" y2="96"/>
+          <line className="window-marker-line window-end-line" x1={windowCoordinates.end} x2={windowCoordinates.end} y1="4" y2="96"/>
+        </>}
         {highlightedCoordinate && <line className="event-marker-line" x1={highlightedCoordinate.x} x2={highlightedCoordinate.x} y1="4" y2="96"/>}
         {hoveredCoordinate && <line className="tracking-line" x1={hoveredCoordinate.x} x2={hoveredCoordinate.x} y1="4" y2="96"/>}
       </svg>
@@ -91,8 +99,9 @@ function runStatusRanges(points: TelemetryPoint[]): Array<{ start: number; width
   return ranges;
 }
 
-function nearestPointIndex(points: TelemetryPoint[], timestamp: string): number {
+function pointIndexWithinRange(points: TelemetryPoint[], timestamp: string): number | null {
   const target = new Date(timestamp).getTime();
+  if (target < new Date(points[0].timestamp).getTime() || target > new Date(points.at(-1)!.timestamp).getTime()) return null;
   let nearest = 0;
   let distance = Number.POSITIVE_INFINITY;
   points.forEach((point, index) => {
@@ -103,6 +112,22 @@ function nearestPointIndex(points: TelemetryPoint[], timestamp: string): number 
     }
   });
   return nearest;
+}
+
+function visibleWindowCoordinates(
+  points: TelemetryPoint[],
+  coordinates: Array<{ x: number; y: number }>,
+  window: TimeWindow,
+): { start: number; end: number } | null {
+  const timelineStart = new Date(points[0].timestamp).getTime();
+  const timelineEnd = new Date(points.at(-1)!.timestamp).getTime();
+  const windowStart = new Date(window.start).getTime();
+  const windowEnd = new Date(window.end).getTime();
+  if (windowEnd < timelineStart || windowStart > timelineEnd) return null;
+
+  const startIndex = pointIndexWithinRange(points, new Date(Math.max(windowStart, timelineStart)).toISOString()) ?? 0;
+  const endIndex = pointIndexWithinRange(points, new Date(Math.min(windowEnd, timelineEnd)).toISOString()) ?? points.length - 1;
+  return { start: coordinates[startIndex].x, end: coordinates[endIndex].x };
 }
 
 function formatTimestamp(value: string): string {

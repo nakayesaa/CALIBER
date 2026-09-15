@@ -9,6 +9,7 @@ import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatSignal, humanize } from '../lib/format';
+import { alertDetectionWindow, timeWindowHours } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
 
@@ -46,6 +47,7 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
   const selectedHypothesis = rca.generation.hypotheses.find((hypothesis) => hypothesis.hypothesis_id === selectedHypothesisId) ?? leadingHypothesis;
   const signal = conditionSignals.find((candidate) => candidate.field === selectedSignal)!;
   const contribution = contributionForField(driverAnalysis, selectedSignal)!;
+  const detectionWindow = alertDetectionWindow(detail.alert, detail.state_transitions);
   return <div className="decision-workspace rca-workspace">
     <header className="decision-workspace-heading">
       <div><span>KO-3201 · {detail.alert.alert_id}</span><h1>Root cause analysis</h1><p>Trace the probable cause from equipment evidence, historical analogues, and explicit validation boundaries.</p></div>
@@ -69,9 +71,9 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
       <article className="rca-signal-evidence">
         <header><div><span>Signal evidence</span><h2>{signal.label}</h2></div><div><span>Model contribution</span><strong>{formatSignal(contribution.contribution_percent)}%</strong></div></header>
         <nav aria-label="RCA evidence signals">{conditionSignals.map((candidate) => { const item = contributionForField(driverAnalysis, candidate.field); return <button className={candidate.field === selectedSignal ? 'active' : ''} key={candidate.field} onClick={() => setSelectedSignal(candidate.field)}>{candidate.label}<small>{item ? `${formatSignal(item.contribution_percent)}%` : '—'}</small></button>; })}</nav>
-        <div className="rca-evidence-chart"><SignalChart points={telemetry.points} field={selectedSignal} highlightTimestamp={detail.alert.peak_score_at}/></div>
+        <div className="rca-evidence-chart"><SignalChart points={telemetry.points} field={selectedSignal} highlightTimestamp={detail.alert.peak_score_at} highlightWindow={detectionWindow}/></div>
         <dl className="rca-driver-context"><div><dt>Event reading</dt><dd>{formatSignal(contribution.value)} {signal.unit}</dd></div><div><dt>Healthy median</dt><dd>{formatSignal(contribution.healthy_baseline)} {signal.unit}</dd></div><div><dt>Engineering state</dt><dd>{humanize(contribution.engineering_state)}</dd></div><div><dt>Alarm persistence</dt><dd>{contribution.alarm_persistence_hours.toLocaleString()} h</dd></div></dl>
-        <footer><span>{formatDate(detail.alert.first_signal_at)} · first signal</span><b>{formatDate(detail.alert.peak_score_at)} · peak risk</b><span>{formatDate(detail.alert.closed_at ?? detail.alert.peak_score_at)} · intervention</span></footer>
+        <footer><span>{formatDate(detectionWindow.start)} · first signal</span><b>{formatSignal(timeWindowHours(detectionWindow))} h to warning</b><span>{formatDate(detail.alert.peak_score_at)} · peak risk</span></footer>
       </article>
     </section>
 

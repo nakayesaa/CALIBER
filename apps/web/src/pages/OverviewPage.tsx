@@ -11,11 +11,18 @@ import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { contributionForField, contributionRank } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
-import { selectIncidentWindow, type HealthTimeRange } from '../lib/timeWindow';
+import { alertDetectionWindow, selectIncidentWindow, timeWindowHours, type HealthTimeRange } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
 
 type SignalMode = 'condition' | 'operating';
+
+const healthRanges: Array<{ value: HealthTimeRange; label: string }> = [
+  { value: '6M', label: '6M' },
+  { value: '3M', label: '3M' },
+  { value: '1M', label: '1M' },
+  { value: 'DETECTION', label: 'Signal → warning' },
+];
 
 interface OverviewData {
   overview: AssetOverview;
@@ -52,7 +59,10 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const productionImpact = overview.production_impact;
   const alert = alerts[0];
   const eventAnchor = productionImpact?.window_start ?? alert?.peak_score_at;
-  const healthPoints = selectIncidentWindow(telemetry.points, healthRange, eventAnchor);
+  const detectionWindow = alert && detail ? alertDetectionWindow(alert, detail.state_transitions) : undefined;
+  const detectionHours = detectionWindow ? timeWindowHours(detectionWindow) : 0;
+  const detectionFocused = healthRange === 'DETECTION' && Boolean(detectionWindow);
+  const healthPoints = selectIncidentWindow(telemetry.points, healthRange, eventAnchor, detectionWindow);
   const healthStart = healthPoints[0]?.timestamp ?? overview.timeline_start;
   const healthEnd = healthPoints.at(-1)?.timestamp ?? overview.timeline_end;
   const actionablePoints = healthPoints.filter((point) => !['NORMAL', 'SUPPRESSED'].includes(point.decision_state));
@@ -61,6 +71,8 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const escalationTransition = detail?.state_transitions.find((transition) => transition.new_state === alert?.highest_severity);
   const escalationIndex = Math.max((detail?.state_transitions.findIndex((transition) => transition === escalationTransition) ?? 0) + 1, 1);
   const latest = telemetry.points.at(-1);
+  const visibleEnd = healthPoints.at(-1);
+  const contextPoint = detectionFocused ? visibleEnd : latest;
   const { rca, actionPlans: plans } = detail
     ? workflowView(detail)
     : { rca: null, actionPlans: [] };
@@ -74,11 +86,9 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const availableSignals: readonly EquipmentSignal[] = signalMode === 'condition' ? conditionSignals : operatingSignals;
   const selectedSignal = availableSignals.find((signal) => signal.field === selectedSignalField) ?? availableSignals[0];
   const selectedContribution = contributionForField(driverAnalysis, selectedSignal.field);
-  const selectedValues = telemetry.points.map((point) => Number(point[selectedSignal.field]));
+  const selectedValues = healthPoints.map((point) => Number(point[selectedSignal.field]));
+  const selectedStart = selectedValues[0] ?? 0;
   const selectedLatest = selectedValues.at(-1) ?? 0;
-  const onlineShare = telemetry.points.length
-    ? telemetry.points.filter((point) => point.run_status === 'ON').length / telemetry.points.length * 100
-    : 0;
 
   function selectSignalMode(mode: SignalMode) {
     setSignalMode(mode);
@@ -94,17 +104,17 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
     <section className="overview-main-grid">
       <article className="overview-health-card">
         <header>
-          <div><span className="overview-title-icon"><Icon name="pulse"/></span><div><h2>Equipment health trajectory</h2><p>KO-3201 · {healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
-          <div className="overview-health-controls"><TraceButton traceId="health-trajectory">View sources</TraceButton><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{(['6M', '3M', '1M'] as const).map((range) => <button className={healthRange === range ? 'active' : ''} key={range} onClick={() => setHealthRange(range)}>{range}</button>)}</nav></div>
+          <div><span className="overview-title-icon"><Icon name="pulse"/></span><div><h2>Equipment health trajectory</h2><p>KO-3201 · {detectionFocused ? `${formatSignal(detectionHours)} h detection evidence` : healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
+          <div className="overview-health-controls"><TraceButton traceId="health-trajectory">View sources</TraceButton><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{healthRanges.map((range) => <button className={healthRange === range.value ? 'active' : ''} disabled={range.value === 'DETECTION' && !detectionWindow} key={range.value} onClick={() => setHealthRange(range.value)}>{range.label}</button>)}</nav></div>
         </header>
         <div className="overview-health-body">
           <div className="overview-chart-metric"><span>Actionable peak</span><strong>{formatSignal(visiblePeakScore)}</strong><p>Threshold <b>50</b></p></div>
-          <div className="overview-chart"><SignalChart points={healthPoints} field="anomaly_score" threshold={50} highlightTimestamp={healthMarker} yPaddingRatio={0.22}/></div>
-          <div className="overview-chart-axis"><span>{formatDate(healthStart)}</span><b>{healthRange === '6M' ? `${formatDate(alert?.first_signal_at ?? healthStart)} · first signal` : `${formatDate(eventAnchor ?? healthStart)} · trip event`}</b><span>{formatDate(healthEnd)}</span></div>
+          <div className="overview-chart"><SignalChart points={healthPoints} field="anomaly_score" threshold={50} highlightTimestamp={detectionFocused ? undefined : healthMarker} highlightWindow={detectionWindow} yPaddingRatio={0.22}/></div>
+          <div className="overview-chart-axis"><span>{formatDate(healthStart)}</span><b>{detectionFocused ? `${formatSignal(detectionHours)} h · first signal to warning` : healthRange === '6M' && detectionWindow ? `${formatDate(detectionWindow.start)} → ${formatDate(detectionWindow.end)} · detection` : `${formatDate(eventAnchor ?? healthStart)} · trip event`}</b><span>{formatDate(healthEnd)}</span></div>
         </div>
         <div className="overview-health-context">
-          <div><span>Leading condition</span><strong>Water in oil</strong><b>{formatSignal(latest?.water_in_oil_ppm ?? 0)} ppm</b></div>
-          <div><span>Correlated response</span><strong>Radial vibration</strong><b>{formatSignal(latest?.radial_vibration_micron ?? 0)} µm</b></div>
+          <div><span>{detectionFocused ? 'At warning · leading condition' : 'Leading condition'}</span><strong>Water in oil</strong><b>{formatSignal(contextPoint?.water_in_oil_ppm ?? 0)} ppm</b></div>
+          <div><span>{detectionFocused ? 'At warning · mechanical response' : 'Correlated response'}</span><strong>Radial vibration</strong><b>{formatSignal(contextPoint?.radial_vibration_micron ?? 0)} µm</b></div>
           <div><span>Estimated production shortfall</span><strong>{productionImpact ? `~${Math.round(productionImpact.estimated_shortfall_tonnes).toLocaleString()} tonnes` : 'Unavailable'}</strong><TraceButton traceId="production-shortfall">{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h · View calculation` : 'View calculation'}</TraceButton></div>
         </div>
       </article>
@@ -126,11 +136,19 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
         <nav className="overview-condition-tabs" aria-label={`${signalMode} variables`}>
           {availableSignals.map((signal) => {
             const contribution = contributionForField(driverAnalysis, signal.field);
-            return <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{signalMode === 'condition' && contribution ? `${formatSignal(contribution.contribution_percent)}% contribution` : `${formatSignal(Number(latest?.[signal.field] ?? 0))} ${signal.unit}`}</strong></button>;
+            const reading = Number((detectionFocused ? visibleEnd : latest)?.[signal.field] ?? 0);
+            return <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{!detectionFocused && signalMode === 'condition' && contribution ? `${formatSignal(contribution.contribution_percent)}% contribution` : `${formatSignal(reading)} ${signal.unit}`}</strong></button>;
           })}
         </nav>
         <div className="overview-condition-visual">
-          {signalMode === 'condition'
+          {detectionFocused
+            ? <div className="overview-condition-summary overview-window-summary">
+                <span>Reading at warning</span>
+                <strong>{formatSignal(selectedLatest)} <small>{selectedSignal.unit}</small></strong>
+                <p>From {formatSignal(selectedStart)} {selectedSignal.unit} at first signal</p>
+                <dl><div><dt>Window change</dt><dd>{signedSignal(selectedLatest - selectedStart)} {selectedSignal.unit}</dd></div><div><dt>Evidence window</dt><dd>{formatSignal(detectionHours)} h</dd></div></dl>
+              </div>
+            : signalMode === 'condition'
             ? <div className="overview-condition-summary">
                 <span>{selectedContribution && driverAnalysis ? `#${contributionRank(driverAnalysis, selectedContribution)} model contributor` : selectedSignal.role}</span>
                 <strong>{selectedContribution ? formatSignal(selectedContribution.contribution_percent) : formatSignal(selectedLatest)} <small>{selectedContribution ? '%' : selectedSignal.unit}</small></strong>
@@ -143,7 +161,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
                 <p>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h offline · contextual healthy median` : 'No qualifying offline event window'}</p>
                 <dl><div><dt>Expected feed</dt><dd>{productionImpact ? `${formatSignal(productionImpact.baseline.expected_feed_tph)} t/h` : '—'}</dd></div><div><dt>Baseline evidence</dt><dd>{productionImpact ? `${productionImpact.baseline.healthy_sample_count.toLocaleString()} h · ${humanize(productionImpact.baseline.confidence)}` : '—'}</dd></div></dl>
               </div>}
-          <div className="overview-condition-chart"><SignalChart points={telemetry.points} field={selectedSignal.field} highlightTimestamp={signalMode === 'condition' ? driverAnalysis?.as_of : alert?.first_signal_at} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(overview.timeline_start)}</span><b>{signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(driverAnalysis?.as_of ?? alert?.peak_score_at ?? overview.timeline_start)} · contribution snapshot`}</b><span>{formatDate(overview.timeline_end)}</span></div></div>
+          <div className="overview-condition-chart"><SignalChart points={healthPoints} field={selectedSignal.field} highlightTimestamp={detectionFocused ? undefined : signalMode === 'condition' ? driverAnalysis?.as_of : alert?.first_signal_at} highlightWindow={detectionWindow} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(healthStart)}</span><b>{detectionFocused ? 'First signal → warning' : signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(driverAnalysis?.as_of ?? alert?.peak_score_at ?? overview.timeline_start)} · contribution snapshot`}</b><span>{formatDate(healthEnd)}</span></div></div>
         </div>
       </article>
 
@@ -169,4 +187,8 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 
 function ScheduleEvent({ title, detail, date, status, meta, tone, onClick }: { title: string; detail: string; date: string; status: string; meta: string; tone: string; onClick: () => void }) {
   return <article className="overview-schedule-event"><div><h3>{title}</h3><button onClick={onClick} aria-label={`Inspect ${title}`}><Icon name="arrow"/></button></div><p>{detail}</p><footer><span className={tone}>{status}</span><b>{meta}</b><time>{date}</time></footer></article>;
+}
+
+function signedSignal(value: number): string {
+  return `${value > 0 ? '+' : ''}${formatSignal(value)}`;
 }
