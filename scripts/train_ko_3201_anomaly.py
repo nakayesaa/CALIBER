@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from dataclasses import dataclass
@@ -17,7 +16,6 @@ import joblib
 import numpy as np
 import pandas as pd
 import yaml
-from pydantic import BaseModel
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
@@ -39,6 +37,12 @@ from services.api.app.services.analytics.anomaly_model import (
     raw_anomaly_scores,
     score_feature_table,
     validate_feature_contract,
+)
+from services.api.app.services.file_io import (
+    atomic_write_json as write_json,
+)
+from services.api.app.services.file_io import (
+    file_sha256 as sha256_file,
 )
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Jakarta")
@@ -82,14 +86,6 @@ def parse_args() -> argparse.Namespace:
         help="Validate all inputs and print the planned split without fitting",
     )
     return parser.parse_args()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def load_model_config(root: Path) -> tuple[AnomalyModelConfig, Path]:
@@ -336,20 +332,6 @@ def write_frame(path: Path, frame: pd.DataFrame) -> None:
         lambda value: pd.Timestamp(value).isoformat()
     )
     serialized.to_csv(temporary, index=False)
-    temporary.replace(path)
-
-
-def write_json(path: Path, payload: BaseModel | dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    if isinstance(payload, BaseModel):
-        content = payload.model_dump(mode="json")
-    else:
-        content = payload
-    temporary.write_text(
-        json.dumps(content, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
     temporary.replace(path)
 
 

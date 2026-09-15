@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import sys
 from bisect import bisect_right
@@ -42,6 +41,12 @@ from services.api.app.schemas.canonical import (
     SignalDefinition,
     SignalObservation,
     SourceType,
+)
+from services.api.app.services.file_io import (
+    atomic_write_json as write_json,
+)
+from services.api.app.services.file_io import (
+    file_sha256 as sha256_file,
 )
 
 T = TypeVar("T", bound=BaseModel)
@@ -129,24 +134,6 @@ def write_rows(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def write_models(path: Path, models: list[T]) -> None:
     write_rows(path, [model_to_row(model) for model in models])
-
-
-def write_json(path: Path, payload: dict[str, Any]) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    temporary.replace(path)
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def load_config(root: Path) -> dict[str, Any]:

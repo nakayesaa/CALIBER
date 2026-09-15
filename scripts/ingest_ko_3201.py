@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import sys
 from collections.abc import Sequence
@@ -64,6 +63,12 @@ from services.api.app.services.data.normalization import (
 from services.api.app.services.data.taxonomy import (
     normalize_incident_label,
 )
+from services.api.app.services.file_io import (
+    atomic_write_json as write_json,
+)
+from services.api.app.services.file_io import (
+    file_sha256 as sha256_file,
+)
 
 T = TypeVar("T", bound=BaseModel)
 ASSET_ID = "asset-ko-3201"
@@ -89,14 +94,6 @@ def parse_args() -> argparse.Namespace:
         help="Canonical output directory (defaults to data/normalized/ko_3201)",
     )
     return parser.parse_args()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def load_and_verify_manifest(root: Path) -> tuple[dict[str, Any], dict[str, Path]]:
@@ -147,16 +144,6 @@ def write_models_csv(path: Path, models: Sequence[T]) -> None:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    temporary.replace(path)
-
-
-def write_json(path: Path, payload: dict[str, Any]) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
     temporary.replace(path)
 
 
@@ -1118,4 +1105,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

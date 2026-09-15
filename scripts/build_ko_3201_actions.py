@@ -22,6 +22,7 @@ from services.api.app.services.actions.workflow import (
     build_action_plan,
     load_action_policy,
 )
+from services.api.app.services.file_io import atomic_write_json as write_json
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,14 +50,6 @@ def write_actions(path: Path, actions: list[ActionItem]) -> None:
         writer = csv.DictWriter(handle, fieldnames=list(ActionItem.model_fields))
         writer.writeheader()
         writer.writerows(rows)
-    temporary.replace(path)
-
-
-def write_json(path: Path, payload: BaseModel | dict[str, Any]) -> None:
-    content = payload.model_dump(mode="json") if isinstance(payload, BaseModel) else payload
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(content, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(path)
 
 

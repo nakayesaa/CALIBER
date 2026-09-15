@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import sys
 from datetime import datetime
@@ -33,6 +32,12 @@ from services.api.app.services.analytics.feature_pipeline import (
     build_features,
     validate_hourly_input,
 )
+from services.api.app.services.file_io import (
+    atomic_write_json as write_json,
+)
+from services.api.app.services.file_io import (
+    file_sha256 as sha256_file,
+)
 
 GENERATED_AT = datetime.fromisoformat("2026-09-10T00:00:00+07:00")
 
@@ -53,14 +58,6 @@ def parse_args() -> argparse.Namespace:
         help="Feature output directory (default: data/features/ko_3201/v1)",
     )
     return parser.parse_args()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def load_config(root: Path) -> FeaturePipelineConfig:
@@ -102,16 +99,6 @@ def write_frame(path: Path, frame: pd.DataFrame) -> None:
             lambda value: value.isoformat()
         )
     serialized.to_csv(temporary, index=False)
-    temporary.replace(path)
-
-
-def write_json(path: Path, model: BaseModel) -> None:
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary.write_text(
-        json.dumps(model.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
     temporary.replace(path)
 
 

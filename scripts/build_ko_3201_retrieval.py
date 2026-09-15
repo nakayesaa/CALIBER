@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import sys
 from collections import Counter
@@ -32,6 +31,12 @@ from services.api.app.schemas.retrieval import (
     RetrievalValidationCheck,
     RetrievalValidationReport,
 )
+from services.api.app.services.file_io import (
+    atomic_write_json as write_json,
+)
+from services.api.app.services.file_io import (
+    file_sha256 as sha256_file,
+)
 from services.api.app.services.rca.incident_retrieval import (
     build_alert_open_query,
     build_incident_documents,
@@ -50,14 +55,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--alert-id", type=str, default=None)
     return parser.parse_args()
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def require_passing_report(
@@ -223,14 +220,6 @@ def write_models(
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
-    temporary.replace(path)
-
-
-def write_json(path: Path, payload: BaseModel | dict[str, Any]) -> None:
-    content = payload.model_dump(mode="json") if isinstance(payload, BaseModel) else payload
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(content, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temporary.replace(path)
 
 

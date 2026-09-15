@@ -17,8 +17,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import RAGEvidencePackage
+from services.api.app.services.file_io import (
+    atomic_write_json as write_json,
+)
+from services.api.app.services.file_io import (
+    file_sha256 as sha256_file,
+)
 from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
     build_rca_prompts,
@@ -37,28 +42,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def require_retrieval_validation(path: Path) -> None:
     if not path.is_file():
         raise FileNotFoundError(f"Missing retrieval validation: {path}")
     report = json.loads(path.read_text(encoding="utf-8"))
     if report.get("status") != "PASS":
         raise RuntimeError("Retrieval validation must pass before RCA generation")
-
-
-def write_json(path: Path, payload: dict[str, Any] | RCARecord) -> None:
-    content = payload.model_dump(mode="json") if isinstance(payload, RCARecord) else payload
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(content, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temporary.replace(path)
 
 
 def run(
