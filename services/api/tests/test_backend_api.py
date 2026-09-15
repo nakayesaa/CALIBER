@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from services.api.app.main import configured_cors_origins, create_app
 from services.api.app.schemas.rca import RCAGeneration, RCAProviderResult
+from services.api.app.security import WriteAuthorizer, WriteMode
 from services.api.app.services.backend import BackendService
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -187,12 +188,12 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
 def test_rca_review_and_action_workflow(client: TestClient) -> None:
     generated = client.post(
         f"/api/v1/alerts/{ALERT_ID}/rca",
-        json={"requested_by": "demo-user"},
+        json={"mode": "ai"},
     )
     assert generated.status_code == 200
     rca = generated.json()
     assert rca["status"] == "AI_DRAFT"
-    assert rca["requested_by"] == "demo-user"
+    assert rca["requested_by"] == "CALIBER Demo User"
 
     live_detail = client.get(f"/api/v1/alerts/{ALERT_ID}").json()
     assert live_detail["rca"]["rca_id"] == rca["rca_id"]
@@ -207,7 +208,7 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
 
     invalid_approval = client.patch(
         f"/api/v1/rca/{rca['rca_id']}/status",
-        json={"status": "APPROVED", "actor": "engineer-1", "note": "Skip"},
+        json={"status": "APPROVED", "note": "Skip"},
     )
     assert invalid_approval.status_code == 409
 
@@ -215,7 +216,6 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
         f"/api/v1/rca/{rca['rca_id']}/status",
         json={
             "status": "UNDER_REVIEW",
-            "actor": "engineer-1",
             "note": "Review started",
         },
     )
@@ -224,7 +224,6 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
         f"/api/v1/rca/{rca['rca_id']}/status",
         json={
             "status": "APPROVED",
-            "actor": "engineer-1",
             "note": "Evidence accepted",
         },
     )
@@ -248,7 +247,6 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
         f"/api/v1/actions/{action_id}/status",
         json={
             "status": "APPROVED",
-            "actor": "operations-1",
             "note": "Authorized",
         },
     )
@@ -259,7 +257,7 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
         if action["action_id"] == action_id
     )
     assert changed["status"] == "APPROVED"
-    assert changed["status_history"][0]["actor"] == "operations-1"
+    assert changed["status_history"][0]["actor"] == "CALIBER Demo User"
 
 
 def test_missing_resources_return_404(client: TestClient) -> None:
@@ -276,12 +274,12 @@ def test_missing_resources_return_404(client: TestClient) -> None:
         (
             "POST",
             f"/api/v1/alerts/{ALERT_ID}/rca",
-            {"requested_by": "x" * 121},
+            {"mode": "prepared", "requested_by": "untrusted-client-identity"},
         ),
         (
             "PATCH",
             "/api/v1/rca/example/status",
-            {"status": "UNDER_REVIEW", "actor": "engineer", "note": "x" * 2001},
+            {"status": "UNDER_REVIEW", "note": "x" * 2001},
         ),
         (
             "POST",
@@ -326,6 +324,43 @@ def test_cors_configuration_rejects_wildcard(
     monkeypatch.setenv("CALIBER_CORS_ORIGINS", "*")
     with pytest.raises(ValueError, match="explicit trusted origins"):
         configured_cors_origins()
+
+
+def test_read_only_mode_blocks_workflow_mutation(client: TestClient) -> None:
+    client.app.state.write_authorizer = WriteAuthorizer(
+        WriteMode.READ_ONLY,
+        "Read-only Viewer",
+    )
+    response = client.post(
+        f"/api/v1/alerts/{ALERT_ID}/rca",
+        json={"mode": "prepared"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Workflow changes are disabled in read-only mode"
+
+
+def test_bearer_mode_derives_workflow_identity_from_server_config(
+    client: TestClient,
+) -> None:
+    token = "a-secure-test-token-with-32-characters"
+    client.app.state.write_authorizer = WriteAuthorizer(
+        WriteMode.BEARER,
+        "Authorized Reviewer",
+        token,
+    )
+    unauthorized = client.post(
+        f"/api/v1/alerts/{ALERT_ID}/rca",
+        json={"mode": "prepared"},
+    )
+    authorized = client.post(
+        f"/api/v1/alerts/{ALERT_ID}/rca",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"mode": "prepared"},
+    )
+
+    assert unauthorized.status_code == 401
+    assert authorized.status_code == 200
+    assert authorized.json()["requested_by"] == "Authorized Reviewer"
 
 
 def test_traceability_connects_claims_to_governed_sources(client: TestClient) -> None:

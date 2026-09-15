@@ -51,7 +51,7 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
     setBusyActionId(actionId);
     setWorkflowError(null);
     try {
-      await api.updateActionStatus(actionId, nextStatus, 'Action Owner', `Action advanced to ${humanize(nextStatus)} from the CAPA report.`);
+      await api.updateActionStatus(actionId, nextStatus, `Action advanced to ${humanize(nextStatus)} from the CAPA report.`);
       resource.reload();
     } catch (error) {
       setWorkflowError(error instanceof Error ? error.message : 'Unable to update action');

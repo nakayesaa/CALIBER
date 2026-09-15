@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 
 from services.api.app.schemas.actions import ActionPlan
 from services.api.app.schemas.alerts import AlertEvent
@@ -29,6 +29,7 @@ from services.api.app.schemas.traceability import (
     DataSourceSummary,
     TraceClaim,
 )
+from services.api.app.security import Principal
 from services.api.app.services.artifacts import ArtifactNotFoundError
 from services.api.app.services.backend import (
     BackendService,
@@ -45,6 +46,16 @@ def get_backend(request: Request) -> BackendService:
 
 
 Backend = Annotated[BackendService, Depends(get_backend)]
+
+
+def get_mutation_principal(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Principal:
+    return request.app.state.write_authorizer.authorize(authorization)
+
+
+MutationPrincipal = Annotated[Principal, Depends(get_mutation_principal)]
 
 
 def not_found(error: FileNotFoundError) -> HTTPException:
@@ -226,11 +237,15 @@ def get_rca(alert_id: str, backend: Backend) -> RCARecord:
 )
 def generate_rca(
     alert_id: str,
-    request: RCAGenerateRequest,
+    payload: RCAGenerateRequest,
+    request: Request,
     backend: Backend,
+    principal: MutationPrincipal,
 ) -> RCARecord:
     try:
-        return backend.generate_rca(alert_id, request.requested_by, request.mode)
+        if payload.mode == "ai":
+            request.app.state.rca_rate_limiter.enforce(principal.subject)
+        return backend.generate_rca(alert_id, principal.display_name, payload.mode)
     except ArtifactNotFoundError as error:
         raise not_found(error) from error
     except LLMConfigurationError as error:
@@ -242,16 +257,17 @@ def generate_rca(
 @router.patch("/rca/{rca_id}/status", response_model=RCARecord, tags=["rca"])
 def update_rca_status(
     rca_id: str,
-    request: RCAStatusUpdate,
+    payload: RCAStatusUpdate,
     backend: Backend,
+    principal: MutationPrincipal,
 ) -> RCARecord:
     try:
         return backend.transition_rca(
             rca_id,
-            request.status,
-            request.actor,
-            request.note,
-            request.occurred_at,
+            payload.status,
+            principal.display_name,
+            payload.note,
+            payload.occurred_at,
         )
     except FileNotFoundError as error:
         raise not_found(error) from error
@@ -266,11 +282,12 @@ def update_rca_status(
 )
 def create_action_plan(
     rca_id: str,
-    request: ActionPlanCreateRequest,
+    payload: ActionPlanCreateRequest,
     backend: Backend,
+    _principal: MutationPrincipal,
 ) -> ActionPlan:
     try:
-        return backend.create_action_plan(rca_id, request.hypothesis_id)
+        return backend.create_action_plan(rca_id, payload.hypothesis_id)
     except FileNotFoundError as error:
         raise not_found(error) from error
     except ValueError as error:
@@ -296,16 +313,17 @@ def get_action_plan(plan_id: str, backend: Backend) -> ActionPlan:
 )
 def update_action_status(
     action_id: str,
-    request: ActionStatusUpdate,
+    payload: ActionStatusUpdate,
     backend: Backend,
+    principal: MutationPrincipal,
 ) -> ActionPlan:
     try:
         return backend.transition_action(
             action_id,
-            request.status,
-            request.actor,
-            request.note,
-            request.occurred_at,
+            payload.status,
+            principal.display_name,
+            payload.note,
+            payload.occurred_at,
         )
     except FileNotFoundError as error:
         raise not_found(error) from error

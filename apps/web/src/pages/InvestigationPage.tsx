@@ -89,7 +89,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
   function createDraft() {
     return runWorkflow(() => api.generateRca(
       alert.alert_id,
-      'Reliability Engineer',
       system.llm_enabled ? 'ai' : 'prepared',
     ));
   }
@@ -99,7 +98,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     return runWorkflow(() => api.updateRcaStatus(
       detail.rca!.rca_id,
       'UNDER_REVIEW',
-      'Reliability Engineer',
       'Evidence review started from the investigation workspace.',
     ));
   }
@@ -111,7 +109,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
       const approved = await api.updateRcaStatus(
         detail.rca!.rca_id,
         'APPROVED',
-        'Reliability Engineer',
         'Leading cause accepted against the available evidence.',
       );
       await api.createActionPlan(approved.rca_id, selectedHypothesis.hypothesis_id);
@@ -132,7 +129,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     return runWorkflow(() => api.updateActionStatus(
       actionId,
       nextStatus,
-      'Action Owner',
       `Action advanced to ${humanize(nextStatus)} from the investigation workspace.`,
     ));
   }
@@ -199,7 +195,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
             onCreateDraft={createDraft}
             onStartReview={startReview}
             onApprove={approveAndCreatePlan}
-            onReject={() => detail.rca && runWorkflow(() => api.updateRcaStatus(detail.rca!.rca_id, 'REJECTED', 'Reliability Engineer', 'Draft rejected for further investigation.'))}
+            onReject={() => detail.rca && runWorkflow(() => api.updateRcaStatus(detail.rca!.rca_id, 'REJECTED', 'Draft rejected for further investigation.'))}
             onCreatePlan={createPlan}
           />
         </article>

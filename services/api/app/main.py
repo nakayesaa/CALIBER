@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from services.api.app.api.routes import router
+from services.api.app.security import FixedWindowRateLimiter, WriteAuthorizer
 from services.api.app.services.backend import BackendService
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -35,6 +36,8 @@ def create_app(
         version="0.2.0",
     )
     application.state.backend = backend or BackendService(root)
+    application.state.write_authorizer = WriteAuthorizer.from_environment()
+    application.state.rca_rate_limiter = FixedWindowRateLimiter.from_environment()
     application.add_middleware(
         CORSMiddleware,
         allow_origins=configured_cors_origins(),

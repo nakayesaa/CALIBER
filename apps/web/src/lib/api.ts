@@ -385,20 +385,20 @@ export const api = {
     const query = timestamp ? `?${new URLSearchParams({ timestamp })}` : '';
     return request<DriverAnalysis>(`/alerts/${alertId}/driver-analysis${query}`);
   },
-  generateRca: (alertId: string, requestedBy: string, mode: 'ai' | 'prepared') =>
+  generateRca: (alertId: string, mode: 'ai' | 'prepared') =>
     request<RCARecord>(`/alerts/${alertId}/rca`, {
-      method: 'POST', body: JSON.stringify({ requested_by: requestedBy, mode }),
+      method: 'POST', body: JSON.stringify({ mode }),
     }),
-  updateRcaStatus: (rcaId: string, status: 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED', actor: string, note: string) =>
+  updateRcaStatus: (rcaId: string, status: 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED', note: string) =>
     request<RCARecord>(`/rca/${rcaId}/status`, {
-      method: 'PATCH', body: JSON.stringify({ status, actor, note }),
+      method: 'PATCH', body: JSON.stringify({ status, note }),
     }),
   createActionPlan: (rcaId: string, hypothesisId: string) =>
     request<ActionPlan>(`/rca/${rcaId}/action-plans`, {
       method: 'POST', body: JSON.stringify({ hypothesis_id: hypothesisId }),
     }),
-  updateActionStatus: (actionId: string, status: ActionStatus, actor: string, note: string) =>
+  updateActionStatus: (actionId: string, status: ActionStatus, note: string) =>
     request<ActionPlan>(`/actions/${actionId}/status`, {
-      method: 'PATCH', body: JSON.stringify({ status, actor, note }),
+      method: 'PATCH', body: JSON.stringify({ status, note }),
     }),
 };

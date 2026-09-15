@@ -12,7 +12,6 @@ from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
 from services.api.app.schemas.rca import RCARecord, RCAStatus
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
 
-ActorName = Annotated[str, Field(min_length=1, max_length=120)]
 WorkflowNote = Annotated[str, Field(min_length=1, max_length=2000)]
 WorkflowIdentifier = Annotated[
     str,
@@ -123,13 +122,11 @@ class AlertDetail(APIModel):
 
 
 class RCAGenerateRequest(APIModel):
-    requested_by: ActorName
     mode: Literal["ai", "prepared"] = "ai"
 
 
 class RCAStatusUpdate(APIModel):
     status: RCAStatus
-    actor: ActorName
     note: WorkflowNote
     occurred_at: datetime | None = None
 
@@ -140,6 +137,5 @@ class ActionPlanCreateRequest(APIModel):
 
 class ActionStatusUpdate(APIModel):
     status: ActionStatus
-    actor: ActorName
     note: WorkflowNote
     occurred_at: datetime | None = None
