@@ -18,6 +18,7 @@ from services.api.app.schemas.api import (
     AlertDetail,
     AssetOverview,
     AssetSummary,
+    PreparedWorkflow,
     ProductionImpact,
     SystemStatus,
     TelemetrySeries,
@@ -39,6 +40,7 @@ from services.api.app.services.actions.workflow import (
 )
 from services.api.app.services.artifacts import KO3201ArtifactRepository
 from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
+from services.api.app.services.demo.prepared_workflow import build_prepared_workflow
 from services.api.app.services.driver_analysis import DriverAnalysisService
 from services.api.app.services.effectiveness import build_effectiveness_review
 from services.api.app.services.production_impact import load_production_impact_policy
@@ -149,13 +151,18 @@ class BackendService:
 
     def alert_detail(self, alert_id: str) -> AlertDetail:
         alert = self.repository.get_alert(alert_id)
+        rca = self.repository.get_rca(alert_id)
+        action_plans = self.repository.list_action_plans(alert_id)
         return AlertDetail(
             alert=alert,
             state_transitions=self.repository.get_alert_transitions(alert_id),
             opening_snapshot=self.repository.get_opening_snapshot(alert),
             similar_incidents=self.repository.get_similar_incidents(alert_id),
-            rca=self.repository.get_rca(alert_id),
-            action_plans=self.repository.list_action_plans(alert_id),
+            rca=rca,
+            action_plans=action_plans,
+            prepared_workflow=(
+                self._prepared_workflow(alert_id) if rca is None else None
+            ),
         )
 
     def similar_incidents(self, alert_id: str) -> list[IncidentRetrievalResult]:
@@ -293,6 +300,20 @@ class BackendService:
             self.root / "data/catalog/ko_3201_production_impact.yaml"
         )
         return self.repository.production_impact(asset_id, alert, policy)
+
+    def _prepared_workflow(self, alert_id: str) -> PreparedWorkflow:
+        generation_config = load_generation_config(
+            self.root / "data/catalog/ko_3201_rca_generation.yaml"
+        )
+        action_policy = load_action_policy(
+            self.root / "data/catalog/ko_3201_action_policy.yaml"
+        )
+        rca, plan = build_prepared_workflow(
+            self.repository.get_evidence_package(alert_id),
+            generation_config,
+            action_policy,
+        )
+        return PreparedWorkflow(rca=rca, action_plans=[plan])
 
     @staticmethod
     def _aware_time(value: datetime | None) -> datetime:

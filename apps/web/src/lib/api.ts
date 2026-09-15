@@ -278,6 +278,10 @@ export interface AlertDetail {
   similar_incidents: SimilarIncident[];
   rca: RCARecord | null;
   action_plans: ActionPlan[];
+  prepared_workflow: {
+    rca: RCARecord;
+    action_plans: ActionPlan[];
+  } | null;
 }
 
 export interface SourceFieldMapping {

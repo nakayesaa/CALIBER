@@ -6,11 +6,11 @@ import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type ActionStatus, type AlertDetail, type DriverAnalysis, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
-import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
+import { workflowView } from '../lib/workflowView';
 
 type SignalField = keyof Pick<TelemetryPoint,
   'radial_vibration_micron' | 'water_in_oil_ppm' | 'lube_oil_pressure_barg' |
@@ -65,8 +65,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
 
   const { detail, telemetry, system, driverAnalysis, windowStart, windowEnd } = resource.data;
   const { alert, opening_snapshot: opening, similar_incidents: incidents } = detail;
-  const rca = rcaForAlert(alert.alert_id, detail.rca);
-  const plans = actionsForAlert(alert.alert_id, detail.action_plans, Boolean(detail.rca));
+  const { rca, actionPlans: plans } = workflowView(detail);
   const actions = plans.flatMap((plan) => plan.actions);
   const hypothesis = rca?.generation.hypotheses[0];
   const selectedSignal = signalDefinitions.find((signal) => signal.field === selectedField)!;
@@ -147,7 +146,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
         <h1>KO-3201 compressor degradation</h1>
         <p>One governed view from abnormal signal detection to root-cause decision and follow-up execution.</p>
       </div>
-      <div className="investigation-state"><span>Current workflow</span><strong>{humanize(detail.action_plans[0]?.status ?? detail.rca?.status ?? 'RCA not started')}</strong><p>{detail.action_plans.length ? `${actions.filter((action) => action.status === 'CLOSED').length} of ${actions.length} actions closed` : 'No action plan created'}</p></div>
+      <div className="investigation-state"><span>Current workflow</span><strong>{humanize(plans[0]?.status ?? rca?.status ?? 'RCA not started')}</strong><p>{plans.length ? `${actions.filter((action) => action.status === 'CLOSED').length} of ${actions.length} actions closed` : 'No action plan created'}</p></div>
     </header>
 
     <nav className="storyline-nav" aria-label="Investigation storyline">

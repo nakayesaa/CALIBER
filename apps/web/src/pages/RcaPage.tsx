@@ -7,9 +7,9 @@ import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type DriverAnalysis, type TelemetrySeries } from '../lib/api';
 import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
 import { contributionForField } from '../lib/driverAnalysis';
-import { rcaForAlert } from '../lib/demoWorkflow';
 import { formatDate, formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
+import { workflowView } from '../lib/workflowView';
 
 interface RcaWorkspaceData {
   detail: AlertDetail;
@@ -38,7 +38,7 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
   if (!resource.data) return <EmptyState title="No alert selected" description="A prioritized equipment alert starts the RCA workflow."/>;
 
   const { detail, telemetry, driverAnalysis } = resource.data;
-  const rca = rcaForAlert(detail.alert.alert_id, detail.rca);
+  const { rca } = workflowView(detail);
   if (!rca) return <EmptyState title="Evidence package ready" description="Generate a reviewable RCA draft from the alert evidence and historical analogues."/>;
 
   const leadingHypothesis = rca.generation.hypotheses[0];

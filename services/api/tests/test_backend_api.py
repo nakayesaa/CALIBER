@@ -140,6 +140,13 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     }
     assert operating_fields <= first_point.keys()
     assert len(alert_response.json()["similar_incidents"]) == 8
+    assert alert_response.json()["rca"] is None
+    prepared = alert_response.json()["prepared_workflow"]
+    assert prepared["rca"]["status"] == "APPROVED"
+    assert prepared["action_plans"][0]["status"] == "IN_PROGRESS"
+    assert [
+        action["status"] for action in prepared["action_plans"][0]["actions"]
+    ] == ["CLOSED", "IN_PROGRESS", "APPROVED"]
     assert [
         transition["new_state"]
         for transition in alert_response.json()["state_transitions"]
@@ -186,6 +193,10 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
     rca = generated.json()
     assert rca["status"] == "AI_DRAFT"
     assert rca["requested_by"] == "demo-user"
+
+    live_detail = client.get(f"/api/v1/alerts/{ALERT_ID}").json()
+    assert live_detail["rca"]["rca_id"] == rca["rca_id"]
+    assert live_detail["prepared_workflow"] is None
 
     blocked_plan = client.post(
         f"/api/v1/rca/{rca['rca_id']}/action-plans",

@@ -4,10 +4,10 @@ import type { PageId } from '../components/AppShell';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { TraceButton } from '../components/TraceabilityContext';
 import { api, type ActionItem, type ActionPlan, type ActionStatus, type EffectivenessMetric, type EffectivenessReview } from '../lib/api';
-import { actionsForAlert } from '../lib/demoWorkflow';
 import { formatDate, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
+import { workflowView } from '../lib/workflowView';
 
 async function loadActions() {
   const alerts = await api.alerts('asset-ko-3201');
@@ -35,7 +35,8 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
   if (resource.loading) return <LoadingState/>;
   if (resource.error) return <ErrorState message={resource.error}/>;
 
-  const plans = resource.data ? actionsForAlert(resource.data.detail.alert.alert_id, resource.data.detail.action_plans, Boolean(resource.data.detail.rca)) : [];
+  const workflow = resource.data ? workflowView(resource.data.detail) : null;
+  const plans = workflow?.actionPlans ?? [];
   if (!plans.length) return <EmptyState title="No CAPA report created yet" description="An approved RCA hypothesis unlocks containment, corrective, and preventive work."/>;
 
   const plan = plans[0];
@@ -59,7 +60,7 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
     }
   }
 
-  const sourceSummary = resource.data?.detail.rca?.generation.executive_summary ?? 'Approved investigation links the equipment degradation to lubrication contamination.';
+  const sourceSummary = workflow?.rca?.generation.executive_summary ?? 'Approved investigation links the equipment degradation to lubrication contamination.';
   const improvedSignals = effectiveness.metrics.filter((metric) => metric.outcome === 'IMPROVED').length;
 
   return <div className="decision-workspace action-workspace">
@@ -85,12 +86,12 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
 
     <section className="capa-closure-note"><div><span>Effectiveness result</span><strong>{humanize(effectiveness.result)}</strong></div><p>{effectiveness.recovery_confirmed ? `All anchor signals improved across ${effectiveness.monitoring_periods} normal post-repair weeks with no recurrence detected. Formal closure remains a separate approval.` : effectiveness.explanation}</p><TraceButton traceId="recovery-effectiveness">View evidence</TraceButton></section>
 
-    {reportOpen && <CapaReportModal plan={plan} effectiveness={effectiveness} sourceSummary={sourceSummary} busyActionId={busyActionId} onAdvance={advanceAction} onClose={() => setReportOpen(false)}/>}
+    {reportOpen && <CapaReportModal plan={plan} effectiveness={effectiveness} sourceSummary={sourceSummary} busyActionId={busyActionId} canAdvance={!workflow?.isPrepared} onAdvance={advanceAction} onClose={() => setReportOpen(false)}/>}
     {workflowError && <p className="workflow-error">{workflowError}</p>}
   </div>;
 }
 
-function CapaReportModal({ plan, effectiveness, sourceSummary, busyActionId, onAdvance, onClose }: { plan: ActionPlan; effectiveness: EffectivenessReview; sourceSummary: string; busyActionId: string | null; onAdvance: (actionId: string, status: ActionStatus) => void; onClose: () => void }) {
+function CapaReportModal({ plan, effectiveness, sourceSummary, busyActionId, canAdvance, onAdvance, onClose }: { plan: ActionPlan; effectiveness: EffectivenessReview; sourceSummary: string; busyActionId: string | null; canAdvance: boolean; onAdvance: (actionId: string, status: ActionStatus) => void; onClose: () => void }) {
   const containment = plan.actions.find((action) => action.action_type === 'CONTAINMENT');
   const plannedActions = plan.actions.filter((action) => action.action_type !== 'CONTAINMENT');
   const issueDate = containment?.due_date ?? plannedActions[0]?.due_date ?? 'Not recorded';
@@ -121,7 +122,7 @@ function CapaReportModal({ plan, effectiveness, sourceSummary, busyActionId, onA
         <ReportSection number="3" title="Corrective and preventive action plan">
           <div className="capa-action-table">
             <div className="capa-action-table-head"><span>Type and action</span><span>Owner</span><span>Target</span><span>Status</span></div>
-            {plannedActions.map((action) => <ActionTableRow action={action} busy={busyActionId === action.action_id} key={action.action_id} onAdvance={onAdvance}/>)}
+            {plannedActions.map((action) => <ActionTableRow action={action} busy={busyActionId === action.action_id} canAdvance={canAdvance} key={action.action_id} onAdvance={onAdvance}/>)}
           </div>
         </ReportSection>
 
@@ -166,8 +167,8 @@ function ActionStatement({ action }: { action: ActionItem }) {
   return <div className="capa-action-statement"><p>{action.guidance}</p><dl><div><dt>Responsible owner</dt><dd>{action.owner_role}</dd></div><div><dt>Due date</dt><dd>{formatDate(action.due_date)}</dd></div><div><dt>Status</dt><dd>{humanize(action.status)}</dd></div></dl><ReportLine label="Evidence required" value={action.completion_criteria}/></div>;
 }
 
-function ActionTableRow({ action, busy, onAdvance }: { action: ActionItem; busy: boolean; onAdvance: (actionId: string, status: ActionStatus) => void }) {
-  const nextStatus = nextActionStatus(action.status);
+function ActionTableRow({ action, busy, canAdvance, onAdvance }: { action: ActionItem; busy: boolean; canAdvance: boolean; onAdvance: (actionId: string, status: ActionStatus) => void }) {
+  const nextStatus = canAdvance ? nextActionStatus(action.status) : null;
   return <div className="capa-action-table-row"><div><span>{humanize(action.action_type)}</span><strong>{action.title}</strong><p>{action.guidance}</p></div><span>{action.owner_role}</span><time>{formatDate(action.due_date)}</time><div><b>{humanize(action.status)}</b>{nextStatus && <button disabled={busy} onClick={() => onAdvance(action.action_id, action.status)}>{busy ? 'Updating…' : actionTransitionLabel(nextStatus)}</button>}</div></div>;
 }
 

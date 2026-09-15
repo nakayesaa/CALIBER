@@ -8,11 +8,11 @@ import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type AlertEvent, type AssetOverview, type DriverAnalysis, type EffectivenessReview, type TelemetrySeries } from '../lib/api';
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
-import { actionsForAlert, rcaForAlert } from '../lib/demoWorkflow';
 import { contributionForField, contributionRank } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { selectIncidentWindow, type HealthTimeRange } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
+import { workflowView } from '../lib/workflowView';
 
 const ASSET_ID = 'asset-ko-3201';
 type SignalMode = 'condition' | 'operating';
@@ -61,8 +61,9 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const escalationTransition = detail?.state_transitions.find((transition) => transition.new_state === alert?.highest_severity);
   const escalationIndex = Math.max((detail?.state_transitions.findIndex((transition) => transition === escalationTransition) ?? 0) + 1, 1);
   const latest = telemetry.points.at(-1);
-  const rca = detail ? rcaForAlert(detail.alert.alert_id, detail.rca) : null;
-  const plans = detail ? actionsForAlert(detail.alert.alert_id, detail.action_plans, Boolean(detail.rca)) : [];
+  const { rca, actionPlans: plans } = detail
+    ? workflowView(detail)
+    : { rca: null, actionPlans: [] };
   const actions = plans.flatMap((plan) => plan.actions);
   const activeAction = actions.find((action) => action.status === 'IN_PROGRESS') ?? actions.find((action) => action.status !== 'CLOSED');
   const correctiveAction = actions.find((action) => action.action_type === 'CORRECTIVE');

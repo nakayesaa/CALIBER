@@ -2,9 +2,9 @@ import type { PageId } from '../components/AppShell';
 import { Icon } from '../components/Icon';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type AlertEvent } from '../lib/api';
-import { actionsForAlert } from '../lib/demoWorkflow';
 import { formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
+import { workflowView } from '../lib/workflowView';
 
 interface ProblemTankData {
   alerts: AlertEvent[];
@@ -45,7 +45,7 @@ export function ProblemTankPage({ onNavigate }: { onNavigate: (page: PageId) => 
       </header>
       {resource.data.details.map((detail, index) => {
         const { alert } = detail;
-        const plans = actionsForAlert(alert.alert_id, detail.action_plans, Boolean(detail.rca));
+        const { actionPlans: plans } = workflowView(detail);
         const actions = plans.flatMap((plan) => plan.actions);
         const closedActions = actions.filter((action) => action.status === 'CLOSED').length;
         return <button key={alert.alert_id} className="problem-list-row" onClick={() => onNavigate('investigation')}>

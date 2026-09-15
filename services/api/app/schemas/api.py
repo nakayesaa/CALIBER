@@ -107,6 +107,11 @@ class TelemetrySeries(APIModel):
     points: list[TelemetryPoint]
 
 
+class PreparedWorkflow(APIModel):
+    rca: RCARecord
+    action_plans: list[ActionPlan]
+
+
 class AlertDetail(APIModel):
     alert: AlertEvent
     state_transitions: list[AlertStateTransition]
@@ -114,6 +119,7 @@ class AlertDetail(APIModel):
     similar_incidents: list[IncidentRetrievalResult]
     rca: RCARecord | None
     action_plans: list[ActionPlan]
+    prepared_workflow: PreparedWorkflow | None = None
 
 
 class RCAGenerateRequest(APIModel):
