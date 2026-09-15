@@ -1,6 +1,6 @@
 .PHONY: help install dev web-dev web-build api-install api-dev canonical scenario \
 	features train-preflight train alerts retrieval rca-preflight rca actions \
-	db-seed test check
+	db-seed test lint security-check check
 
 help:
 	@echo "CALIBER development commands"
@@ -22,7 +22,9 @@ help:
 	@echo "  make actions      Build a CA/PA proposal from the RCA draft"
 	@echo "  make db-seed      Rebuild canonical data and seed SQLite"
 	@echo "  make test         Run backend/data tests"
-	@echo "  make check        Run currently available checks"
+	@echo "  make lint         Run Python static analysis"
+	@echo "  make security-check  Scan Python source for security issues"
+	@echo "  make check        Run all local quality gates"
 
 install:
 	npm install
@@ -79,7 +81,13 @@ db-seed: canonical
 test:
 	.venv/bin/pytest
 
-check:
+lint:
+	.venv/bin/ruff check services/api/app services/api/tests scripts
+
+security-check:
+	.venv/bin/bandit -q -r services/api/app scripts -x services/api/tests --severity-level medium --confidence-level medium
+
+check: lint security-check
 	npm run check
 	python3 -m compileall -q services/api/app scripts
 	.venv/bin/pytest

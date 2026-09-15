@@ -66,7 +66,7 @@ class RCAGeneration(RCAModel):
     requires_human_review: bool
 
     @model_validator(mode="after")
-    def validate_ranking(self) -> "RCAGeneration":
+    def validate_ranking(self) -> RCAGeneration:
         ranks = [hypothesis.rank for hypothesis in self.hypotheses]
         identifiers = [hypothesis.hypothesis_id for hypothesis in self.hypotheses]
         if ranks != list(range(1, len(ranks) + 1)):

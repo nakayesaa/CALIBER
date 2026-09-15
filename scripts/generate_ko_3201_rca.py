@@ -13,14 +13,13 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from services.api.app.schemas.rca import RCARecord  # noqa: E402
-from services.api.app.schemas.retrieval import RAGEvidencePackage  # noqa: E402
-from services.api.app.services.rca.generation import (  # noqa: E402
+from services.api.app.schemas.rca import RCARecord
+from services.api.app.schemas.retrieval import RAGEvidencePackage
+from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
     build_rca_prompts,
     evidence_identifiers,

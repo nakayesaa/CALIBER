@@ -19,7 +19,7 @@ class SeverityRule(AlertConfigModel):
     minimum_score: float = Field(ge=0, le=100)
 
     @model_validator(mode="after")
-    def validate_counts(self) -> "SeverityRule":
+    def validate_counts(self) -> SeverityRule:
         if self.minimum_candidate_count > self.window_hours:
             raise ValueError("Candidate count cannot exceed the rule window")
         if self.minimum_consecutive_count > self.window_hours:
@@ -66,7 +66,7 @@ class AlertPolicyConfig(AlertConfigModel):
     evaluation: AlertEvaluationConfig
 
     @model_validator(mode="after")
-    def validate_policy(self) -> "AlertPolicyConfig":
+    def validate_policy(self) -> AlertPolicyConfig:
         ranks = [rule.rank for rule in self.severity_rules]
         names = [rule.name for rule in self.severity_rules]
         if len(ranks) != len(set(ranks)):

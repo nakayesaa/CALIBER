@@ -17,24 +17,22 @@ import pandas as pd
 import yaml
 from pydantic import BaseModel
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from services.api.app.schemas.features import (  # noqa: E402
+from services.api.app.schemas.features import (
     FeatureManifest,
     FeaturePipelineConfig,
     FeatureQualityCheck,
     FeatureQualityReport,
 )
-from services.api.app.services.analytics.feature_pipeline import (  # noqa: E402
+from services.api.app.services.analytics.feature_pipeline import (
     ELIGIBILITY_COLUMNS,
     FeatureBuildResult,
     build_features,
     validate_hourly_input,
 )
-
 
 GENERATED_AT = datetime.fromisoformat("2026-09-10T00:00:00+07:00")
 

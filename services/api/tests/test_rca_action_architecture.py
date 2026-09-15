@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -27,7 +27,6 @@ from services.api.app.services.rca.generation import (
     transition_rca,
     validate_grounding,
 )
-
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -184,7 +183,7 @@ def test_action_approval_requires_reviewed_rca() -> None:
             RCAStatus.AI_DRAFT,
             "reviewer-1",
             "Ready to execute",
-            datetime(2026, 2, 23, tzinfo=timezone.utc),
+            datetime(2026, 2, 23, tzinfo=UTC),
         )
     approved = transition_action(
         plan.actions[0],
@@ -193,7 +192,7 @@ def test_action_approval_requires_reviewed_rca() -> None:
         RCAStatus.APPROVED,
         "reviewer-1",
         "Ready to execute",
-        datetime(2026, 2, 23, tzinfo=timezone.utc),
+        datetime(2026, 2, 23, tzinfo=UTC),
     )
     assert approved.status == ActionStatus.APPROVED
     assert approved.status_history[0].actor == "reviewer-1"
@@ -206,14 +205,14 @@ def test_rca_review_follows_audited_state_machine() -> None:
         RCAStatus.UNDER_REVIEW,
         "engineer-1",
         "Review started",
-        datetime(2026, 2, 23, tzinfo=timezone.utc),
+        datetime(2026, 2, 23, tzinfo=UTC),
     )
     approved = transition_rca(
         reviewed,
         RCAStatus.APPROVED,
         "engineer-1",
         "Evidence accepted",
-        datetime(2026, 2, 24, tzinfo=timezone.utc),
+        datetime(2026, 2, 24, tzinfo=UTC),
     )
 
     assert approved.status == RCAStatus.APPROVED
@@ -224,5 +223,5 @@ def test_rca_review_follows_audited_state_machine() -> None:
             RCAStatus.APPROVED,
             "engineer-1",
             "Skipped review",
-            datetime(2026, 2, 23, tzinfo=timezone.utc),
+            datetime(2026, 2, 23, tzinfo=UTC),
         )

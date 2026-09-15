@@ -12,8 +12,8 @@ import yaml
 from services.api.app.schemas.alerts import AlertEvent
 from services.api.app.schemas.driver_analysis import DriverAnalysis, SignalContribution
 from services.api.app.schemas.features import (
-    ConditionSignalConfig,
     ConcernDirection,
+    ConditionSignalConfig,
     FeaturePipelineConfig,
 )
 

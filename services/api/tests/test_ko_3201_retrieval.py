@@ -11,7 +11,6 @@ import pytest
 
 from scripts.build_ko_3201_retrieval import run
 
-
 ROOT = Path(__file__).resolve().parents[3]
 NORMALIZED_DIRECTORY = ROOT / "data/normalized/ko_3201"
 ALERT_DIRECTORY = ROOT / "data/alerts/ko_3201/v1"

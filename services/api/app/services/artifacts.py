@@ -13,13 +13,13 @@ from pydantic import BaseModel
 
 from services.api.app.schemas.actions import ActionPlan
 from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
-from services.api.app.schemas.canonical import EffectivenessCheck
 from services.api.app.schemas.api import (
     AssetSummary,
     ProductionImpact,
     TelemetryPoint,
     TelemetrySeries,
 )
+from services.api.app.schemas.canonical import EffectivenessCheck
 from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import (
     IncidentRetrievalResult,
@@ -29,7 +29,6 @@ from services.api.app.services.production_impact import (
     ProductionImpactPolicy,
     calculate_production_impact,
 )
-
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -337,7 +336,7 @@ class KO3201ArtifactRepository:
             return []
         decoded = json.loads(str(value))
         if not isinstance(decoded, list):
-            raise ValueError("Expected a JSON list")
+            raise TypeError("Expected a JSON list")
         return [str(item) for item in decoded]
 
     @staticmethod

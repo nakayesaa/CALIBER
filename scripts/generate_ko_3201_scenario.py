@@ -27,12 +27,11 @@ import yaml
 from pydantic import BaseModel
 from scipy.interpolate import PchipInterpolator
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from services.api.app.schemas.canonical import (  # noqa: E402
+from services.api.app.schemas.canonical import (
     DirectionOfConcern,
     HealthState,
     OperatingMode,
@@ -44,7 +43,6 @@ from services.api.app.schemas.canonical import (  # noqa: E402
     SignalObservation,
     SourceType,
 )
-
 
 T = TypeVar("T", bound=BaseModel)
 ASSET_ID = "asset-ko-3201"

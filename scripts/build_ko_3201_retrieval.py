@@ -18,12 +18,11 @@ import pandas as pd
 import yaml
 from pydantic import BaseModel
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from services.api.app.schemas.retrieval import (  # noqa: E402
+from services.api.app.schemas.retrieval import (
     IncidentDocument,
     IncidentRetrievalConfig,
     IncidentRetrievalResult,
@@ -33,13 +32,12 @@ from services.api.app.schemas.retrieval import (  # noqa: E402
     RetrievalValidationCheck,
     RetrievalValidationReport,
 )
-from services.api.app.services.rca.incident_retrieval import (  # noqa: E402
+from services.api.app.services.rca.incident_retrieval import (
     build_alert_open_query,
     build_incident_documents,
     eligible_documents,
     retrieve_incidents,
 )
-
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Jakarta")
 

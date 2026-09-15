@@ -12,14 +12,14 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 
-from scripts.build_ko_3201_features import load_config, run as build_feature_outputs
+from scripts.build_ko_3201_features import load_config
+from scripts.build_ko_3201_features import run as build_feature_outputs
 from scripts.generate_ko_3201_scenario import run as build_scenario
 from scripts.ingest_ko_3201 import run as build_canonical
 from services.api.app.services.analytics.feature_pipeline import (
     build_features,
     validate_hourly_input,
 )
-
 
 ROOT = Path(__file__).resolve().parents[3]
 RAW_DIRECTORY = ROOT / "data/raw/ko_3201"

@@ -54,7 +54,7 @@ class CauseActionPolicy(ActionModel):
     actions: list[ActionTemplate] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def require_action_coverage(self) -> "CauseActionPolicy":
+    def require_action_coverage(self) -> CauseActionPolicy:
         types = {action.action_type for action in self.actions}
         required = {ActionType.CONTAINMENT, ActionType.CORRECTIVE, ActionType.PREVENTIVE}
         if types != required:
@@ -66,7 +66,7 @@ class ActionWorkflowPolicy(ActionModel):
     transitions: dict[ActionStatus, list[ActionStatus]]
 
     @model_validator(mode="after")
-    def validate_state_coverage(self) -> "ActionWorkflowPolicy":
+    def validate_state_coverage(self) -> ActionWorkflowPolicy:
         if set(self.transitions) != set(ActionStatus):
             raise ValueError("Workflow must define transitions for every action status")
         return self
@@ -79,7 +79,7 @@ class ActionPolicyConfig(ActionModel):
     workflow: ActionWorkflowPolicy
 
     @model_validator(mode="after")
-    def validate_categories(self) -> "ActionPolicyConfig":
+    def validate_categories(self) -> ActionPolicyConfig:
         categories = [policy.cause_category for policy in self.cause_policies]
         if len(categories) != len(set(categories)):
             raise ValueError("Cause action policies must be unique")

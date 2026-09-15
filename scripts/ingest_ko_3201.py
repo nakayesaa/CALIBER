@@ -13,7 +13,7 @@ import csv
 import hashlib
 import json
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TypeVar
@@ -25,12 +25,11 @@ from openpyxl import load_workbook
 from pptx import Presentation
 from pydantic import BaseModel
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from services.api.app.schemas.canonical import (  # noqa: E402
+from services.api.app.schemas.canonical import (
     Action,
     ActionStatus,
     ActionType,
@@ -56,16 +55,15 @@ from services.api.app.schemas.canonical import (  # noqa: E402
     VerificationStatus,
     WorkflowStatus,
 )
-from services.api.app.services.data.normalization import (  # noqa: E402
+from services.api.app.services.data.normalization import (
     canonical_header,
     localize_source_timestamp,
     normalize_workflow_status,
     optional_text,
 )
-from services.api.app.services.data.taxonomy import (  # noqa: E402
+from services.api.app.services.data.taxonomy import (
     normalize_incident_label,
 )
-
 
 T = TypeVar("T", bound=BaseModel)
 ASSET_ID = "asset-ko-3201"

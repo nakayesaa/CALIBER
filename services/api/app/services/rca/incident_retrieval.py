@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -18,7 +19,6 @@ from services.api.app.schemas.retrieval import (
     RetrievalQuery,
     TfidfConfig,
 )
-
 
 DOCUMENT_COLUMNS = {
     "incident_id",
@@ -66,7 +66,7 @@ def parse_json_list(value: Any, field: str) -> list[str]:
     except json.JSONDecodeError as error:
         raise ValueError(f"{field} must contain a JSON list") from error
     if not isinstance(decoded, list):
-        raise ValueError(f"{field} must contain a JSON list")
+        raise TypeError(f"{field} must contain a JSON list")
     return [str(item) for item in decoded]
 
 

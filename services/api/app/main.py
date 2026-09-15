@@ -11,7 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from services.api.app.api.routes import router
 from services.api.app.services.backend import BackendService
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 

@@ -12,7 +12,6 @@ import pytest
 from scripts.generate_ko_3201_scenario import run as generate_scenario
 from scripts.ingest_ko_3201 import run as build_canonical
 
-
 ROOT = Path(__file__).resolve().parents[3]
 RAW_DIRECTORY = ROOT / "data/raw/ko_3201"
 

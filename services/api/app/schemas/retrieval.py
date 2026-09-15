@@ -18,7 +18,7 @@ class TfidfConfig(RetrievalConfigModel):
     sublinear_tf: bool = True
 
     @model_validator(mode="after")
-    def validate_ngrams(self) -> "TfidfConfig":
+    def validate_ngrams(self) -> TfidfConfig:
         lower, upper = self.ngram_range
         if lower < 1 or upper < lower:
             raise ValueError("TF-IDF ngram range is invalid")
@@ -35,7 +35,7 @@ class HybridWeights(RetrievalConfigModel):
     plant: float = Field(ge=0, le=1)
 
     @model_validator(mode="after")
-    def validate_total(self) -> "HybridWeights":
+    def validate_total(self) -> HybridWeights:
         if abs(sum(self.model_dump().values()) - 1.0) > 1e-9:
             raise ValueError("Hybrid retrieval weights must sum to one")
         return self
@@ -70,7 +70,7 @@ class IncidentRetrievalConfig(RetrievalConfigModel):
     signal_mappings: dict[str, QueryMapping]
 
     @model_validator(mode="after")
-    def validate_mappings(self) -> "IncidentRetrievalConfig":
+    def validate_mappings(self) -> IncidentRetrievalConfig:
         if not self.signal_mappings:
             raise ValueError("At least one signal mapping is required")
         return self

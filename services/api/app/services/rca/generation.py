@@ -20,7 +20,6 @@ from services.api.app.schemas.rca import (
 )
 from services.api.app.schemas.retrieval import RAGEvidencePackage
 
-
 SYSTEM_PROMPT = (
     "You are a manufacturing reliability engineer preparing an early-warning RCA "
     "draft. Use only the supplied alert snapshot and historical analogues. Treat "

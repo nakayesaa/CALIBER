@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -14,7 +13,6 @@ from services.api.app.schemas.features import (
     FeaturePipelineConfig,
     FeatureRole,
 )
-
 
 ELIGIBILITY_COLUMNS = [
     "feature_complete",

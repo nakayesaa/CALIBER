@@ -12,7 +12,6 @@ from services.api.app.main import create_app
 from services.api.app.schemas.rca import RCAGeneration, RCAProviderResult
 from services.api.app.services.backend import BackendService
 
-
 ROOT = Path(__file__).resolve().parents[3]
 ALERT_ID = "alert-asset-ko-3201-0001"
 

@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = REPOSITORY_ROOT / "data/normalized/ko_3201"
 DEFAULT_DATABASE = REPOSITORY_ROOT / "data/caliber.db"
@@ -49,6 +48,22 @@ INDEXES = [
     "CREATE INDEX idx_actions_case ON actions(rca_case_id)",
     "CREATE INDEX idx_quality_entity ON quality_issues(entity_type, entity_id)",
 ]
+
+TABLE_COUNT_QUERY = """
+SELECT 'assets', COUNT(*) FROM assets
+UNION ALL SELECT 'signal_definitions', COUNT(*) FROM signal_definitions
+UNION ALL SELECT 'signal_observations', COUNT(*) FROM signal_observations
+UNION ALL SELECT 'production_observations', COUNT(*) FROM production_observations
+UNION ALL SELECT 'operating_periods', COUNT(*) FROM operating_periods
+UNION ALL SELECT 'incidents', COUNT(*) FROM incidents
+UNION ALL SELECT 'incident_labels', COUNT(*) FROM incident_labels
+UNION ALL SELECT 'rca_cases', COUNT(*) FROM rca_cases
+UNION ALL SELECT 'evidence', COUNT(*) FROM evidence
+UNION ALL SELECT 'hypotheses', COUNT(*) FROM hypotheses
+UNION ALL SELECT 'actions', COUNT(*) FROM actions
+UNION ALL SELECT 'effectiveness_checks', COUNT(*) FROM effectiveness_checks
+UNION ALL SELECT 'quality_issues', COUNT(*) FROM quality_issues
+"""
 
 
 def parse_args() -> argparse.Namespace:
@@ -93,7 +108,7 @@ def seed(input_directory: Path, database: Path) -> dict[str, int]:
             for table, filename in TABLE_FILES.items():
                 frame = pd.read_csv(input_directory / filename, keep_default_na=False)
                 frame.to_sql(table, connection, if_exists="fail", index=False)
-                counts[table] = int(len(frame))
+                counts[table] = len(frame)
 
             connection.execute(
                 "CREATE TABLE dataset_registry (dataset TEXT PRIMARY KEY, "
@@ -114,8 +129,9 @@ def seed(input_directory: Path, database: Path) -> dict[str, int]:
                 connection.execute(statement)
             connection.commit()
 
+            actual_counts = dict(connection.execute(TABLE_COUNT_QUERY).fetchall())
             for table, expected in counts.items():
-                actual = connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+                actual = actual_counts[table]
                 if actual != expected:
                     raise RuntimeError(
                         f"SQLite row-count mismatch for {table}: {actual} != {expected}"
@@ -150,4 +166,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

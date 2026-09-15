@@ -24,7 +24,7 @@ class RobustScalerConfig(AnomalyConfigModel):
     unit_variance: bool = False
 
     @model_validator(mode="after")
-    def validate_quantile_range(self) -> "RobustScalerConfig":
+    def validate_quantile_range(self) -> RobustScalerConfig:
         lower, upper = self.quantile_range
         if not 0 < lower < upper < 100:
             raise ValueError("Scaler quantiles must satisfy 0 < lower < upper < 100")
@@ -39,7 +39,7 @@ class IsolationForestConfig(AnomalyConfigModel):
     n_jobs: int
 
     @model_validator(mode="after")
-    def validate_max_samples(self) -> "IsolationForestConfig":
+    def validate_max_samples(self) -> IsolationForestConfig:
         if isinstance(self.max_samples, float) and not 0 < self.max_samples <= 1:
             raise ValueError("Float max_samples must satisfy 0 < value <= 1")
         if isinstance(self.max_samples, int) and self.max_samples < 2:
@@ -54,7 +54,7 @@ class ScoreCalibrationConfig(AnomalyConfigModel):
     exponent_clip: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_score_anchors(self) -> "ScoreCalibrationConfig":
+    def validate_score_anchors(self) -> ScoreCalibrationConfig:
         if self.median_normalized_score >= self.threshold_normalized_score:
             raise ValueError("Median score must be below threshold score")
         return self

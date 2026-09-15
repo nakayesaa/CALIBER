@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from services.api.app.schemas.retrieval import IncidentRetrievalConfig
-from services.api.app.schemas.retrieval import IncidentDocument
+from services.api.app.schemas.retrieval import IncidentDocument, IncidentRetrievalConfig
 from services.api.app.services.rca.incident_retrieval import (
     build_alert_open_query,
     build_incident_documents,

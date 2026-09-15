@@ -10,7 +10,6 @@ import pytest
 
 from scripts.build_ko_3201_alerts import run
 
-
 ROOT = Path(__file__).resolve().parents[3]
 SCORE_DIRECTORY = ROOT / "data/scored/ko_3201/v1"
 FEATURE_DIRECTORY = ROOT / "data/features/ko_3201/v1"

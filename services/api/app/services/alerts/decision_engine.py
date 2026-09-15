@@ -16,7 +16,6 @@ from services.api.app.schemas.alerts import (
     SeverityRule,
 )
 
-
 BASE_SCORE_INPUT_COLUMNS = [
     "timestamp",
     "model_id",
@@ -204,7 +203,7 @@ def apply_alert_policy(
     rolling_columns = [
         column
         for column in decisions.columns
-        if column.startswith("candidate_count_") or column.startswith("peak_score_")
+        if column.startswith(("candidate_count_", "peak_score_"))
     ]
     return decisions[[*ordered_columns, *rolling_columns]]
 

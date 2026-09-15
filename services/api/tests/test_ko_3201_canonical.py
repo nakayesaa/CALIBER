@@ -12,7 +12,6 @@ import pytest
 from scripts.ingest_ko_3201 import run
 from scripts.seed_database import seed
 
-
 ROOT = Path(__file__).resolve().parents[3]
 RAW_DIRECTORY = ROOT / "data/raw/ko_3201"
 

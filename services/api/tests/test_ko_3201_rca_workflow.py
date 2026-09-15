@@ -20,7 +20,6 @@ from services.api.app.services.rca.generation import (
     load_generation_config,
 )
 
-
 ROOT = Path(__file__).resolve().parents[3]
 RETRIEVAL_DIRECTORY = ROOT / "data/retrieval/ko_3201/v1"
 

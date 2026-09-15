@@ -39,12 +39,8 @@ def normalize_incident_label(
             review_status="CURATED_SOURCE_REPORTED_NOT_APP_CONFIRMED",
         )
 
-    searchable = " ".join(
-        [
-            incident.title,
-            incident.component_raw,
-            incident.mechanism_raw,
-        ]
+    searchable = (
+        f"{incident.title} {incident.component_raw} {incident.mechanism_raw}"
     ).lower()
     failure_family = "UNCLASSIFIED"
     matched_keywords: list[str] = []
@@ -93,4 +89,3 @@ def normalize_incident_label(
         normalization_reason=reason,
         review_status="NEEDS_REVIEW",
     )
-

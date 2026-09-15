@@ -19,18 +19,17 @@ import pandas as pd
 import yaml
 from pydantic import BaseModel
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from services.api.app.schemas.anomaly import (  # noqa: E402
+from services.api.app.schemas.anomaly import (
     AnomalyModelConfig,
     ModelManifest,
     ModelValidationCheck,
     ModelValidationReport,
 )
-from services.api.app.services.analytics.anomaly_model import (  # noqa: E402
+from services.api.app.services.analytics.anomaly_model import (
     AnomalyModelBundle,
     TrainingSplit,
     evaluate_scored_timeline,
@@ -41,7 +40,6 @@ from services.api.app.services.analytics.anomaly_model import (  # noqa: E402
     score_feature_table,
     validate_feature_contract,
 )
-
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Jakarta")
 
@@ -235,8 +233,7 @@ def build_scored_timeline(
         *[
             column
             for column in timeline
-            if column.startswith("model_impact__")
-            or column.startswith("contribution_pct__")
+            if column.startswith(("model_impact__", "contribution_pct__"))
         ],
     ]
     for column in numeric_columns:

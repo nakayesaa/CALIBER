@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 
 from services.api.app.schemas.canonical import WorkflowStatus
 
-
 WHITESPACE = re.compile(r"\s+")
 NON_ALPHANUMERIC = re.compile(r"[^A-Z0-9]+")
 

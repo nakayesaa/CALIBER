@@ -28,7 +28,7 @@ class ConditionSignalConfig(FeatureConfigModel):
     trend_periods: list[int] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_periods_and_limits(self) -> "ConditionSignalConfig":
+    def validate_periods_and_limits(self) -> ConditionSignalConfig:
         periods = self.delta_periods + self.rolling_windows + self.trend_periods
         if any(period <= 0 for period in periods):
             raise ValueError("All feature periods must be positive")
@@ -51,7 +51,7 @@ class ProcessSignalConfig(FeatureConfigModel):
     rolling_windows: list[int] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_periods(self) -> "ProcessSignalConfig":
+    def validate_periods(self) -> ProcessSignalConfig:
         periods = self.delta_periods + self.rolling_windows
         if any(period <= 0 for period in periods):
             raise ValueError("All feature periods must be positive")
@@ -86,7 +86,7 @@ class FeaturePipelineConfig(FeatureConfigModel):
     output: FeatureOutputConfig
 
     @model_validator(mode="after")
-    def validate_signal_sets(self) -> "FeaturePipelineConfig":
+    def validate_signal_sets(self) -> FeaturePipelineConfig:
         if not self.condition_signals:
             raise ValueError("At least one condition signal is required")
         if not self.process_signals:

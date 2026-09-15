@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 from services.api.app.schemas.canonical import EffectivenessCheck
 from services.api.app.services.effectiveness import build_effectiveness_review
 
-
 JAKARTA = ZoneInfo("Asia/Jakarta")
 
 
