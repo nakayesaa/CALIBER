@@ -176,10 +176,11 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .interactive-chart { position: relative; min-width: 0; cursor: crosshair; touch-action: pan-y; }
 .interactive-chart .line-chart { user-select: none; }
 .evidence-window-fill { fill:rgba(119,148,134,.13); transition:fill .18s ease; }
-.evidence-window-fill.warning { fill:rgba(176,157,91,.17); }.evidence-window-fill.high { fill:rgba(105,137,121,.18); }.evidence-window-fill.critical { fill:rgba(54,91,75,.2); }.evidence-window-fill.closed { fill:rgba(126,141,134,.13); }
-.evidence-window-fill.selectable:hover, .evidence-window-fill.selectable:focus { fill:rgba(63,103,85,.26); outline:none; }
+.evidence-window-fill.warning { fill:rgba(202,168,79,.18); }.evidence-window-fill.high { fill:rgba(215,134,98,.19); }.evidence-window-fill.critical { fill:rgba(215,106,63,.22); }.evidence-window-fill.closed { fill:rgba(35,74,64,.14); }
+.evidence-window-fill.warning.selectable:hover, .evidence-window-fill.warning.selectable:focus { fill:rgba(202,168,79,.3); }.evidence-window-fill.high.selectable:hover, .evidence-window-fill.high.selectable:focus { fill:rgba(215,134,98,.31); }.evidence-window-fill.critical.selectable:hover, .evidence-window-fill.critical.selectable:focus { fill:rgba(215,106,63,.34); }.evidence-window-fill.closed.selectable:hover, .evidence-window-fill.closed.selectable:focus { fill:rgba(35,74,64,.25); }
+.evidence-window-fill.selectable:focus { outline:none; }
 .window-marker-line { stroke:#718b7f; stroke-width:1.35; vector-effect:non-scaling-stroke; pointer-events:none; }
-.window-marker-line.warning { stroke:#a18a42; }.window-marker-line.high { stroke:#668574; }.window-marker-line.critical { stroke:#315c4b; }.window-marker-line.closed { stroke:#829089; }
+.window-marker-line.warning { stroke:#caa84f; }.window-marker-line.high { stroke:#d78662; }.window-marker-line.critical { stroke:#d76a3f; }.window-marker-line.closed { stroke:#234a40; }
 .tracking-line { stroke: #60717a; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; opacity: .65; }
 .event-marker-line { stroke:#486b5c; stroke-width:2.4; vector-effect:non-scaling-stroke; }
 .interactive-chart.window-clickable { cursor:pointer; }
