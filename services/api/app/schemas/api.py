@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
@@ -11,6 +11,13 @@ from services.api.app.schemas.actions import ActionPlan, ActionStatus
 from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
 from services.api.app.schemas.rca import RCARecord, RCAStatus
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
+
+ActorName = Annotated[str, Field(min_length=1, max_length=120)]
+WorkflowNote = Annotated[str, Field(min_length=1, max_length=2000)]
+WorkflowIdentifier = Annotated[
+    str,
+    Field(min_length=1, max_length=160, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$"),
+]
 
 
 class APIModel(BaseModel):
@@ -110,23 +117,23 @@ class AlertDetail(APIModel):
 
 
 class RCAGenerateRequest(APIModel):
-    requested_by: str = Field(min_length=1)
+    requested_by: ActorName
     mode: Literal["ai", "prepared"] = "ai"
 
 
 class RCAStatusUpdate(APIModel):
     status: RCAStatus
-    actor: str = Field(min_length=1)
-    note: str = Field(min_length=1)
+    actor: ActorName
+    note: WorkflowNote
     occurred_at: datetime | None = None
 
 
 class ActionPlanCreateRequest(APIModel):
-    hypothesis_id: str = Field(min_length=1)
+    hypothesis_id: WorkflowIdentifier
 
 
 class ActionStatusUpdate(APIModel):
     status: ActionStatus
-    actor: str = Field(min_length=1)
-    note: str = Field(min_length=1)
+    actor: ActorName
+    note: WorkflowNote
     occurred_at: datetime | None = None

@@ -12,6 +12,18 @@ from services.api.app.api.routes import router
 from services.api.app.services.backend import BackendService
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+
+
+def configured_cors_origins() -> list[str]:
+    origins = [
+        origin.strip()
+        for origin in os.getenv("CALIBER_CORS_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
+        if origin.strip()
+    ]
+    if "*" in origins:
+        raise ValueError("CALIBER_CORS_ORIGINS must list explicit trusted origins")
+    return origins
 
 
 def create_app(
@@ -23,20 +35,12 @@ def create_app(
         version="0.2.0",
     )
     application.state.backend = backend or BackendService(root)
-    origins = [
-        origin.strip()
-        for origin in os.getenv(
-            "CALIBER_CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173",
-        ).split(",")
-        if origin.strip()
-    ]
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
+        allow_origins=configured_cors_origins(),
+        allow_credentials=False,
         allow_methods=["GET", "POST", "PATCH"],
-        allow_headers=["*"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     @application.get("/health", tags=["system"])

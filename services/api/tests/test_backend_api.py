@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from services.api.app.main import create_app
+from services.api.app.main import configured_cors_origins, create_app
 from services.api.app.schemas.rca import RCAGeneration, RCAProviderResult
 from services.api.app.services.backend import BackendService
 
@@ -257,6 +257,64 @@ def test_missing_resources_return_404(client: TestClient) -> None:
     assert client.get("/api/v1/action-plans/missing").status_code == 404
     assert client.get("/api/v1/data-sources/missing").status_code == 404
     assert client.get("/api/v1/traceability/claims/missing").status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        (
+            "POST",
+            f"/api/v1/alerts/{ALERT_ID}/rca",
+            {"requested_by": "x" * 121},
+        ),
+        (
+            "PATCH",
+            "/api/v1/rca/example/status",
+            {"status": "UNDER_REVIEW", "actor": "engineer", "note": "x" * 2001},
+        ),
+        (
+            "POST",
+            "/api/v1/rca/example/action-plans",
+            {"hypothesis_id": "invalid identifier"},
+        ),
+    ],
+)
+def test_workflow_requests_reject_invalid_bounded_input(
+    client: TestClient,
+    method: str,
+    path: str,
+    payload: dict[str, str],
+) -> None:
+    response = client.request(method, path, json=payload)
+    assert response.status_code == 422
+
+
+def test_cors_preflight_allows_only_configured_origin(client: TestClient) -> None:
+    headers = {
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+    }
+    allowed = client.options(
+        f"/api/v1/alerts/{ALERT_ID}/rca",
+        headers={"Origin": "http://localhost:5173", **headers},
+    )
+    rejected = client.options(
+        f"/api/v1/alerts/{ALERT_ID}/rca",
+        headers={"Origin": "https://untrusted.example", **headers},
+    )
+
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "access-control-allow-credentials" not in allowed.headers
+    assert rejected.status_code == 400
+
+
+def test_cors_configuration_rejects_wildcard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CALIBER_CORS_ORIGINS", "*")
+    with pytest.raises(ValueError, match="explicit trusted origins"):
+        configured_cors_origins()
 
 
 def test_traceability_connects_claims_to_governed_sources(client: TestClient) -> None:
