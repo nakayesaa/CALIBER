@@ -282,6 +282,23 @@ export interface AlertDetail {
   } | null;
 }
 
+export interface InvestigationEvidenceProgress {
+  alert_id: string;
+  as_of: string;
+  stage: 'PROBABLE' | 'CONTAMINATION_SUPPORTED' | 'CAUSE_REPORTED' | 'REPAIR_REPORTED';
+  summary: string;
+  events: Array<{
+    event_id: string;
+    occurred_at: string;
+    kind: 'SENSOR' | 'LAB' | 'INSPECTION' | 'ACTION';
+    title: string;
+    detail: string;
+    source_reference: string;
+    source_grade: string;
+  }>;
+  next_event_at: string | null;
+}
+
 export interface SourceFieldMapping {
   source_field: string;
   canonical_field: string;

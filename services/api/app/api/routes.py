@@ -15,6 +15,7 @@ from services.api.app.schemas.api import (
     AlertDetail,
     AssetOverview,
     AssetSummary,
+    InvestigationEvidenceProgress,
     RCAGenerateRequest,
     RCAStatusUpdate,
     SystemStatus,
@@ -180,6 +181,22 @@ def alert_detail(alert_id: str, backend: Backend) -> AlertDetail:
         return backend.alert_detail(alert_id)
     except ArtifactNotFoundError as error:
         raise not_found(error) from error
+
+
+@router.get(
+    "/alerts/{alert_id}/investigation-evidence",
+    response_model=InvestigationEvidenceProgress,
+    tags=["rca"],
+)
+def investigation_evidence(
+    alert_id: str, as_of: datetime, backend: Backend
+) -> InvestigationEvidenceProgress:
+    try:
+        return backend.investigation_evidence(alert_id, as_of)
+    except ArtifactNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.get(

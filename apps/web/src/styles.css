@@ -303,6 +303,26 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .investigation-signal-chart > .interactive-chart { height: 190px; margin-top: 18px; }
 .investigation-trace-footer { margin-top:11px; display:flex; align-items:center; justify-content:space-between; gap:12px; }.investigation-trace-footer p { color:var(--story-muted); font-size:11px; }
 
+.evidence-replay { margin-bottom:12px; padding:16px 20px; }
+.evidence-replay-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.evidence-replay-heading > div:first-child { display:flex; flex-direction:column; gap:4px; }
+.evidence-replay-heading span { color:var(--story-muted); font-size:12px; }
+.evidence-replay-heading strong { color:var(--brand-primary); font-size:17px; }
+.evidence-replay-controls { display:flex; gap:8px; }
+.evidence-replay-controls button { min-height:32px; padding:0 12px; border:1px solid var(--story-line); border-radius:8px; font-size:12px; font-weight:600; }
+.evidence-replay-controls button:last-child { background:var(--brand-primary); color:#fff; }
+.evidence-replay > p { margin:12px 0; color:#53646b; font-size:14px; line-height:21px; }
+.evidence-replay-events { max-height:155px; overflow:auto; border-top:1px solid var(--story-line); scrollbar-width:none; }
+.evidence-replay-events::-webkit-scrollbar { display:none; }
+.evidence-replay-events > div { display:grid; grid-template-columns:150px minmax(0,1fr); gap:14px; padding:10px 0; border-bottom:1px solid var(--story-line); }
+.evidence-replay-events time, .evidence-replay-events > span { color:var(--story-muted); font-size:12px; }
+.evidence-replay-events > span { display:block; padding:12px 0 0; }
+.evidence-replay-events strong { font-size:13px; }
+.evidence-replay-events p { margin-top:3px; color:#53646b; font-size:12px; line-height:18px; }
+.evidence-replay-events small { display:block; margin-top:3px; overflow-wrap:anywhere; color:var(--story-muted); font-size:10px; }
+.evidence-replay-note { display:block; margin-top:8px; color:var(--story-muted); font-size:10px; }
+.evidence-replay-notice { padding:20px; color:#53646b; font-size:14px; }
+
 .rca-story-grid { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(320px,.9fr); gap: 12px; }
 .leading-cause, .cause-evidence { padding: 20px; }
 .investigation-trace-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }.investigation-trace-heading > span { color:var(--brand-primary); font-size:12px; font-weight:600; text-transform:uppercase; }

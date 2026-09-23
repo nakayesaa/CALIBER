@@ -185,6 +185,36 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     assert milestone["contributions"][0]["signal_key"] == "bearing_temperature"
 
 
+def test_investigation_evidence_respects_replay_time(client: TestClient) -> None:
+    path = f"/api/v1/alerts/{ALERT_ID}/investigation-evidence"
+    warning = client.get(path, params={"as_of": "2026-02-23T19:00:00+07:00"})
+    assert warning.status_code == 200
+    assert warning.json()["stage"] == "PROBABLE"
+    assert warning.json()["events"] == []
+    assert "confirmed" not in warning.json()["summary"].lower()
+
+    sample = client.get(path, params={"as_of": "2026-04-29T08:10:00+07:00"})
+    assert sample.json()["stage"] == "CONTAMINATION_SUPPORTED"
+    assert "evidence-ko-003" in {event["event_id"] for event in sample.json()["events"]}
+    assert "evidence-ko-005" not in {event["event_id"] for event in sample.json()["events"]}
+
+    inspection = client.get(path, params={"as_of": "2026-04-29T18:00:00+07:00"})
+    assert inspection.json()["stage"] == "CAUSE_REPORTED"
+    cooler = next(
+        event for event in inspection.json()["events"]
+        if event["event_id"] == "evidence-ko-005"
+    )
+    assert cooler["source_grade"] == "B_SOURCE_REPORT"
+
+    repaired = client.get(path, params={"as_of": "2026-04-30T14:40:00+07:00"})
+    assert repaired.json()["stage"] == "REPAIR_REPORTED"
+    assert repaired.json()["next_event_at"] is None
+    assert len(repaired.json()["events"]) == 7
+
+    assert client.get(path, params={"as_of": "2026-02-22T00:00:00+07:00"}).status_code == 422
+    assert client.get(path, params={"as_of": "2026-04-29T18:00:00"}).status_code == 422
+
+
 def test_rca_review_and_action_workflow(client: TestClient) -> None:
     generated = client.post(
         f"/api/v1/alerts/{ALERT_ID}/rca",

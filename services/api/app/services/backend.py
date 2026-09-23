@@ -18,6 +18,7 @@ from services.api.app.schemas.api import (
     AlertDetail,
     AssetOverview,
     AssetSummary,
+    InvestigationEvidenceProgress,
     PreparedWorkflow,
     ProductionImpact,
     SystemStatus,
@@ -163,6 +164,53 @@ class BackendService:
             prepared_workflow=(
                 self._prepared_workflow(alert_id) if rca is None else None
             ),
+        )
+
+    def investigation_evidence(
+        self, alert_id: str, as_of: datetime
+    ) -> InvestigationEvidenceProgress:
+        alert = self.repository.get_alert(alert_id)
+        current_time = self._aware_time(as_of)
+        if current_time < datetime.fromisoformat(alert.opened_at):
+            raise ValueError("Evidence replay cannot precede the alert opening")
+        events = self.repository.investigation_events(alert)
+        visible = [event for event in events if event.occurred_at <= current_time]
+        visible_ids = {event.event_id for event in visible}
+        if {"action-ko-001", "action-ko-002"} <= visible_ids:
+            stage = "REPAIR_REPORTED"
+            summary = (
+                "The RCA records bearing replacement, oil-system flushing, and cooler "
+                "repair. Post-restart condition readings now test whether recovery holds."
+            )
+        elif {"evidence-ko-004", "evidence-ko-005"} <= visible_ids:
+            stage = "CAUSE_REPORTED"
+            summary = (
+                "The RCA reports bearing babbitt distress and a confirmed cooler-tube "
+                "leak. The underlying inspection sheets were not supplied."
+            )
+        elif "evidence-ko-003" in visible_ids:
+            stage = "CONTAMINATION_SUPPORTED"
+            summary = (
+                "The RCA reports an oil sample with 1,800 ppm water. Contamination is "
+                "supported, but its entry point is not yet confirmed at this time."
+            )
+        else:
+            stage = "PROBABLE"
+            summary = (
+                "The condition trend supports a lubrication-contamination hypothesis. "
+                "No post-alert oil sample or cooler inspection is available yet."
+            )
+        next_event = next(
+            (event.occurred_at for event in events if event.occurred_at > current_time),
+            None,
+        )
+        return InvestigationEvidenceProgress(
+            alert_id=alert_id,
+            as_of=current_time,
+            stage=stage,
+            summary=summary,
+            events=visible,
+            next_event_at=next_event,
         )
 
     def similar_incidents(self, alert_id: str) -> list[IncidentRetrievalResult]:

@@ -121,6 +121,25 @@ class AlertDetail(APIModel):
     prepared_workflow: PreparedWorkflow | None = None
 
 
+class InvestigationEvidenceEvent(APIModel):
+    event_id: str
+    occurred_at: AwareDatetime
+    kind: Literal["SENSOR", "LAB", "INSPECTION", "ACTION"]
+    title: str
+    detail: str
+    source_reference: str
+    source_grade: str
+
+
+class InvestigationEvidenceProgress(APIModel):
+    alert_id: str
+    as_of: AwareDatetime
+    stage: Literal["PROBABLE", "CONTAMINATION_SUPPORTED", "CAUSE_REPORTED", "REPAIR_REPORTED"]
+    summary: str
+    events: list[InvestigationEvidenceEvent]
+    next_event_at: AwareDatetime | None
+
+
 class RCAGenerateRequest(APIModel):
     mode: Literal["ai", "prepared"] = "ai"
 

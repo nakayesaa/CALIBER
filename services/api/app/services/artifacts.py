@@ -15,6 +15,7 @@ from services.api.app.schemas.actions import ActionPlan
 from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
 from services.api.app.schemas.api import (
     AssetSummary,
+    InvestigationEvidenceEvent,
     ProductionImpact,
     TelemetryPoint,
     TelemetrySeries,
@@ -139,6 +140,51 @@ class KO3201ArtifactRepository:
         if package.query.alert_id != alert_id:
             raise ArtifactNotFoundError(f"Evidence package not found: {alert_id}")
         return package
+
+    def investigation_events(self, alert: AlertEvent) -> list[InvestigationEvidenceEvent]:
+        evidence = self._read_csv("data/normalized/ko_3201/evidence.csv")
+        evidence = evidence.loc[
+            evidence["asset_id"].eq(alert.asset_id)
+            & evidence["observed_at"].notna()
+            & (
+                evidence["evidence_type"].isin(["LAB", "INSPECTION"])
+                | (
+                    evidence["evidence_type"].eq("SENSOR")
+                    & evidence["verification_status"].eq("REFERENCED_NOT_AVAILABLE")
+                )
+            )
+        ]
+        events = [
+            InvestigationEvidenceEvent(
+                event_id=str(row.evidence_id),
+                occurred_at=pd.Timestamp(row.observed_at).to_pydatetime(),
+                kind=row.evidence_type,
+                title=str(row.title),
+                detail=str(row.content_summary),
+                source_reference=str(row.source_reference),
+                source_grade=str(row.evidence_grade),
+            )
+            for row in evidence.itertuples(index=False)
+        ]
+        actions = self._read_csv("data/normalized/ko_3201/actions.csv")
+        completed = actions.loc[
+            actions["asset_id"].eq(alert.asset_id)
+            & actions["status"].eq("COMPLETED")
+            & actions["completed_at"].notna()
+        ]
+        events.extend(
+            InvestigationEvidenceEvent(
+                event_id=str(row.action_id),
+                occurred_at=pd.Timestamp(row.completed_at).to_pydatetime(),
+                kind="ACTION",
+                title="Repair recorded",
+                detail=str(row.description),
+                source_reference=str(row.source_reference),
+                source_grade="RCA_SOURCE_REPORT",
+            )
+            for row in completed.itertuples(index=False)
+        )
+        return sorted(events, key=lambda event: (event.occurred_at, event.event_id))
 
     def telemetry(
         self,
