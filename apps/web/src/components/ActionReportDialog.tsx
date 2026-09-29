@@ -10,7 +10,7 @@ function ReportSection({ number, title, children }: { number: number; title: str
   return <section className="capa-report-section"><header><span>{number}</span><h3>{title}</h3></header><div>{children}</div></section>;
 }
 
-export function ActionReportDialog({ record, production, onClose }: { record: ActionReport; production: PlantRateSeries | null; onClose: () => void }) {
+export function ActionReportDialog({ record, production, onClose, onOpenTracking }: { record: ActionReport; production: PlantRateSeries | null; onClose: () => void; onOpenTracking?: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const { action, issue } = record;
   const reportId = `CAL-${issue.plant}-${action.id.toUpperCase()}`;
@@ -29,7 +29,7 @@ export function ActionReportDialog({ record, production, onClose }: { record: Ac
   }, [reportId, action.title]);
 
   const fields = [
-    ['Report ID', reportId], ['Action status', action.status], ['Plant / equipment', `${issue.plant} / ${issue.tag}`], ['Snapshot', '30 Apr 2026 · 23:00 WIB'],
+    ['Report ID', reportId], ['Handoff status', action.status], ['Plant / equipment', `${issue.plant} / ${issue.tag}`], ['Snapshot', '30 Apr 2026 · 23:00 WIB'],
     ['Prepared by', 'CALIBER operator'], ['Assigned team', action.owner], ['Due date', `${action.due.replace(' ·', ' 2026 ·')} WIB`], ['Issue reference', issue.id],
   ];
 
@@ -46,7 +46,7 @@ export function ActionReportDialog({ record, production, onClose }: { record: Ac
         <ul>{action.report.sources.map((source) => <li key={source}>{source}</li>)}</ul>
       </ReportSection>
       <ReportSection number={4} title="Required deliverables and verification"><ul>{action.report.deliverables.map((item) => <li key={item}>{item}</li>)}</ul><div className="capa-report-line"><strong>Acceptance criteria</strong><p>{action.report.verification}</p></div></ReportSection>
-      <ReportSection number={5} title="Handoff and review record"><div className="capa-report-line"><strong>Receiving team</strong><p>{action.owner}</p></div><div className="capa-report-line"><strong>Review / approval</strong><p>Reviewer name, review date and approval reference are not recorded in this snapshot.</p></div><div className="capa-report-line"><strong>Return to operator</strong><p>Return the assessment and supporting records against action {action.id}. Exporting this report does not complete or approve the action.</p></div></ReportSection>
+      <ReportSection number={5} title="Handoff and review record"><div className="capa-report-line"><strong>Receiving team</strong><p>{action.owner}</p></div><div className="capa-report-line"><strong>Review / approval</strong><p>Reviewer name, review date and approval reference are not recorded in this snapshot.</p></div><div className="capa-report-line"><strong>Return to operator</strong><p>Return the assessment and supporting records against action {action.id}. Exporting this report does not complete or approve the action.</p></div><div className="capa-report-line"><strong>Execution and closure</strong><p>{issue.investigationAvailable ? 'The equipment investigation links to a separate CA/PA plan. Track execution there, review recovery evidence, then record effectiveness approval before closure. This handoff status does not override the CA/PA action status.' : 'No linked CA/PA plan is available for this issue. Establish the supporting assessment before creating corrective or preventive work.'}</p>{onOpenTracking && <button className="action-report-tracking-link" onClick={onOpenTracking}>Open linked CA/PA tracking and effectiveness review</button>}</div></ReportSection>
       <footer className="action-report-footnote"><span>{reportId} · Issue {issue.id}</span><span>Action scope: scenario register · production table: observed source where available</span></footer>
     </article>
   </dialog>, document.body);

@@ -149,15 +149,16 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
       </details>)}{!visibleIssues.length && <p className="portfolio-issue-empty">{query ? 'No issues match this search.' : 'No open issues in this plant scenario.'}</p>}</div>
     </section>
 
-    <section className="portfolio-card portfolio-ownership" aria-labelledby="portfolio-ownership-title"><header><div><span className="portfolio-section-kicker">Action tracking</span><h2 id="portfolio-ownership-title">Who does what next?</h2></div><span>{actions.length} actions</span></header>
+    <section className="portfolio-card portfolio-ownership" aria-labelledby="portfolio-ownership-title"><header><div><span className="portfolio-section-kicker">Action handoffs</span><h2 id="portfolio-ownership-title">Who does what next?</h2></div><span>{actions.length} assignments</span></header>
       {actions.map((action) => <button className="portfolio-owner-row" key={action.id} onClick={() => setReportActionId(action.id)} aria-haspopup="dialog" aria-label={`Open action report: ${action.title}`}><div><strong>{action.title}</strong><span>{action.owner} · View report</span></div><span className={`portfolio-status ${action.overdue ? 'high' : action.status === 'Verified' ? 'verified' : 'watch'}`}>{action.status}</span><div className={action.overdue ? 'portfolio-due is-overdue' : 'portfolio-due'}><strong>{action.due}</strong><span>{action.overdue ? 'Overdue at snapshot' : 'Due date'}</span></div></button>)}
       {!actions.length && <p className="portfolio-issue-empty">No actions assigned in this scenario.</p>}
+      {issues.some((issue) => issue.investigationAvailable) && <div className="portfolio-source-note"><span>Handoff register above · execution and formal closure remain in the linked CA/PA plan. Full-case review includes later repair evidence.</span><button onClick={() => onNavigate('actions')}>KO-3201 CA/PA tracking <Icon name="arrow" /></button></div>}
     </section>
 
     <details className="portfolio-card portfolio-data-coverage"><summary><div><span className="portfolio-section-kicker">Connected data</span><strong>Five source views. One operating picture.</strong><span>Production · Energy · HSE · Equipment · Follow-up</span></div><span className="portfolio-disclosure" aria-hidden="true">+</span></summary>
       <div className="portfolio-source-grid">{overview.sources.map((source) => <div key={source.name}><strong>{source.name}</strong><span>{source.system}</span><b>{source.metric}</b><p>{source.basis}</p><small>{source.freshness}</small></div>)}</div>
       <div className="portfolio-source-note"><span>Scope: {overview.assetCount} monitored assets · new metrics and issue records use one aligned demo fixture.</span><button onClick={() => onNavigate('data')}>View source mapping <Icon name="arrow" /></button></div>
     </details>
-    {actionReport && <ActionReportDialog record={actionReport} production={plantRate.data} onClose={() => setReportActionId(null)} />}
+    {actionReport && <ActionReportDialog record={actionReport} production={plantRate.data} onClose={() => setReportActionId(null)} onOpenTracking={actionReport.issue.investigationAvailable ? () => { setReportActionId(null); onNavigate('actions'); } : undefined} />}
   </div>;
 }
