@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 
-export type SidebarIconName = 'home' | 'problem' | 'asset' | 'rca' | 'action' | 'data';
+export type SidebarIconName = 'home' | 'plant' | 'problem' | 'asset' | 'rca' | 'action' | 'data';
 
 const paths: Record<SidebarIconName, ReactNode> = {
   home: <path d="m4 11 8-7 8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/>,
+  plant: <><path d="M3 18h18M5 18V8h5v10M14 18V4h5v14"/><path d="M5 11h5M14 8h5M2 8h3M10 13h4M19 7h3"/></>,
   problem: <path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3M8 15h8"/>,
   asset: <><circle cx="12" cy="6" r="3"/><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="m10 9-2.5 5M14 9l2.5 5M9 17h6"/></>,
   rca: <path d="M4 19V5M4 19h16M7 15l4-5 3 3 5-7"/>,

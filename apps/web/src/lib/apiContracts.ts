@@ -111,6 +111,16 @@ export interface TelemetrySeries {
   points: TelemetryPoint[];
 }
 
+export interface PlantRateSeries {
+  plant_id: string;
+  unit: 't/h';
+  aggregation: 'DAILY_MEAN_INCLUDING_OFFLINE';
+  source_key: string;
+  source_reference: string;
+  source_rows: number;
+  points: Array<{ date: string; average_rate_tph: number; sample_count: number }>;
+}
+
 export interface AlertEvent {
   alert_id: string;
   asset_id: string;
@@ -282,19 +292,37 @@ export interface AlertDetail {
   } | null;
 }
 
+export interface InvestigationEvidenceEvent {
+  event_id: string;
+  occurred_at: string;
+  kind: 'SENSOR' | 'LAB' | 'INSPECTION' | 'ACTION';
+  title: string;
+  detail: string;
+  source_reference: string;
+  source_grade: string;
+}
+
 export interface InvestigationEvidenceProgress {
   alert_id: string;
   as_of: string;
   stage: 'PROBABLE' | 'CONTAMINATION_SUPPORTED' | 'CAUSE_REPORTED' | 'REPAIR_REPORTED';
   summary: string;
-  events: Array<{
-    event_id: string;
-    occurred_at: string;
-    kind: 'SENSOR' | 'LAB' | 'INSPECTION' | 'ACTION';
+  decision_gate: string;
+  events: InvestigationEvidenceEvent[];
+  causal_path: Array<{
+    link_id: string;
+    label: string;
+    state: 'HYPOTHESIS' | 'MONITORED_TREND' | 'RCA_REPORTED';
+    source_event: InvestigationEvidenceEvent | null;
+  }>;
+  explanations: Array<{
+    explanation_id: string;
     title: string;
-    detail: string;
-    source_reference: string;
-    source_grade: string;
+    starting_basis: string;
+    state: 'OPEN' | 'SUPPORTED' | 'WEAKENED' | 'MIXED';
+    supporting_events: InvestigationEvidenceEvent[];
+    challenging_events: InvestigationEvidenceEvent[];
+    next_check: string;
   }>;
   next_event_at: string | null;
 }

@@ -1,0 +1,58 @@
+policy_id: ko-3201-rca-case-v1
+
+stages:
+  - id: PROBABLE
+    requires: []
+    summary: The condition trend supports a lubrication-contamination hypothesis. No post-alert oil sample or cooler inspection is available yet.
+    decision: Keep cooler ingress, primary bearing damage, and process upset as competing explanations. Obtain an independent oil sample and preserve as-found equipment evidence.
+  - id: CONTAMINATION_SUPPORTED
+    requires: [evidence-ko-003]
+    summary: The RCA reports an oil sample with 1,800 ppm water. Contamination is supported, but its entry point is not yet confirmed at this time.
+    decision: Verify the original lab result and inspect the cooler and bearing before accepting a physical root cause.
+  - id: CAUSE_REPORTED
+    requires: [evidence-ko-004, evidence-ko-005]
+    summary: The RCA reports bearing babbitt distress and a cooler-tube leak. The underlying inspection sheets were not supplied.
+    decision: The cooler-ingress path is source-reported, not independently verified here. The weekly condition row states 1.078 barg while the RCA states 1.8 barg; reconcile these before using pressure as proof.
+  - id: REPAIR_REPORTED
+    requires: [action-ko-001, action-ko-002]
+    summary: The RCA records bearing replacement, oil-system flushing, and cooler repair. Post-restart condition readings now test whether recovery holds.
+    decision: Keep cause acceptance and repair completion separate from effectiveness. Review post-restart water, vibration, pressure, and temperature trends before closure.
+
+causal_path:
+  - id: cooler_ingress
+    suspected: Possible water ingress through the oil cooler
+    reported: Cooler-tube leak reported at inspection
+    report_event_id: evidence-ko-005
+  - id: water_contamination
+    suspected: Water-in-oil trend detected
+    reported: Oil sample reported at 1,800 ppm water
+    opening_signal: water_in_oil
+    report_event_id: evidence-ko-003
+  - id: bearing_distress
+    suspected: Bearing damage remains to be inspected
+    reported: DE journal-bearing distress reported
+    report_event_id: evidence-ko-004
+  - id: vibration_trip
+    suspected: Escalating vibration could lead to trip
+    reported: High-high vibration trip reported
+    report_event_id: evidence-ko-002
+
+explanations:
+  - id: cooler_ingress
+    title: Cooler-origin lubrication contamination
+    starting_basis: Water-in-oil led the monitored degradation before the broader bearing response.
+    supporting_event_ids: [evidence-ko-003, evidence-ko-005, evidence-ko-004]
+    challenging_event_ids: []
+    next_check: Retrieve the original oil report, cooler leak-test sheet, and bearing as-found inspection.
+  - id: primary_bearing
+    title: Primary bearing defect
+    starting_basis: Bearing damage could independently explain the later temperature and vibration rise.
+    supporting_event_ids: [evidence-ko-004]
+    challenging_event_ids: [evidence-ko-003, evidence-ko-005]
+    next_check: Compare bearing as-found damage and wear debris against the earlier water trend.
+  - id: process_surge
+    title: Process surge
+    starting_basis: Surge can be considered when compressor vibration rises, but the alert alone does not establish it.
+    supporting_event_ids: []
+    challenging_event_ids: [evidence-ko-006]
+    next_check: Review the original anti-surge trend and valve-position record.

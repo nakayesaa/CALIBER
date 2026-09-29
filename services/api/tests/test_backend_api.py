@@ -88,6 +88,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     catalog.mkdir(parents=True)
     for name in [
         "ko_3201_rca_generation.yaml",
+        "ko_3201_rca_case.yaml",
         "ko_3201_action_policy.yaml",
         "ko_3201_production_impact.yaml",
         "ko_3201_feature_config.yaml",
@@ -192,11 +193,15 @@ def test_investigation_evidence_respects_replay_time(client: TestClient) -> None
     assert warning.json()["stage"] == "PROBABLE"
     assert warning.json()["events"] == []
     assert "confirmed" not in warning.json()["summary"].lower()
+    assert warning.json()["causal_path"][1]["state"] == "MONITORED_TREND"
+    assert warning.json()["explanations"][0]["state"] == "OPEN"
 
     sample = client.get(path, params={"as_of": "2026-04-29T08:10:00+07:00"})
     assert sample.json()["stage"] == "CONTAMINATION_SUPPORTED"
     assert "evidence-ko-003" in {event["event_id"] for event in sample.json()["events"]}
     assert "evidence-ko-005" not in {event["event_id"] for event in sample.json()["events"]}
+    assert sample.json()["causal_path"][0]["state"] == "HYPOTHESIS"
+    assert sample.json()["explanations"][0]["state"] == "SUPPORTED"
 
     inspection = client.get(path, params={"as_of": "2026-04-29T18:00:00+07:00"})
     assert inspection.json()["stage"] == "CAUSE_REPORTED"
@@ -205,6 +210,9 @@ def test_investigation_evidence_respects_replay_time(client: TestClient) -> None
         if event["event_id"] == "evidence-ko-005"
     )
     assert cooler["source_grade"] == "B_SOURCE_REPORT"
+    assert inspection.json()["causal_path"][0]["state"] == "RCA_REPORTED"
+    assert inspection.json()["explanations"][1]["state"] == "MIXED"
+    assert inspection.json()["explanations"][2]["state"] == "WEAKENED"
 
     repaired = client.get(path, params={"as_of": "2026-04-30T14:40:00+07:00"})
     assert repaired.json()["stage"] == "REPAIR_REPORTED"

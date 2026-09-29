@@ -16,6 +16,7 @@ from services.api.app.schemas.api import (
     AssetOverview,
     AssetSummary,
     InvestigationEvidenceProgress,
+    PlantRateSeries,
     RCAGenerateRequest,
     RCAStatusUpdate,
     SystemStatus,
@@ -163,6 +164,20 @@ def asset_telemetry(
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
+@router.get(
+    "/assets/{asset_id}/production-rate",
+    response_model=PlantRateSeries,
+    tags=["assets"],
+)
+def asset_production_rate(asset_id: str, backend: Backend) -> PlantRateSeries:
+    try:
+        return backend.plant_rate_daily(asset_id)
+    except ArtifactNotFoundError as error:
+        raise not_found(error) from error
+    except (ValueError, TypeError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
 @router.get("/alerts", response_model=list[AlertEvent], tags=["alerts"])
 def list_alerts(backend: Backend, asset_id: str | None = None) -> list[AlertEvent]:
     try:
@@ -189,7 +204,7 @@ def alert_detail(alert_id: str, backend: Backend) -> AlertDetail:
     tags=["rca"],
 )
 def investigation_evidence(
-    alert_id: str, as_of: datetime, backend: Backend
+    alert_id: str, backend: Backend, as_of: datetime | None = None
 ) -> InvestigationEvidenceProgress:
     try:
         return backend.investigation_evidence(alert_id, as_of)

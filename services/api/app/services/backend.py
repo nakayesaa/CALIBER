@@ -19,6 +19,7 @@ from services.api.app.schemas.api import (
     AssetOverview,
     AssetSummary,
     InvestigationEvidenceProgress,
+    PlantRateSeries,
     PreparedWorkflow,
     ProductionImpact,
     SystemStatus,
@@ -45,6 +46,7 @@ from services.api.app.services.demo.prepared_workflow import build_prepared_work
 from services.api.app.services.driver_analysis import DriverAnalysisService
 from services.api.app.services.effectiveness import build_effectiveness_review
 from services.api.app.services.production_impact import load_production_impact_policy
+from services.api.app.services.rca.case_assessment import assess_case, load_case_policy
 from services.api.app.services.rca.generation import (
     OpenAIRCAProvider,
     RCAProvider,
@@ -146,6 +148,9 @@ class BackendService:
     ) -> TelemetrySeries:
         return self.repository.telemetry(asset_id, start, end, max_points)
 
+    def plant_rate_daily(self, asset_id: str) -> PlantRateSeries:
+        return self.repository.plant_rate_daily(asset_id)
+
     def list_alerts(self, asset_id: str | None = None) -> list[AlertEvent]:
         alerts = self.repository.list_alerts()
         return [alert for alert in alerts if alert.asset_id == asset_id] if asset_id else alerts
@@ -167,50 +172,17 @@ class BackendService:
         )
 
     def investigation_evidence(
-        self, alert_id: str, as_of: datetime
+        self, alert_id: str, as_of: datetime | None = None
     ) -> InvestigationEvidenceProgress:
         alert = self.repository.get_alert(alert_id)
         current_time = self._aware_time(as_of)
         if current_time < datetime.fromisoformat(alert.opened_at):
             raise ValueError("Evidence replay cannot precede the alert opening")
         events = self.repository.investigation_events(alert)
-        visible = [event for event in events if event.occurred_at <= current_time]
-        visible_ids = {event.event_id for event in visible}
-        if {"action-ko-001", "action-ko-002"} <= visible_ids:
-            stage = "REPAIR_REPORTED"
-            summary = (
-                "The RCA records bearing replacement, oil-system flushing, and cooler "
-                "repair. Post-restart condition readings now test whether recovery holds."
-            )
-        elif {"evidence-ko-004", "evidence-ko-005"} <= visible_ids:
-            stage = "CAUSE_REPORTED"
-            summary = (
-                "The RCA reports bearing babbitt distress and a confirmed cooler-tube "
-                "leak. The underlying inspection sheets were not supplied."
-            )
-        elif "evidence-ko-003" in visible_ids:
-            stage = "CONTAMINATION_SUPPORTED"
-            summary = (
-                "The RCA reports an oil sample with 1,800 ppm water. Contamination is "
-                "supported, but its entry point is not yet confirmed at this time."
-            )
-        else:
-            stage = "PROBABLE"
-            summary = (
-                "The condition trend supports a lubrication-contamination hypothesis. "
-                "No post-alert oil sample or cooler inspection is available yet."
-            )
-        next_event = next(
-            (event.occurred_at for event in events if event.occurred_at > current_time),
-            None,
-        )
-        return InvestigationEvidenceProgress(
-            alert_id=alert_id,
-            as_of=current_time,
-            stage=stage,
-            summary=summary,
-            events=visible,
-            next_event_at=next_event,
+        policy = load_case_policy(self.root / "data/catalog/ko_3201_rca_case.yaml")
+        opening = self.repository.get_opening_snapshot(alert)
+        return assess_case(
+            alert_id, current_time, events, set(opening["breached_signals"]), policy
         )
 
     def similar_incidents(self, alert_id: str) -> list[IncidentRetrievalResult]:

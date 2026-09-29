@@ -6,7 +6,7 @@ import { Icon } from '../components/Icon';
 import { SignalChart, type ChartTimeWindow, type ChartWindowTone } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type AlertEvent, type AssetOverview, type DriverAnalysis, type EffectivenessReview, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type AlertEvent, type AssetOverview, type DriverAnalysis, type TelemetrySeries } from '../lib/api';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { contributionForField, contributionRank } from '../lib/driverAnalysis';
@@ -30,22 +30,20 @@ interface OverviewData {
   alerts: AlertEvent[];
   alertDetails: AlertDetail[];
   detail: AlertDetail | null;
-  effectiveness: EffectivenessReview;
   driverAnalysis: DriverAnalysis | null;
 }
 
 async function loadOverview(): Promise<OverviewData> {
-  const [overview, telemetry, alerts, effectiveness] = await Promise.all([
+  const [overview, telemetry, alerts] = await Promise.all([
     api.assetOverview(PRIMARY_ASSET_ID),
     api.telemetry(PRIMARY_ASSET_ID, 5000),
     api.alerts(PRIMARY_ASSET_ID),
-    api.effectiveness(PRIMARY_ASSET_ID),
   ]);
   const [alertDetails, driverAnalysis] = await Promise.all([
     Promise.all(alerts.map((alert) => api.alertDetail(alert.alert_id))),
     alerts[0] ? api.driverAnalysis(alerts[0].alert_id) : Promise.resolve(null),
   ]);
-  return { overview, telemetry, alerts, alertDetails, detail: alertDetails[0] ?? null, effectiveness, driverAnalysis };
+  return { overview, telemetry, alerts, alertDetails, detail: alertDetails[0] ?? null, driverAnalysis };
 }
 
 interface ProgressionSelection {
@@ -62,7 +60,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
 
-  const { overview, telemetry, alerts, alertDetails, detail, effectiveness, driverAnalysis } = resource.data;
+  const { overview, telemetry, alerts, alertDetails, detail, driverAnalysis } = resource.data;
   const productionImpact = overview.production_impact;
   const alert = alerts[0];
   const eventAnchor = productionImpact?.window_start ?? alert?.peak_score_at;
@@ -85,10 +83,8 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
     ? workflowView(detail)
     : { rca: null, actionPlans: [] };
   const actions = plans.flatMap((plan) => plan.actions);
-  const activeAction = actions.find((action) => action.status === 'IN_PROGRESS') ?? actions.find((action) => action.status !== 'CLOSED');
   const correctiveAction = actions.find((action) => action.action_type === 'CORRECTIVE');
   const preventiveAction = actions.find((action) => action.action_type === 'PREVENTIVE');
-  const improvedSignals = effectiveness.metrics.filter((metric) => metric.outcome === 'IMPROVED').length;
   const confidence = Math.round((rca?.generation.hypotheses[0]?.confidence ?? 0) * 100);
 
   const availableSignals: readonly EquipmentSignal[] = signalMode === 'condition' ? conditionSignals : operatingSignals;
@@ -118,7 +114,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
     <section className="overview-main-grid">
       <article className="overview-health-card">
         <header>
-          <div><span className="overview-title-icon"><Icon name="pulse"/></span><div><h2>Equipment health trajectory</h2><p>KO-3201 · {detectionFocused ? `${formatSignal(detectionHours)} h detection evidence` : healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
+          <div><div><h2>Equipment health trajectory</h2><p>KO-3201 · {detectionFocused ? `${formatSignal(detectionHours)} h detection evidence` : healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
           <div className="overview-health-controls"><TraceButton traceId="health-trajectory">View sources</TraceButton><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{healthRanges.map((range) => <button className={healthRange === range.value ? 'active' : ''} disabled={range.value === 'DETECTION' && !detectionWindow} key={range.value} onClick={() => setHealthRange(range.value)}>{range.label}</button>)}</nav></div>
         </header>
         <div className="overview-health-body">
@@ -190,7 +186,6 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
           <header><div><span>CA/PA progress</span><b>{humanize(plans[0]?.status ?? 'Pending')}</b></div><div className="overview-card-actions"><TraceButton traceId="capa-plan">Sources</TraceButton><button onClick={() => onNavigate('actions')} aria-label="Open CA/PA tracker"><Icon name="arrow"/></button></div></header>
           <div className="overview-capa-row"><span>Corrective</span><div><strong>{correctiveAction?.title ?? 'Awaiting approved RCA'}</strong><small>{correctiveAction?.owner_role ?? 'Unassigned'}</small></div><b>{humanize(correctiveAction?.status ?? 'Pending')}</b></div>
           <div className="overview-capa-row"><span>Preventive</span><div><strong>{preventiveAction?.title ?? 'Awaiting approved RCA'}</strong><small>{preventiveAction?.owner_role ?? 'Unassigned'}</small></div><b>{humanize(preventiveAction?.status ?? 'Pending')}</b></div>
-          <footer className="overview-recovery-footer"><span>Recovery evidence</span><strong>{effectiveness.recovery_confirmed ? `${improvedSignals}/${effectiveness.metrics.length} signals improved · ${effectiveness.monitoring_periods} normal weeks` : activeAction?.title ?? 'Review post-action evidence'}</strong></footer>
         </section>
       </article>
     </section>
@@ -200,7 +195,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
 }
 
 function ScheduleEvent({ title, detail, date, status, meta, tone, onClick }: { title: string; detail: string; date: string; status: string; meta: string; tone: string; onClick: () => void }) {
-  return <article className="overview-schedule-event"><div><h3>{title}</h3><button onClick={onClick} aria-label={`Inspect ${title}`}><Icon name="arrow"/></button></div><p>{detail}</p><footer><span className={tone}>{status}</span><b>{meta}</b><time>{date}</time></footer></article>;
+  return <article className="overview-schedule-event"><h3><button onClick={onClick} aria-label={`Inspect ${title}`}>{title}</button></h3><p>{detail}</p><footer><span className={tone}>{status}</span><b>{meta}</b><time>{date}</time></footer></article>;
 }
 
 function signedSignal(value: number): string {

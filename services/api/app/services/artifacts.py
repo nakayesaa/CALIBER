@@ -16,6 +16,8 @@ from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
 from services.api.app.schemas.api import (
     AssetSummary,
     InvestigationEvidenceEvent,
+    PlantRateDailyPoint,
+    PlantRateSeries,
     ProductionImpact,
     TelemetryPoint,
     TelemetrySeries,
@@ -68,6 +70,38 @@ class KO3201ArtifactRepository:
         if len(matches) != 1:
             raise ArtifactNotFoundError(f"Asset not found: {asset_id}")
         return matches[0]
+
+    def plant_rate_daily(self, asset_id: str) -> PlantRateSeries:
+        asset = self.get_asset(asset_id)
+        frame = self._read_csv("data/normalized/ko_3201/production_observations.csv")
+        hourly = frame.loc[
+            frame["asset_id"].eq(asset_id)
+            & frame["metric_name"].eq("plant_rate")
+            & frame["source_type"].eq("OBSERVED_ANCHOR")
+        ].copy()
+        if hourly.empty:
+            raise ArtifactNotFoundError(f"Observed plant rate not found for asset: {asset_id}")
+        hourly["timestamp"] = pd.to_datetime(hourly["timestamp"], errors="raise")
+        if hourly["timestamp"].duplicated().any():
+            raise ValueError("Observed plant rate has duplicate timestamps")
+        hourly["day"] = hourly["timestamp"].dt.date
+        daily = hourly.groupby("day", sort=True)["value"].agg(["mean", "count"])
+        return PlantRateSeries(
+            plant_id=asset.plant_id,
+            unit="t/h",
+            aggregation="DAILY_MEAN_INCLUDING_OFFLINE",
+            source_key="production_ko_3201",
+            source_reference="production_data_ko_3201.xlsx#Sheet2!PLANT_RATE",
+            source_rows=len(hourly),
+            points=[
+                PlantRateDailyPoint(
+                    date=day,
+                    average_rate_tph=float(row["mean"]),
+                    sample_count=int(row["count"]),
+                )
+                for day, row in daily.iterrows()
+            ],
+        )
 
     def list_alerts(self) -> list[AlertEvent]:
         frame = self._read_csv("data/alerts/ko_3201/v1/alerts.csv")

@@ -12,6 +12,7 @@ import type {
   DriverAnalysis,
   EffectivenessReview,
   InvestigationEvidenceProgress,
+  PlantRateSeries,
   RCARecord,
   SystemStatus,
   TelemetrySeries,
@@ -46,11 +47,12 @@ export const api = {
     if (end) query.set('end', end);
     return request<TelemetrySeries>(`/assets/${assetId}/telemetry?${query}`);
   },
+  plantRate: (assetId: string) => request<PlantRateSeries>(`/assets/${assetId}/production-rate`),
   alerts: (assetId?: string) =>
     request<AlertEvent[]>(`/alerts${assetId ? `?asset_id=${assetId}` : ''}`),
   alertDetail: (alertId: string) => request<AlertDetail>(`/alerts/${alertId}`),
-  investigationEvidence: (alertId: string, asOf: string) =>
-    request<InvestigationEvidenceProgress>(`/alerts/${alertId}/investigation-evidence?${new URLSearchParams({ as_of: asOf })}`),
+  investigationEvidence: (alertId: string, asOf?: string) =>
+    request<InvestigationEvidenceProgress>(`/alerts/${alertId}/investigation-evidence${asOf ? `?${new URLSearchParams({ as_of: asOf })}` : ''}`),
   driverAnalysis: (alertId: string, timestamp?: string) => {
     const query = timestamp ? `?${new URLSearchParams({ timestamp })}` : '';
     return request<DriverAnalysis>(`/alerts/${alertId}/driver-analysis${query}`);

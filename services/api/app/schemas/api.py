@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
@@ -106,6 +106,22 @@ class TelemetrySeries(APIModel):
     points: list[TelemetryPoint]
 
 
+class PlantRateDailyPoint(APIModel):
+    date: date
+    average_rate_tph: float
+    sample_count: int
+
+
+class PlantRateSeries(APIModel):
+    plant_id: str
+    unit: Literal["t/h"]
+    aggregation: Literal["DAILY_MEAN_INCLUDING_OFFLINE"]
+    source_key: str
+    source_reference: str
+    source_rows: int
+    points: list[PlantRateDailyPoint]
+
+
 class PreparedWorkflow(APIModel):
     rca: RCARecord
     action_plans: list[ActionPlan]
@@ -131,12 +147,32 @@ class InvestigationEvidenceEvent(APIModel):
     source_grade: str
 
 
+class RCACausalLink(APIModel):
+    link_id: str
+    label: str
+    state: Literal["HYPOTHESIS", "MONITORED_TREND", "RCA_REPORTED"]
+    source_event: InvestigationEvidenceEvent | None
+
+
+class RCAExplanationCheck(APIModel):
+    explanation_id: str
+    title: str
+    starting_basis: str
+    state: Literal["OPEN", "SUPPORTED", "WEAKENED", "MIXED"]
+    supporting_events: list[InvestigationEvidenceEvent]
+    challenging_events: list[InvestigationEvidenceEvent]
+    next_check: str
+
+
 class InvestigationEvidenceProgress(APIModel):
     alert_id: str
     as_of: AwareDatetime
     stage: Literal["PROBABLE", "CONTAMINATION_SUPPORTED", "CAUSE_REPORTED", "REPAIR_REPORTED"]
     summary: str
+    decision_gate: str
     events: list[InvestigationEvidenceEvent]
+    causal_path: list[RCACausalLink]
+    explanations: list[RCAExplanationCheck]
     next_event_at: AwareDatetime | None
 
 
