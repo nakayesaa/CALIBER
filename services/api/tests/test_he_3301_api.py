@@ -71,6 +71,42 @@ def test_he_review_and_action_plan_persist_in_separate_namespace(he_client):
     assert plan["selected_cause_category"] == "FOULING"
     assert len(plan["actions"]) == 3
     assert client.get(f"/api/v1/action-plans/{plan['plan_id']}").status_code == 200
+    action = next(item for item in plan["actions"] if item["action_type"] == "CORRECTIVE")
+    action_path = f"/api/v1/actions/{action['action_id']}"
+
+    def transition(state, person, evidence=None):
+        current = client.get(f"/api/v1/action-plans/{plan['plan_id']}").json()
+        record = next(item for item in current["actions"] if item["action_id"] == action["action_id"])
+        payload = {"status": state, "note": "Reviewed HE execution record",
+                   "expected_revision": record["revision"]}
+        if evidence is not None:
+            payload["evidence"] = evidence
+        return client.patch(f"{action_path}/status", json=payload,
+                            headers={"X-Caliber-Person": person})
+
+    approved = transition("APPROVED", "demo-supervisor")
+    assert approved.status_code == 200, approved.text
+    assigned = client.post(f"{action_path}/assignment", headers=SUPERVISOR, json={
+        "person_id": "demo-static", "due_date": "2026-10-01",
+        "expected_status": "APPROVED", "note": "Assign static equipment review",
+    })
+    assert assigned.status_code == 200, assigned.text
+    accepted = client.post(f"{action_path}/assignment/response",
+                           headers={"X-Caliber-Person": "demo-static"}, json={
+        "decision": "ACCEPT", "note": "Scope and access reviewed", "expected_revision": 1,
+    })
+    assert accepted.status_code == 200, accepted.text
+    requirements = [{"requirement": key, "disposition": "CONFIRMED",
+                     "reference": "he:approved-maintenance", "note": "Reviewed prerequisite"}
+                    for key in ["PROCEDURE", "AUTHORIZATION", "CHANGE_CONTROL"]]
+    started = transition("IN_PROGRESS", "demo-static", {"requirements": requirements})
+    assert started.status_code == 200, started.text
+    evidence = {"reference": "he:inspection-and-cleaning", "finding": "Repair acceptance documented"}
+    completed = transition("EFFECTIVENESS_REVIEW", "demo-static", evidence)
+    assert completed.status_code == 200, completed.text
+    assert transition("CLOSED", "demo-static", evidence).status_code == 403
+    closed = transition("CLOSED", "demo-reviewer", evidence)
+    assert closed.status_code == 200, closed.text
     ko = client.get("/api/v1/alerts/alert-asset-ko-3201-0001").json()
     assert ko["rca"] is None and not ko["action_plans"]
     root = client.app.state.backend.root

@@ -113,6 +113,7 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
   const [plannedRate, setPlannedRate] = useState('');
   const [reportActionId, setReportActionId] = useState<string | null>(null);
   const plantRate = useApiResource(PRIMARY_ASSET_ID, () => api.plantRate(PRIMARY_ASSET_ID));
+  const equipment = useApiResource('plant-equipment', () => api.assets());
   const zcuSource = selectedPlant === 'ZCU';
   const overview = selectPlantOverview(selectedPlant, plantRate.data ? 'ready' : plantRate.loading ? 'loading' : 'unavailable');
   const { plants: visiblePlants, actions, issues } = overview;
@@ -172,6 +173,11 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
     </div>
 
     <div className="portfolio-section-heading"><span>03 · Decisions & ownership</span><p>Start with the highest priority, then track the response.</p></div>
+    <section className="portfolio-card" aria-label="Integrated equipment evidence">
+      <header><div><span>Equipment evidence</span><h2>Investigate {selectedPlant} equipment</h2><p>Open each asset's own observed period. Plant-rate records remain source-specific.</p></div></header>
+      {equipment.error ? <p role="alert">{equipment.error}</p> : equipment.data?.filter((asset) => asset.plant_name.includes(selectedPlant)).map((asset) => <button key={asset.asset_id} onClick={() => navigate('overview', asset.asset_id)}>{asset.tag} · {asset.name} <Icon name="arrow" /></button>)}
+      <button onClick={() => onNavigate('assets')}>All equipment <Icon name="arrow" /></button>
+    </section>
     <section className="portfolio-card portfolio-issue-list" aria-labelledby="portfolio-issues-title">
       <header><div><span>Problem tank</span><h2 id="portfolio-issues-title">What needs a decision?</h2><p>Current scenario issues, ordered by severity. Expand to read the supporting rationale.</p></div><button onClick={() => onNavigate('problems')}>Problem tank <Icon name="arrow" /></button></header>
       <div className="portfolio-issue-tools"><label><Icon name="search"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search equipment or issue" aria-label="Search equipment or issue"/></label><span>{visibleIssues.length} {visibleIssues.length === 1 ? 'result' : 'results'}</span></div>
