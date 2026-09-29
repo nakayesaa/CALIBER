@@ -23,6 +23,7 @@ from services.api.app.schemas.api import (
     TelemetrySeries,
 )
 from services.api.app.schemas.canonical import EffectivenessCheck
+from services.api.app.schemas.coordination import CaseReview
 from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import (
     IncidentRetrievalResult,
@@ -113,6 +114,14 @@ class KO3201ArtifactRepository:
         if len(matches) != 1:
             raise ArtifactNotFoundError(f"Alert not found: {alert_id}")
         return matches[0]
+
+    def case_review(self, alert_id: str) -> CaseReview:
+        self.get_alert(alert_id)
+        path = self._path(f"data/actions/cases/{alert_id}.json")
+        return self._read_model(path, CaseReview) if path.is_file() else CaseReview(alert_id=alert_id)
+
+    def save_case_review(self, case: CaseReview) -> None:
+        self._write_model(self._path(f"data/actions/cases/{case.alert_id}.json"), case)
 
     def get_alert_transitions(self, alert_id: str) -> list[AlertStateTransition]:
         frame = self._read_csv(

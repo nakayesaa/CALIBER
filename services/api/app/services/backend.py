@@ -25,6 +25,12 @@ from services.api.app.schemas.api import (
     SystemStatus,
     TelemetrySeries,
 )
+from services.api.app.schemas.coordination import (
+    CaseReview,
+    CrossCheckInput,
+    Participant,
+    ReviewInput,
+)
 from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.effectiveness import EffectivenessReview
 from services.api.app.schemas.rca import RCAGenerationConfig, RCARecord, RCAStatus
@@ -41,6 +47,7 @@ from services.api.app.services.actions.workflow import (
     update_plan_status,
 )
 from services.api.app.services.artifacts import KO3201ArtifactRepository
+from services.api.app.services.coordination import review_case, submit_case
 from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
 from services.api.app.services.demo.prepared_workflow import build_prepared_workflow
 from services.api.app.services.driver_analysis import DriverAnalysisService
@@ -271,6 +278,21 @@ class BackendService:
 
     def get_action_plan(self, plan_id: str) -> ActionPlan:
         return self.repository.get_action_plan(plan_id)
+
+    def case_review(self, alert_id: str) -> CaseReview:
+        return self.repository.case_review(alert_id)
+
+    def submit_cross_check(self, alert_id: str, data: CrossCheckInput, person: Participant) -> CaseReview:
+        with self._mutation_lock:
+            changed = submit_case(self.case_review(alert_id), data, person, self._aware_time(None))
+            self.repository.save_case_review(changed)
+            return changed
+
+    def review_cross_check(self, alert_id: str, data: ReviewInput, person: Participant) -> CaseReview:
+        with self._mutation_lock:
+            changed = review_case(self.case_review(alert_id), data, person, self._aware_time(None))
+            self.repository.save_case_review(changed)
+            return changed
 
     def transition_action(
         self,

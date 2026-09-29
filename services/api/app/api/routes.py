@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Annotated
 
@@ -22,6 +23,13 @@ from services.api.app.schemas.api import (
     SystemStatus,
     TelemetrySeries,
 )
+from services.api.app.schemas.coordination import (
+    CaseReview,
+    CrossCheckInput,
+    Participant,
+    ReviewInput,
+    WorkflowSession,
+)
 from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.effectiveness import EffectivenessReview
 from services.api.app.schemas.rca import RCARecord
@@ -31,13 +39,14 @@ from services.api.app.schemas.traceability import (
     DataSourceSummary,
     TraceClaim,
 )
-from services.api.app.security import Principal
+from services.api.app.security import Principal, WriteMode
 from services.api.app.services.artifacts import ArtifactNotFoundError
 from services.api.app.services.backend import (
     BackendService,
     LLMConfigurationError,
     LLMGenerationError,
 )
+from services.api.app.services.coordination import PARTICIPANTS, participant
 from services.api.app.services.traceability import TraceabilityNotFoundError
 
 router = APIRouter(prefix="/api/v1")
@@ -58,6 +67,62 @@ def get_mutation_principal(
 
 
 MutationPrincipal = Annotated[Principal, Depends(get_mutation_principal)]
+
+
+def selected_participant(request: Request, selected: str | None) -> Participant:
+    # ponytail: local demo switching only; bearer identity remains server-configured.
+    configured = os.getenv("CALIBER_WORKFLOW_PERSON_ID", "demo-operator")
+    local = request.app.state.write_authorizer.mode == WriteMode.LOCAL
+    if not local and selected is not None and selected != configured:
+        raise HTTPException(status_code=403, detail="Workflow identity is fixed by the server")
+    try:
+        return participant(selected if local and selected else configured)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+
+def get_workflow_participant(request: Request, _principal: MutationPrincipal, x_caliber_person: Annotated[str | None, Header(max_length=160)] = None) -> Participant:
+    return selected_participant(request, x_caliber_person)
+
+
+WorkflowParticipant = Annotated[Participant, Depends(get_workflow_participant)]
+
+
+@router.get("/workflow/session", response_model=WorkflowSession, tags=["workflow"])
+def workflow_session(request: Request, x_caliber_person: Annotated[str | None, Header(max_length=160)] = None) -> WorkflowSession:
+    return WorkflowSession(current=selected_participant(request, x_caliber_person), participants=PARTICIPANTS, can_switch=request.app.state.write_authorizer.mode == WriteMode.LOCAL)
+
+
+@router.get("/alerts/{alert_id}/cross-check", response_model=CaseReview, tags=["workflow"])
+def get_cross_check(alert_id: str, backend: Backend) -> CaseReview:
+    try:
+        return backend.case_review(alert_id)
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.post("/alerts/{alert_id}/cross-check", response_model=CaseReview, tags=["workflow"])
+def submit_cross_check(alert_id: str, payload: CrossCheckInput, backend: Backend, person: WorkflowParticipant) -> CaseReview:
+    try:
+        return backend.submit_cross_check(alert_id, payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.post("/alerts/{alert_id}/cross-check/review", response_model=CaseReview, tags=["workflow"])
+def review_cross_check(alert_id: str, payload: ReviewInput, backend: Backend, person: WorkflowParticipant) -> CaseReview:
+    try:
+        return backend.review_cross_check(alert_id, payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
 
 
 def not_found(error: FileNotFoundError) -> HTTPException:
