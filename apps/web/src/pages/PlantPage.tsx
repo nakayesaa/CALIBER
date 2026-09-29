@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { PageId } from '../components/AppShell';
 import { ActionReportDialog } from '../components/ActionReportDialog';
@@ -8,7 +8,7 @@ import { MetricSourceDisclosure } from '../components/MetricSourceDisclosure';
 import { api } from '../lib/api';
 import type { PlantRateSeries } from '../lib/apiContracts';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
-import { plantScenarios, performanceInsight, selectActionReport, selectPlantOverview, type PlantId, type PlantPerformance } from '../lib/plantOverviewDemoData';
+import { plantScenarios, performanceInsight, selectActionReport, selectPlantOverview, type FollowUpAction, type PlantId, type PlantPerformance } from '../lib/plantOverviewDemoData';
 import { metricSources, operatingBrief, performanceWindow, resourcePerformance, type MetricSource, type OverviewDays } from '../lib/plantPerformance';
 import { useApiResource, type ResourceState } from '../lib/useApiResource';
 
@@ -54,6 +54,35 @@ function DailyBars({ values, days, label, kind, drilldown }: { values: readonly 
 type ResourceMetrics = ReturnType<typeof resourcePerformance>;
 const formatted = (value: number | undefined, unit: string) => value === undefined ? 'Unavailable' : `${value.toLocaleString('en-GB', { maximumFractionDigits: 1 })} ${unit}`;
 const percent = (value: number | undefined) => value === undefined ? 'Unavailable' : `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+const actionStates = ['Open', 'In progress', 'Awaiting verification', 'Verified'] as const;
+
+function ActionProgress({ actions, plant, onOpenReport }: { actions: readonly FollowUpAction[]; plant: PlantId; onOpenReport: (id: string) => void }) {
+  const [selectedStatus, setSelectedStatus] = useState<FollowUpAction['status'] | null>(null);
+  const originButton = useRef<HTMLButtonElement>(null);
+  const backButton = useRef<HTMLButtonElement>(null);
+  const counts = actionStates.map((status) => actions.filter((action) => action.status === status).length);
+  const matching = actions.filter((action) => action.status === selectedStatus);
+
+  useEffect(() => {
+    if (selectedStatus) backButton.current?.focus({ preventScroll: true });
+    else originButton.current?.focus({ preventScroll: true });
+  }, [selectedStatus]);
+
+  return <div className={`portfolio-action-viewport${selectedStatus ? ' is-detail' : ''}`}>
+    <div className="portfolio-action-track">
+      <div className="portfolio-action-panel" aria-hidden={selectedStatus !== null} inert={selectedStatus !== null}>
+        <div className="portfolio-action-chart" role="group" aria-label="Action status breakdown">{actionStates.map((status, index) => <button key={status} type="button" aria-label={`Show ${status} actions`} onClick={(event) => { originButton.current = event.currentTarget; setSelectedStatus(status); }}><span>{status}</span><i><b className={`state-${index}`} style={{ width: `${counts[index] / Math.max(1, ...counts) * 100}%` }} /></i><strong>{counts[index]}</strong></button>)}</div>
+      </div>
+      <div className="portfolio-action-panel portfolio-action-detail" aria-hidden={selectedStatus === null} inert={selectedStatus === null}>
+        <div className="portfolio-action-detail-heading"><button ref={backButton} type="button" onClick={() => setSelectedStatus(null)}>← All statuses</button><strong>{selectedStatus}</strong><span>{matching.length} {matching.length === 1 ? 'action' : 'actions'}</span></div>
+        <div className="portfolio-action-items" role="list" aria-label={`${selectedStatus} actions in ${plant}`}>
+          {matching.map((action) => <div role="listitem" key={action.id}><button type="button" onClick={() => onOpenReport(action.id)} aria-label={`Open action report: ${action.title}`}><strong>{action.title}</strong><span>{action.owner} · {action.due}</span></button></div>)}
+          {!matching.length && <p>No {selectedStatus?.toLowerCase()} actions for {plant}.</p>}
+        </div>
+      </div>
+    </div>
+  </div>;
+}
 
 function PlantRateCard({ plant, window, metrics, resource, source }: { plant: PlantPerformance; window: ReturnType<typeof performanceWindow>; metrics: ResourceMetrics; resource: ResourceState<PlantRateSeries>; source: MetricSource }) {
   const latest = window.production.at(-1);
@@ -92,7 +121,6 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
   const { attention, downtime } = window;
   const sources = metricSources(plant, window, plantRate.data, actions.length, plannedRate.trim() ? Number(plannedRate) : undefined);
   const visibleIssues = issues.filter((item) => `${item.tag} ${item.title} ${item.plant} ${item.owner}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const actionStates = ['Open', 'In progress', 'Awaiting verification', 'Verified'] as const;
   const actionCounts = actionStates.map((status) => actions.filter((action) => action.status === status).length);
   const overdue = actions.filter((action) => action.overdue).length;
   const brief = operatingBrief(plant, metrics, downtime, issues, actions);
@@ -138,7 +166,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
       </ChartCard>
 
       <ChartCard source={sources.actions} eyebrow="Follow-up" title="Action progress" value={`${actionCounts[3]} / ${actions.length} verified`} note={actions.length ? `${overdue} overdue · ${actionCounts[2]} awaiting effectiveness verification.` : 'No follow-up actions for the selected plant in this snapshot.'}>
-        <div className="portfolio-action-chart">{actionStates.map((status, index) => <div key={status}><span>{status}</span><i><b className={`state-${index}`} style={{ width: `${actionCounts[index] / Math.max(1, ...actionCounts) * 100}%` }} /></i><strong>{actionCounts[index]}</strong></div>)}</div>
+        <ActionProgress key={selectedPlant} plant={selectedPlant} actions={actions} onOpenReport={setReportActionId} />
       </ChartCard>
     </div>
 
