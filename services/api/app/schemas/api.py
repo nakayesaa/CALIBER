@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from services.api.app.schemas.actions import ActionPlan, ActionStatus
 from services.api.app.schemas.alerts import AlertEvent, AlertStateTransition
+from services.api.app.schemas.coordination import ExecutionEvidenceInput
 from services.api.app.schemas.rca import RCARecord, RCAStatus
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
 
@@ -183,7 +184,7 @@ class RCAGenerateRequest(APIModel):
 class RCAStatusUpdate(APIModel):
     status: RCAStatus
     note: WorkflowNote
-    occurred_at: datetime | None = None
+    occurred_at: Literal[None] = None
 
 
 class ActionPlanCreateRequest(APIModel):
@@ -193,4 +194,6 @@ class ActionPlanCreateRequest(APIModel):
 class ActionStatusUpdate(APIModel):
     status: ActionStatus
     note: WorkflowNote
-    occurred_at: datetime | None = None
+    occurred_at: Literal[None] = None
+    evidence: ExecutionEvidenceInput | None = None
+    expected_revision: int = Field(default=0, ge=0)

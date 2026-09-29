@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
-from services.api.app.schemas.actions import ActionPlan, ActionStatus
+from services.api.app.schemas.actions import ActionItem, ActionPlan, ActionStatus
 from services.api.app.schemas.alerts import AlertEvent
 from services.api.app.schemas.api import (
     AlertDetail,
@@ -26,8 +26,11 @@ from services.api.app.schemas.api import (
     TelemetrySeries,
 )
 from services.api.app.schemas.coordination import (
+    AssignmentInput,
+    AssignmentResponse,
     CaseReview,
     CrossCheckInput,
+    ExecutionEvidenceInput,
     Participant,
     ReviewInput,
 )
@@ -47,7 +50,15 @@ from services.api.app.services.actions.workflow import (
     update_plan_status,
 )
 from services.api.app.services.artifacts import KO3201ArtifactRepository
-from services.api.app.services.coordination import review_case, submit_case
+from services.api.app.services.coordination import (
+    assign_action,
+    record_execution_evidence,
+    require_role,
+    require_verified,
+    respond_to_assignment,
+    review_case,
+    submit_case,
+)
 from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
 from services.api.app.services.demo.prepared_workflow import build_prepared_workflow
 from services.api.app.services.driver_analysis import DriverAnalysisService
@@ -173,9 +184,7 @@ class BackendService:
             similar_incidents=self.repository.get_similar_incidents(alert_id),
             rca=rca,
             action_plans=action_plans,
-            prepared_workflow=(
-                self._prepared_workflow(alert_id) if rca is None else None
-            ),
+            prepared_workflow=(self._prepared_workflow(alert_id) if rca is None else None),
         )
 
     def investigation_evidence(
@@ -188,9 +197,7 @@ class BackendService:
         events = self.repository.investigation_events(alert)
         policy = load_case_policy(self.root / "data/catalog/ko_3201_rca_case.yaml")
         opening = self.repository.get_opening_snapshot(alert)
-        return assess_case(
-            alert_id, current_time, events, set(opening["breached_signals"]), policy
-        )
+        return assess_case(alert_id, current_time, events, set(opening["breached_signals"]), policy)
 
     def similar_incidents(self, alert_id: str) -> list[IncidentRetrievalResult]:
         self.repository.get_alert(alert_id)
@@ -213,19 +220,12 @@ class BackendService:
                 return existing
             if mode == "ai" and not self._llm_ready():
                 raise LLMConfigurationError(
-                    "OpenAI RCA generation requires CALIBER_LLM_ENABLED=true "
-                    "and OPENAI_API_KEY"
+                    "OpenAI RCA generation requires CALIBER_LLM_ENABLED=true and OPENAI_API_KEY"
                 )
-            config = load_generation_config(
-                self.root / "data/catalog/ko_3201_rca_generation.yaml"
-            )
+            config = load_generation_config(self.root / "data/catalog/ko_3201_rca_generation.yaml")
             package = self.repository.get_evidence_package(alert_id)
             try:
-                provider = (
-                    self.provider_factory(config)
-                    if mode == "ai"
-                    else PreparedRCAProvider()
-                )
+                provider = self.provider_factory(config) if mode == "ai" else PreparedRCAProvider()
                 record = generate_rca_record(package, provider, config, requested_by)
             except Exception as error:
                 raise LLMGenerationError("RCA generation failed") from error
@@ -236,16 +236,19 @@ class BackendService:
         self,
         rca_id: str,
         status: RCAStatus,
-        actor: str,
+        person: Participant,
         note: str,
         occurred_at: datetime | None,
     ) -> RCARecord:
         with self._mutation_lock:
             record = self._require_rca_id(rca_id)
+            require_role(person, "SUPERVISOR")
+            if status == RCAStatus.APPROVED:
+                require_verified(self.case_review(record.alert_id))
             changed = transition_rca(
                 record,
                 status,
-                actor,
+                person.display_name,
                 note,
                 self._aware_time(occurred_at),
             )
@@ -256,14 +259,15 @@ class BackendService:
         self,
         rca_id: str,
         hypothesis_id: str,
+        person: Participant,
     ) -> ActionPlan:
         with self._mutation_lock:
             rca = self._require_rca_id(rca_id)
+            require_role(person, "SUPERVISOR")
             if rca.status != RCAStatus.APPROVED:
                 raise ValueError("Action plans require an approved RCA")
-            policy = load_action_policy(
-                self.root / "data/catalog/ko_3201_action_policy.yaml"
-            )
+            require_verified(self.case_review(rca.alert_id))
+            policy = load_action_policy(self.root / "data/catalog/ko_3201_action_policy.yaml")
             plan = build_action_plan(
                 rca,
                 hypothesis_id,
@@ -282,13 +286,17 @@ class BackendService:
     def case_review(self, alert_id: str) -> CaseReview:
         return self.repository.case_review(alert_id)
 
-    def submit_cross_check(self, alert_id: str, data: CrossCheckInput, person: Participant) -> CaseReview:
+    def submit_cross_check(
+        self, alert_id: str, data: CrossCheckInput, person: Participant
+    ) -> CaseReview:
         with self._mutation_lock:
             changed = submit_case(self.case_review(alert_id), data, person, self._aware_time(None))
             self.repository.save_case_review(changed)
             return changed
 
-    def review_cross_check(self, alert_id: str, data: ReviewInput, person: Participant) -> CaseReview:
+    def review_cross_check(
+        self, alert_id: str, data: ReviewInput, person: Participant
+    ) -> CaseReview:
         with self._mutation_lock:
             changed = review_case(self.case_review(alert_id), data, person, self._aware_time(None))
             self.repository.save_case_review(changed)
@@ -298,29 +306,66 @@ class BackendService:
         self,
         action_id: str,
         status: ActionStatus,
-        actor: str,
+        person: Participant,
         note: str,
         occurred_at: datetime | None,
+        evidence: ExecutionEvidenceInput | None = None,
+        expected_revision: int = 0,
+    ) -> ActionPlan:
+        def change(action: ActionItem, plan: ActionPlan) -> ActionItem:
+            if action.revision != expected_revision:
+                raise ValueError("Action changed; reload before recording a decision")
+            rca = self._require_rca_id(plan.rca_id)
+            require_verified(self.case_review(plan.alert_id))
+            if status in {ActionStatus.APPROVED, ActionStatus.REJECTED}:
+                require_role(person, "SUPERVISOR")
+            action = record_execution_evidence(
+                action, status, evidence, person, self._aware_time(None)
+            )
+            policy = load_action_policy(self.root / "data/catalog/ko_3201_action_policy.yaml")
+            return transition_action(
+                action,
+                status,
+                policy,
+                rca.status,
+                person.display_name,
+                note,
+                self._aware_time(occurred_at),
+            )
+
+        return self._change_action(action_id, change)
+
+    def delegate_action(
+        self, action_id: str, data: AssignmentInput, person: Participant
+    ) -> ActionPlan:
+        return self._change_action(
+            action_id,
+            lambda action, plan: assign_action(
+                action, data, person, self.case_review(plan.alert_id), self._aware_time(None)
+            ),
+        )
+
+    def respond_to_action(
+        self, action_id: str, data: AssignmentResponse, person: Participant
+    ) -> ActionPlan:
+        return self._change_action(
+            action_id,
+            lambda action, _plan: respond_to_assignment(
+                action, data, person, self._aware_time(None)
+            ),
+        )
+
+    def _change_action(
+        self, action_id: str, change: Callable[[ActionItem, ActionPlan], ActionItem]
     ) -> ActionPlan:
         with self._mutation_lock:
             plan = self.repository.find_action_plan(action_id)
-            rca = self._require_rca_id(plan.rca_id)
-            policy = load_action_policy(
-                self.root / "data/catalog/ko_3201_action_policy.yaml"
-            )
-            actions = []
-            for action in plan.actions:
-                if action.action_id == action_id:
-                    action = transition_action(
-                        action,
-                        status,
-                        policy,
-                        rca.status,
-                        actor,
-                        note,
-                        self._aware_time(occurred_at),
-                    )
-                actions.append(action)
+            actions = [
+                change(action, plan).model_copy(update={"revision": action.revision + 1})
+                if action.action_id == action_id
+                else action
+                for action in plan.actions
+            ]
             changed = update_plan_status(plan.model_copy(update={"actions": actions}))
             self.repository.save_action_plan(changed)
             return changed
@@ -347,9 +392,7 @@ class BackendService:
         generation_config = load_generation_config(
             self.root / "data/catalog/ko_3201_rca_generation.yaml"
         )
-        action_policy = load_action_policy(
-            self.root / "data/catalog/ko_3201_action_policy.yaml"
-        )
+        action_policy = load_action_policy(self.root / "data/catalog/ko_3201_action_policy.yaml")
         rca, plan = build_prepared_workflow(
             self.repository.get_evidence_package(alert_id),
             generation_config,

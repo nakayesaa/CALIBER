@@ -115,9 +115,7 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
         params={"max_points": 20},
     )
     alert_response = client.get(f"/api/v1/alerts/{ALERT_ID}")
-    effectiveness_response = client.get(
-        "/api/v1/assets/asset-ko-3201/effectiveness"
-    )
+    effectiveness_response = client.get("/api/v1/assets/asset-ko-3201/effectiveness")
     driver_response = client.get(f"/api/v1/alerts/{ALERT_ID}/driver-analysis")
 
     assert status_response.status_code == 200
@@ -146,16 +144,15 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     prepared = alert_response.json()["prepared_workflow"]
     assert prepared["rca"]["status"] == "APPROVED"
     assert prepared["action_plans"][0]["status"] == "IN_PROGRESS"
-    assert [
-        action["status"] for action in prepared["action_plans"][0]["actions"]
-    ] == ["CLOSED", "IN_PROGRESS", "APPROVED"]
-    assert [
-        transition["new_state"]
-        for transition in alert_response.json()["state_transitions"]
-    ] == ["WARNING", "HIGH", "CRITICAL", "CLOSED"]
-    assert alert_response.json()["opening_snapshot"]["breached_signals"] == [
-        "water_in_oil"
+    assert [action["status"] for action in prepared["action_plans"][0]["actions"]] == [
+        "CLOSED",
+        "IN_PROGRESS",
+        "APPROVED",
     ]
+    assert [
+        transition["new_state"] for transition in alert_response.json()["state_transitions"]
+    ] == ["WARNING", "HIGH", "CRITICAL", "CLOSED"]
+    assert alert_response.json()["opening_snapshot"]["breached_signals"] == ["water_in_oil"]
     assert effectiveness_response.status_code == 200
     effectiveness = effectiveness_response.json()
     assert effectiveness["result"] == "INITIAL_EFFECTIVE"
@@ -170,8 +167,7 @@ def test_read_models_cover_dashboard_drilldown(client: TestClient) -> None:
     assert driver_analysis["method"] == "GROUPED_COUNTERFACTUAL_BASELINE_REPLACEMENT"
     assert len(driver_analysis["contributions"]) == 4
     assert sum(
-        contribution["contribution_percent"]
-        for contribution in driver_analysis["contributions"]
+        contribution["contribution_percent"] for contribution in driver_analysis["contributions"]
     ) == pytest.approx(100.0, abs=0.01)
     assert driver_analysis["contributions"][0]["signal_key"] == "water_in_oil"
 
@@ -206,8 +202,7 @@ def test_investigation_evidence_respects_replay_time(client: TestClient) -> None
     inspection = client.get(path, params={"as_of": "2026-04-29T18:00:00+07:00"})
     assert inspection.json()["stage"] == "CAUSE_REPORTED"
     cooler = next(
-        event for event in inspection.json()["events"]
-        if event["event_id"] == "evidence-ko-005"
+        event for event in inspection.json()["events"] if event["event_id"] == "evidence-ko-005"
     )
     assert cooler["source_grade"] == "B_SOURCE_REPORT"
     assert inspection.json()["causal_path"][0]["state"] == "RCA_REPORTED"
@@ -236,6 +231,26 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
     live_detail = client.get(f"/api/v1/alerts/{ALERT_ID}").json()
     assert live_detail["rca"]["rca_id"] == rca["rca_id"]
     assert live_detail["prepared_workflow"] is None
+
+    assert (
+        client.post(
+            f"/api/v1/alerts/{ALERT_ID}/cross-check",
+            json={
+                "note": "Source checked",
+                "references": ["lab:oil-sample"],
+                "expected_revision": 0,
+            },
+        ).status_code
+        == 200
+    )
+    client.headers.update({"X-Caliber-Person": "demo-supervisor"})
+    assert (
+        client.post(
+            f"/api/v1/alerts/{ALERT_ID}/cross-check/review",
+            json={"decision": "VERIFIED", "note": "Source verified", "expected_revision": 1},
+        ).status_code
+        == 200
+    )
 
     blocked_plan = client.post(
         f"/api/v1/rca/{rca['rca_id']}/action-plans",
@@ -290,12 +305,161 @@ def test_rca_review_and_action_workflow(client: TestClient) -> None:
     )
     assert action_response.status_code == 200
     changed = next(
-        action
-        for action in action_response.json()["actions"]
-        if action["action_id"] == action_id
+        action for action in action_response.json()["actions"] if action["action_id"] == action_id
     )
     assert changed["status"] == "APPROVED"
-    assert changed["status_history"][0]["actor"] == "CALIBER Demo User"
+    assert changed["status_history"][0]["actor"] == "Demo SV-01 · Supervisor"
+
+    assigned = client.post(
+        f"/api/v1/actions/{action_id}/assignment",
+        json={
+            "person_id": "demo-reviewer",
+            "due_date": "2026-10-01",
+            "expected_status": "APPROVED",
+            "note": "Follow approved containment",
+        },
+    )
+    assert assigned.status_code == 200
+    assert (
+        client.patch(
+            f"/api/v1/actions/{action_id}/status",
+            json={"status": "IN_PROGRESS", "note": "Start", "expected_revision": 2},
+        ).status_code
+        == 403
+    )
+    client.headers.update({"X-Caliber-Person": "demo-reviewer"})
+    assert (
+        client.patch(
+            f"/api/v1/actions/{action_id}/status",
+            json={"status": "IN_PROGRESS", "note": "Start", "expected_revision": 2},
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            f"/api/v1/actions/{action_id}/assignment/response",
+            json={"decision": "ACCEPT", "note": "Scope accepted", "expected_revision": 1},
+        ).status_code
+        == 200
+    )
+    checks = [
+        {
+            "requirement": key,
+            "disposition": "CONFIRMED",
+            "reference": "procedure:001",
+            "note": "Reviewed documented prerequisite",
+        }
+        for key in ("PROCEDURE", "AUTHORIZATION", "CHANGE_CONTROL")
+    ]
+    path = f"/api/v1/actions/{action_id}/status"
+
+    def patch_action(path, json):
+        actions = client.get(f"/api/v1/alerts/{ALERT_ID}").json()["action_plans"][0]["actions"]
+        current = next(item for item in actions if item["action_id"] == action_id)
+        return client.patch(path, json={"expected_revision": current["revision"], **json})
+
+    assert patch_action(path, json={"status": "IN_PROGRESS", "note": "Start"}).status_code == 409
+    assert (
+        patch_action(
+            path,
+            json={
+                "status": "IN_PROGRESS",
+                "note": "Start approved work",
+                "evidence": {"requirements": checks},
+            },
+        ).status_code
+        == 200
+    )
+    assert (
+        patch_action(path, json={"status": "EFFECTIVENESS_REVIEW", "note": "Done"}).status_code
+        == 409
+    )
+    evidence = {
+        "reference": "maintenance:001",
+        "finding": "Oil result and operating decision documented",
+    }
+    assert (
+        patch_action(
+            path,
+            json={"status": "EFFECTIVENESS_REVIEW", "note": "Work completed", "evidence": evidence},
+        ).status_code
+        == 200
+    )
+    assert (
+        patch_action(
+            path, json={"status": "CLOSED", "note": "Self review", "evidence": evidence}
+        ).status_code
+        == 403
+    )
+    client.headers.update({"X-Caliber-Person": "demo-supervisor"})
+    assert patch_action(path, json={"status": "CLOSED", "note": "No evidence"}).status_code == 409
+    assert (
+        patch_action(
+            path,
+            json={
+                "status": "CLOSED",
+                "note": "Independent result accepted",
+                "evidence": evidence,
+                "occurred_at": "2026-01-01T00:00:00Z",
+            },
+        ).status_code
+        == 422
+    )
+    initial = client.get(f"/api/v1/alerts/{ALERT_ID}").json()["action_plans"][0]["actions"][0][
+        "revision"
+    ]
+    assert (
+        patch_action(
+            path,
+            json={
+                "status": "IN_PROGRESS",
+                "note": "More evidence needed",
+                "evidence": {"reference": "review:rework", "finding": "Result not yet stable"},
+            },
+        ).status_code
+        == 200
+    )
+    client.headers.update({"X-Caliber-Person": "demo-reviewer"})
+    assert (
+        patch_action(
+            path,
+            json={
+                "status": "EFFECTIVENESS_REVIEW",
+                "note": "Reworked",
+                "evidence": {"reference": "work:second", "finding": "Repeated check now stable"},
+            },
+        ).status_code
+        == 200
+    )
+    client.headers.update({"X-Caliber-Person": "demo-supervisor"})
+    assert (
+        client.patch(
+            path,
+            json={
+                "expected_revision": initial,
+                "status": "CLOSED",
+                "note": "Stale closure",
+                "evidence": evidence,
+            },
+        ).status_code
+        == 409
+    )
+    closed = patch_action(
+        path, json={"status": "CLOSED", "note": "Independent result accepted", "evidence": evidence}
+    )
+    assert closed.status_code == 200
+    record = next(item for item in closed.json()["actions"] if item["action_id"] == action_id)
+    assert record["completion"]["actor_id"] == "demo-reviewer"
+    assert record["verification"]["actor_id"] == "demo-supervisor"
+    assert [entry["outcome"] for entry in record["evidence_history"]] == [
+        "COMPLETED",
+        "REWORK_REQUIRED",
+        "COMPLETED",
+        "EFFECTIVE",
+    ]
+    assert record["evidence_history"][1]["reference"] == "review:rework"
+    reloaded = client.get(f"/api/v1/alerts/{ALERT_ID}").json()["action_plans"][0]["actions"][0]
+    assert reloaded["evidence_history"] == record["evidence_history"]
 
 
 def test_missing_resources_return_404(client: TestClient) -> None:
@@ -403,20 +567,14 @@ def test_bearer_mode_derives_workflow_identity_from_server_config(
 
 def test_traceability_connects_claims_to_governed_sources(client: TestClient) -> None:
     sources_response = client.get("/api/v1/data-sources")
-    impact_response = client.get(
-        "/api/v1/traceability/claims/production-shortfall"
-    )
+    impact_response = client.get("/api/v1/traceability/claims/production-shortfall")
     rca_response = client.get("/api/v1/traceability/claims/rca-indication")
-    recovery_response = client.get(
-        "/api/v1/traceability/claims/recovery-effectiveness"
-    )
+    recovery_response = client.get("/api/v1/traceability/claims/recovery-effectiveness")
 
     assert sources_response.status_code == 200
     sources = sources_response.json()
     assert len(sources) == 5
-    production = next(
-        source for source in sources if source["source_key"] == "production_ko_3201"
-    )
+    production = next(source for source in sources if source["source_key"] == "production_ko_3201")
     assert production["mapping_count"] == 7
     assert production["record_count"] == 720
 
@@ -435,10 +593,7 @@ def test_traceability_connects_claims_to_governed_sources(client: TestClient) ->
         "incident_database",
         "rca_ko_3201",
     }
-    assert any(
-        issue["flag"] == "SOURCE_DISAGREEMENT"
-        for issue in rca["quality_issues"]
-    )
+    assert any(issue["flag"] == "SOURCE_DISAGREEMENT" for issue in rca["quality_issues"])
     assert recovery_response.status_code == 200
     recovery = recovery_response.json()
     assert recovery["value"] == "Recovery confirmed"

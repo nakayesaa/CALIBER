@@ -24,6 +24,8 @@ from services.api.app.schemas.api import (
     TelemetrySeries,
 )
 from services.api.app.schemas.coordination import (
+    AssignmentInput,
+    AssignmentResponse,
     CaseReview,
     CrossCheckInput,
     Participant,
@@ -81,7 +83,11 @@ def selected_participant(request: Request, selected: str | None) -> Participant:
         raise HTTPException(status_code=403, detail=str(error)) from error
 
 
-def get_workflow_participant(request: Request, _principal: MutationPrincipal, x_caliber_person: Annotated[str | None, Header(max_length=160)] = None) -> Participant:
+def get_workflow_participant(
+    request: Request,
+    _principal: MutationPrincipal,
+    x_caliber_person: Annotated[str | None, Header(max_length=160)] = None,
+) -> Participant:
     return selected_participant(request, x_caliber_person)
 
 
@@ -89,8 +95,14 @@ WorkflowParticipant = Annotated[Participant, Depends(get_workflow_participant)]
 
 
 @router.get("/workflow/session", response_model=WorkflowSession, tags=["workflow"])
-def workflow_session(request: Request, x_caliber_person: Annotated[str | None, Header(max_length=160)] = None) -> WorkflowSession:
-    return WorkflowSession(current=selected_participant(request, x_caliber_person), participants=PARTICIPANTS, can_switch=request.app.state.write_authorizer.mode == WriteMode.LOCAL)
+def workflow_session(
+    request: Request, x_caliber_person: Annotated[str | None, Header(max_length=160)] = None
+) -> WorkflowSession:
+    return WorkflowSession(
+        current=selected_participant(request, x_caliber_person),
+        participants=PARTICIPANTS,
+        can_switch=request.app.state.write_authorizer.mode == WriteMode.LOCAL,
+    )
 
 
 @router.get("/alerts/{alert_id}/cross-check", response_model=CaseReview, tags=["workflow"])
@@ -102,7 +114,9 @@ def get_cross_check(alert_id: str, backend: Backend) -> CaseReview:
 
 
 @router.post("/alerts/{alert_id}/cross-check", response_model=CaseReview, tags=["workflow"])
-def submit_cross_check(alert_id: str, payload: CrossCheckInput, backend: Backend, person: WorkflowParticipant) -> CaseReview:
+def submit_cross_check(
+    alert_id: str, payload: CrossCheckInput, backend: Backend, person: WorkflowParticipant
+) -> CaseReview:
     try:
         return backend.submit_cross_check(alert_id, payload, person)
     except PermissionError as error:
@@ -114,7 +128,9 @@ def submit_cross_check(alert_id: str, payload: CrossCheckInput, backend: Backend
 
 
 @router.post("/alerts/{alert_id}/cross-check/review", response_model=CaseReview, tags=["workflow"])
-def review_cross_check(alert_id: str, payload: ReviewInput, backend: Backend, person: WorkflowParticipant) -> CaseReview:
+def review_cross_check(
+    alert_id: str, payload: ReviewInput, backend: Backend, person: WorkflowParticipant
+) -> CaseReview:
     try:
         return backend.review_cross_check(alert_id, payload, person)
     except PermissionError as error:
@@ -356,16 +372,18 @@ def update_rca_status(
     rca_id: str,
     payload: RCAStatusUpdate,
     backend: Backend,
-    principal: MutationPrincipal,
+    person: WorkflowParticipant,
 ) -> RCARecord:
     try:
         return backend.transition_rca(
             rca_id,
             payload.status,
-            principal.display_name,
+            person,
             payload.note,
             payload.occurred_at,
         )
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
     except FileNotFoundError as error:
         raise not_found(error) from error
     except ValueError as error:
@@ -381,10 +399,12 @@ def create_action_plan(
     rca_id: str,
     payload: ActionPlanCreateRequest,
     backend: Backend,
-    _principal: MutationPrincipal,
+    person: WorkflowParticipant,
 ) -> ActionPlan:
     try:
-        return backend.create_action_plan(rca_id, payload.hypothesis_id)
+        return backend.create_action_plan(rca_id, payload.hypothesis_id, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
     except FileNotFoundError as error:
         raise not_found(error) from error
     except ValueError as error:
@@ -412,16 +432,50 @@ def update_action_status(
     action_id: str,
     payload: ActionStatusUpdate,
     backend: Backend,
-    principal: MutationPrincipal,
+    person: WorkflowParticipant,
 ) -> ActionPlan:
     try:
         return backend.transition_action(
             action_id,
             payload.status,
-            principal.display_name,
+            person,
             payload.note,
             payload.occurred_at,
+            payload.evidence,
+            payload.expected_revision,
         )
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.post("/actions/{action_id}/assignment", response_model=ActionPlan, tags=["workflow"])
+def assign_action(
+    action_id: str, payload: AssignmentInput, backend: Backend, person: WorkflowParticipant
+) -> ActionPlan:
+    try:
+        return backend.delegate_action(action_id, payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.post(
+    "/actions/{action_id}/assignment/response", response_model=ActionPlan, tags=["workflow"]
+)
+def respond_to_action(
+    action_id: str, payload: AssignmentResponse, backend: Backend, person: WorkflowParticipant
+) -> ActionPlan:
+    try:
+        return backend.respond_to_action(action_id, payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
     except FileNotFoundError as error:
         raise not_found(error) from error
     except ValueError as error:

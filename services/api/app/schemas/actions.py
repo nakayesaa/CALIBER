@@ -6,6 +6,11 @@ from enum import StrEnum
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from services.api.app.schemas.coordination import (
+    ActionAssignment,
+    ExecutionEvidence,
+    RequirementCheck,
+)
 from services.api.app.schemas.rca import CauseCategory
 
 
@@ -58,7 +63,9 @@ class CauseActionPolicy(ActionModel):
         types = {action.action_type for action in self.actions}
         required = {ActionType.CONTAINMENT, ActionType.CORRECTIVE, ActionType.PREVENTIVE}
         if types != required:
-            raise ValueError("Each cause policy requires containment, corrective, and preventive actions")
+            raise ValueError(
+                "Each cause policy requires containment, corrective, and preventive actions"
+            )
         return self
 
 
@@ -97,6 +104,7 @@ class ActionStatusTransition(ActionModel):
 
 
 class ActionItem(ActionModel):
+    revision: int = Field(default=0, ge=0)
     action_id: str
     template_id: str
     rca_id: str
@@ -114,6 +122,11 @@ class ActionItem(ActionModel):
     execution_route: str | None = None
     change_control: str | None = None
     status_history: list[ActionStatusTransition] = Field(default_factory=list)
+    assignment: ActionAssignment | None = None
+    requirements: list[RequirementCheck] = Field(default_factory=list)
+    completion: ExecutionEvidence | None = None
+    verification: ExecutionEvidence | None = None
+    evidence_history: list[ExecutionEvidence] = Field(default_factory=list)
 
 
 class ActionPlan(ActionModel):
