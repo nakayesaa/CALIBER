@@ -6,7 +6,8 @@ import { Icon } from '../components/Icon';
 import { api } from '../lib/api';
 import type { PlantRateSeries } from '../lib/apiContracts';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
-import { days, trendLabels, plantScenarios, performanceInsight, selectActionReport, selectPlantOverview, type PlantId, type PlantPerformance } from '../lib/plantOverviewDemoData';
+import { plantScenarios, performanceInsight, selectActionReport, selectPlantOverview, type PlantId, type PlantPerformance } from '../lib/plantOverviewDemoData';
+import { performanceWindow, type OverviewDays } from '../lib/plantPerformance';
 import { useApiResource, type ResourceState } from '../lib/useApiResource';
 
 function shortDate(date: string): string {
@@ -34,9 +35,9 @@ function ChartCard({ eyebrow, title, value, note, children, className = '' }: { 
 
 type BarDrilldown = { day: string; asset: string; onClick: () => void };
 
-function DailyBars({ values, label, kind, drilldown }: { values: readonly number[]; label: string; kind: 'condition' | 'downtime'; drilldown?: BarDrilldown }) {
+function DailyBars({ values, days, label, kind, drilldown }: { values: readonly number[]; days: readonly string[]; label: string; kind: 'condition' | 'downtime'; drilldown?: BarDrilldown }) {
   const scale = Math.max(1, ...values);
-  return <div className={`portfolio-daily-bars ${kind}`} role="group" aria-label={`${label}: ${values.map((value, index) => `${days[index]} ${value}`).join(', ')}`}>
+  return <div className={`portfolio-daily-bars ${kind}`} style={{ gridTemplateColumns: `repeat(${values.length}, minmax(0, 1fr))` }} role="group" aria-label={`${label}: ${values.map((value, index) => `${days[index]} ${value}`).join(', ')}`}>
     {values.map((value, index) => {
       const content = <><b>{kind === 'downtime' ? `${value} h` : value}</b><span className="portfolio-bar-track"><i style={{ height: `${value / scale * 100}%` }} /></span><small>{days[index]}</small></>;
       return days[index] === drilldown?.day
@@ -46,44 +47,36 @@ function DailyBars({ values, label, kind, drilldown }: { values: readonly number
   </div>;
 }
 
-function PlantRateCard({ selectedPlant, visiblePlants, resource }: { selectedPlant: PlantId; visiblePlants: readonly PlantPerformance[]; resource: ResourceState<PlantRateSeries> }) {
-  if (selectedPlant === 'ZCU') {
-    const points = resource.data?.points ?? [];
-    const labels = points.map((point) => shortDate(point.date));
-    const axis = [0, Math.floor((labels.length - 1) / 3), Math.floor((labels.length - 1) * 2 / 3), labels.length - 1]
-      .map((index) => labels[index]);
-    const latest = points.at(-1);
-    return <ChartCard className="portfolio-production-chart is-source-backed" eyebrow="Production" title="Plant rate · daily mean" value={latest ? `${latest.average_rate_tph.toFixed(2)} t/h` : resource.loading ? 'Loading…' : 'Unavailable'} note={resource.data ? `${resource.data.source_reference} · ${resource.data.source_rows} hourly readings → ${points.length} daily means, including offline hours.` : resource.error ?? 'Loading observed production data.'}>
-      {points.length ? <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>ZCU</span><TrendLine values={points.map((point) => point.average_rate_tph)} labels={labels} label="ZCU observed daily mean plant rate in t/h" showPoints /><strong>{latest!.average_rate_tph.toFixed(2)} <small>t/h</small></strong></div></div> : <div className="portfolio-source-state">{resource.loading ? 'Loading observed PLANT_RATE readings…' : resource.error ?? 'No observed PLANT_RATE readings available.'}</div>}
-      {points.length > 0 && <div className="portfolio-chart-axis">{axis.map((label) => <span key={label}>{label}</span>)}</div>}
-    </ChartCard>;
-  }
-
-  const plant = visiblePlants[0];
-  return <ChartCard className="portfolio-production-chart is-single-plant" eyebrow="Production" title="Plant rate" value={`${plant.production.at(-1)} t/h`} note="168 hourly scenario readings · latest daily mean shown above.">
-    <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={plant.trends.production} labels={trendLabels} label={`${plant.id} hourly production rate`} /><strong>{plant.trends.production.at(-1)!.toFixed(2)} <small>t/h</small></strong></div></div>
-    <div className="portfolio-chart-axis"><span>{days[0]}</span><span>{days.at(-1)}</span></div>
+function PlantRateCard({ plant, window, resource }: { plant: PlantPerformance; window: ReturnType<typeof performanceWindow>; resource: ResourceState<PlantRateSeries> }) {
+  const latest = window.production.at(-1);
+  const observed = plant.id === 'ZCU';
+  return <ChartCard className="portfolio-production-chart is-single-plant" eyebrow="Production" title={`Plant rate${observed ? ' · daily mean' : ''}`} value={latest !== undefined ? `${latest.toFixed(2)} ${window.productionUnit}` : resource.loading ? 'Loading…' : 'Unavailable'} note={observed ? `${window.productionReadings} source hourly readings → ${window.production.length} daily means, including offline hours.${window.complete ? '' : ' Incomplete coverage.'}` : `${window.production.length} hourly scenario readings.`}>
+    {window.production.length ? <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={window.production} labels={window.productionLabels} label={`${plant.id} ${window.productionCadence} plant rate`} unit={window.productionUnit} showPoints={observed} /><strong>{latest!.toFixed(2)} <small>{window.productionUnit}</small></strong></div></div> : <div className="portfolio-source-state">{resource.loading ? 'Loading observed PLANT_RATE readings…' : resource.error ?? 'No observed PLANT_RATE readings available.'}</div>}
+    <div className="portfolio-chart-axis"><span>{shortDate(window.start)}</span><span>{shortDate(window.end)}</span></div>
   </ChartCard>;
 }
 
-function IntensityCard({ plants, metric }: { plants: readonly PlantPerformance[]; metric: 'energy' | 'emissions' }) {
-  const plant = plants[0];
+function IntensityCard({ plant, window, metric }: { plant: PlantPerformance; window: ReturnType<typeof performanceWindow>; metric: 'energy' | 'emissions' }) {
   const energy = metric === 'energy';
-  const unit = energy ? 'GJ/t' : 'tCO₂e/t';
-  return <ChartCard className={`portfolio-production-chart portfolio-${metric} is-single-plant`} eyebrow={energy ? 'Energy efficiency' : 'Environmental performance'} title={energy ? 'Specific energy' : 'Emissions intensity'} value={`${plant[metric].at(-1)!.toFixed(2)} ${unit}`} note={`168 hourly scenario readings · latest daily mean shown above. ${energy ? 'Compare at similar load.' : 'Efficiency indicator, not compliance.'}`}>
-    <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={plant.trends[metric]} labels={trendLabels} label={`${plant.id} hourly ${metric} intensity`} unit={unit} /><strong>{plant.trends[metric].at(-1)!.toFixed(2)} <small>{unit}</small></strong></div></div>
-    <div className="portfolio-chart-axis"><span>{days[0]}</span><span>{days.at(-1)}</span></div>
+  const unit = `${energy ? 'GJ' : 'tCO₂e'}/${plant.id === 'NUP' ? 't equiv.' : 't'}`;
+  return <ChartCard className={`portfolio-production-chart portfolio-${metric} is-single-plant`} eyebrow={energy ? 'Energy efficiency' : 'Environmental performance'} title={energy ? 'Specific energy' : 'Emissions intensity'} value={`${plant[metric].at(-1)!.toFixed(2)} ${unit}`} note={`${window[metric].length} hourly scenario readings · latest daily mean shown above. ${energy ? 'Compare at similar load.' : 'Efficiency indicator, not compliance.'}`}>
+    <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={window[metric]} labels={window.labels} label={`${plant.id} hourly ${metric} intensity`} unit={unit} /><strong>{window[metric].at(-1)!.toFixed(2)} <small>{unit}</small></strong></div></div>
+    <div className="portfolio-chart-axis"><span>{window.days[0]}</span><span>{window.days.at(-1)}</span></div>
   </ChartCard>;
 }
 
 export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
   const [selectedPlant, setSelectedPlant] = useState<PlantId>('ZCU');
   const [query, setQuery] = useState('');
+  const [windowDays, setWindowDays] = useState<OverviewDays>(7);
   const [reportActionId, setReportActionId] = useState<string | null>(null);
   const plantRate = useApiResource(PRIMARY_ASSET_ID, () => api.plantRate(PRIMARY_ASSET_ID));
   const zcuSource = selectedPlant === 'ZCU';
   const overview = selectPlantOverview(selectedPlant, plantRate.data ? 'ready' : plantRate.loading ? 'loading' : 'unavailable');
-  const { plants: visiblePlants, attention, downtime, actions, issues } = overview;
+  const { plants: visiblePlants, actions, issues } = overview;
+  const plant = visiblePlants[0];
+  const window = performanceWindow(plant, plantRate.data, windowDays);
+  const { attention, downtime } = window;
   const visibleIssues = issues.filter((item) => `${item.tag} ${item.title} ${item.plant} ${item.owner}`.toLowerCase().includes(query.trim().toLowerCase()));
   const actionStates = ['Open', 'In progress', 'Awaiting verification', 'Verified'] as const;
   const actionCounts = actionStates.map((status) => actions.filter((action) => action.status === status).length);
@@ -97,7 +90,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
   return <div className="portfolio-page">
     <header className="portfolio-heading">
       <div><span>Manufacturing performance</span><h1>Plant overview</h1><p>Understand the shift. Find the exception. Follow it through.</p></div>
-      <div className="portfolio-period"><strong>{zcuSource ? 'Production: 1–30 Apr 2026' : 'Trends: 24–30 Apr 2026'}</strong></div>
+      <div className="portfolio-period"><strong>{shortDate(window.start)}–30 Apr 2026 · WIB</strong><label>Shared chart window <select value={windowDays} onChange={(event) => setWindowDays(Number(event.target.value) as OverviewDays)}><option value={1}>1 day</option><option value={3}>3 days</option><option value={7}>7 days</option></select></label></div>
     </header>
 
     <nav className="portfolio-plant-filter" aria-label="Select plant">
@@ -113,9 +106,9 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
     <div className="portfolio-section-heading"><span>01 · Performance</span><p>Read production alongside resource efficiency.</p></div>
 
     <div className="portfolio-dashboard portfolio-performance-grid">
-      <PlantRateCard selectedPlant={selectedPlant} visiblePlants={visiblePlants} resource={plantRate} />
-      <IntensityCard plants={visiblePlants} metric="energy" />
-      <IntensityCard plants={visiblePlants} metric="emissions" />
+      <PlantRateCard plant={plant} window={window} resource={plantRate} />
+      <IntensityCard plant={plant} window={window} metric="energy" />
+      <IntensityCard plant={plant} window={window} metric="emissions" />
     </div>
 
     <aside className="portfolio-output-context" aria-label="Plant performance insight"><span className="portfolio-section-kicker">Performance insight</span><p>{performanceInsight(selectedPlant, currentRate, referenceRate)} <small>{zcuSource ? 'Reference: 1–7 Apr observed mean.' : 'Reference: 24 Apr scenario daily mean.'}</small></p></aside>
@@ -123,11 +116,11 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
     <div className="portfolio-section-heading"><span>02 · Operating exceptions</span><p>Locate equipment exposure and follow-up gaps.</p></div>
     <div className="portfolio-dashboard portfolio-performance-grid">
       <ChartCard eyebrow="Equipment condition" title="Assets needing attention" value={`${attention.at(-1)} / ${overview.assetCount}`} note={`Current attention flags among monitored assets.${zcuSource ? ' Click 30 Apr to open KO-3201.' : ''}`}>
-        <DailyBars values={attention} label="Assets needing attention by day" kind="condition" drilldown={zcuSource ? { day: '30 Apr', asset: 'KO-3201', onClick: () => onNavigate('overview') } : undefined} />
+        <DailyBars values={attention} days={window.days} label="Assets needing attention by day" kind="condition" drilldown={zcuSource ? { day: '30 Apr', asset: 'KO-3201', onClick: () => onNavigate('overview') } : undefined} />
       </ChartCard>
 
-      <ChartCard eyebrow="Equipment availability" title="Monitored equipment downtime" value={`${downtime.reduce((sum, value) => sum + value, 0)} h`} note={`Sum of equipment-hours, not plant outage duration.${zcuSource ? ' ZCU: 32 h on KO-3201.' : ''}`}>
-        <DailyBars values={downtime} label="Monitored equipment downtime hours by day" kind="downtime" />
+      <ChartCard eyebrow="Equipment availability" title="Monitored equipment downtime" value={`${downtime.reduce((sum, value) => sum + value, 0)} h`} note={`Equipment-hours in the selected window, not plant outage duration.${zcuSource ? ' KO-3201 event: 32 h total.' : ''}`}>
+        <DailyBars values={downtime} days={window.days} label="Monitored equipment downtime hours by day" kind="downtime" />
       </ChartCard>
 
       <ChartCard eyebrow="Follow-up" title="Action progress" value={`${actionCounts[3]} / ${actions.length} verified`} note={actions.length ? `${overdue} overdue · ${actionCounts[2]} awaiting effectiveness verification.` : 'No follow-up actions for the selected plant in this snapshot.'}>

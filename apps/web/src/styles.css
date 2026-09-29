@@ -939,6 +939,8 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .portfolio-period { max-width:340px; display:grid; gap:2px; padding:9px 13px; border:1px solid #d9e3da; border-radius:10px; background:#fff; }
 .portfolio-period span { color:#6d7c70; font-size:12px; letter-spacing:0; text-transform:none; }
 .portfolio-period strong { font-size:14px; }
+.portfolio-period label { display:flex; align-items:center; gap:12px; font-size:12px; color:#52675a; }
+.portfolio-period select { padding:5px 8px; background:#fff; color:var(--ink); border:1px solid #c9d6ca; border-radius:6px; font:inherit; }
 .portfolio-card { min-width:0; border:1px solid #e0e8e1; border-radius:14px; background:#fff; overflow:hidden; }
 .portfolio-card h2 { margin:4px 0 0; font-size:20px; font-weight:800; line-height:1.25; letter-spacing:-.03em; }
 .portfolio-card button:focus-visible,.portfolio-plant-filter button:focus-visible { outline:2px solid #27563a; outline-offset:-3px; }

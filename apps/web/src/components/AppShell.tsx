@@ -53,7 +53,7 @@ export function AppShell({ activePage, onNavigate, children }: AppShellProps) {
 
         <div className="workspace">
           <header className="topbar">
-            <div className="breadcrumbs"><span>Reliability ops</span><b>/</b><span>{activePage === 'plant' ? 'All plants' : 'ZCU'}</span><b>/</b><strong>{activeLabel}</strong></div>
+            <div className="breadcrumbs"><span>Reliability ops</span><b>/</b><span>{activePage === 'plant' ? 'Manufacturing' : 'ZCU'}</span><b>/</b><strong>{activeLabel}</strong></div>
             <div className="top-actions">
               <label className="search"><Icon name="search"/><input placeholder="Search asset, incident, or owner"/></label>
               <button className="round-button notification" aria-label="Notifications"><Icon name="inbox"/><i/></button>
