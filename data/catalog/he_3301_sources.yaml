@@ -1,0 +1,36 @@
+asset_id: asset-he-3301
+timezone: Asia/Jakarta
+sources:
+  - source_key: he_performance
+    title: HE-3301 equipment performance
+    drive_id: 1mkmkTW-6BXE28nAHiPujaYXshzrNpMNy
+    drive_url: https://drive.google.com/file/d/1mkmkTW-6BXE28nAHiPujaYXshzrNpMNy/view
+    role: equipment_condition
+    parser: openpyxl
+    cadence: WEEKLY
+    record_count: 26
+    local_path: data/raw/he_3301/performance.xlsx
+    size_bytes: 21588
+    sha256: b102ae996e2f052eef61b80255d5c1806566a31e042b7ee78104992deecb058d
+  - source_key: he_production
+    title: HE-3301 production data
+    drive_id: 1P6ckWGnjtJJXtrjIHsKGBzpkbvBWcC6H
+    drive_url: https://drive.google.com/file/d/1P6ckWGnjtJJXtrjIHsKGBzpkbvBWcC6H/view
+    role: operating_context
+    parser: openpyxl
+    cadence: HOURLY
+    record_count: 720
+    local_path: data/raw/he_3301/production.xlsx
+    size_bytes: 62022
+    sha256: 1472765ce61c772ef01880f6f409e866dfe10abb803e6ccb1c989ba6b942b8f1
+  - source_key: he_rca
+    title: HE-3301 RCA and CAPA AR-2026-ZCU-0165
+    drive_id: 1Ww2yph_DzQ_uqD8PyxoF2n7BmMH46C0x
+    drive_url: https://drive.google.com/file/d/1Ww2yph_DzQ_uqD8PyxoF2n7BmMH46C0x/view
+    role: rca_and_actions
+    parser: python-pptx
+    cadence: EVENT
+    record_count: 11
+    local_path: data/raw/he_3301/rca.pptx
+    size_bytes: 79191
+    sha256: 43b49807de2387f1d5ce84d2989bb0adfb916c2f0ae40682f3e04bafe8a2abb9

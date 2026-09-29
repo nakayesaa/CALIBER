@@ -1,0 +1,13 @@
+policy_id: he-3301-weekly-engineering-v1
+# Severity is an engineering assessment, not a probability or ML output.
+alarm_comparator: inclusive
+warning_consecutive_weeks: 2
+high_minimum_alarm_signals: 3
+watch_worsening_signals: 3
+watch_consecutive_weeks: 2
+watch_minimum_progress: 25
+signals:
+  - {key: tube_dp, label: Tube-side differential pressure, unit: bar, direction: HIGH, alarm_limit: 0.6, trip_limit: 0.9, column: 2}
+  - {key: heat_duty, label: Heat duty, unit: '% design', direction: LOW, alarm_limit: 90, trip_limit: 70, column: 3}
+  - {key: cold_outlet_temp, label: Cold outlet temperature, unit: °C, direction: LOW, alarm_limit: 110, trip_limit: 95, column: 4}
+  - {key: heavy_ends, label: Feed heavy-ends, unit: '%', direction: HIGH, alarm_limit: 1.5, trip_limit: 2.4, column: 5}
