@@ -6,21 +6,22 @@ export const snapshotDate = '2026-04-30';
 export const mean = (values: readonly number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
 export const deviation = (value: number | undefined, reference: number | undefined) => value !== undefined && reference !== undefined && reference > 0 ? (value - reference) / reference * 100 : undefined;
 
-export function resourcePerformance(plant: PlantPerformance, observed: PlantRateSeries | null, length: OverviewDays) {
+export function resourcePerformance(plant: PlantPerformance, observed: PlantRateSeries | null, length: OverviewDays, plannedRate?: number) {
   const window = performanceWindow(plant, observed, length);
   const referenceRate = plant.id === 'ZCU' ? mean(observed?.points.filter((point) => point.date >= '2026-04-01' && point.date <= '2026-04-07').map((point) => point.average_rate_tph) ?? []) : plant.production[0];
   const currentRate = plant.id === 'ZCU' ? window.production.at(-1) : mean(window.production.slice(-24));
   // Mixed-cadence totals use daily means; incomplete source coverage never gets filled.
   const dailyRate = plant.id === 'ZCU' ? window.production : Array.from({ length }, (_, index) => mean(window.production.slice(index * 24, (index + 1) * 24))!);
   const totals = (metric: 'energy' | 'emissions') => window.complete ? dailyRate.reduce((sum, rate, index) => sum + rate * mean(window[metric].slice(index * 24, (index + 1) * 24))! * 24, 0) : undefined;
-  const forecast = currentRate !== undefined && window.complete ? currentRate * plant.energy[0] * 24 : undefined;
+  const assumedRate = plannedRate ?? currentRate;
+  const forecast = assumedRate !== undefined && Number.isFinite(assumedRate) && assumedRate >= 0 && window.complete ? assumedRate * plant.energy[0] * 24 : undefined;
   return {
     referenceRate, currentRate, productionDeviation: deviation(currentRate, referenceRate),
     energyTotal: totals('energy'), emissionsTotal: totals('emissions'),
     energyReference: plant.energy[0], emissionsReference: plant.emissions[0],
     energyDeviation: deviation(mean(window.energy.slice(-24)), plant.energy[0]),
     emissionsDeviation: deviation(mean(window.emissions.slice(-24)), plant.emissions[0]),
-    forecast, forecastLow: forecast === undefined ? undefined : forecast * 0.9, forecastHigh: forecast === undefined ? undefined : forecast * 1.1,
+    assumedRate, forecast, forecastLow: forecast === undefined ? undefined : forecast * 0.9, forecastHigh: forecast === undefined ? undefined : forecast * 1.1,
   };
 }
 

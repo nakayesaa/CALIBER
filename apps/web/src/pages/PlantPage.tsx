@@ -7,20 +7,22 @@ import { api } from '../lib/api';
 import type { PlantRateSeries } from '../lib/apiContracts';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { plantScenarios, performanceInsight, selectActionReport, selectPlantOverview, type PlantId, type PlantPerformance } from '../lib/plantOverviewDemoData';
-import { performanceWindow, type OverviewDays } from '../lib/plantPerformance';
+import { performanceWindow, resourcePerformance, type OverviewDays } from '../lib/plantPerformance';
 import { useApiResource, type ResourceState } from '../lib/useApiResource';
 
 function shortDate(date: string): string {
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
 }
 
-function TrendLine({ values, labels, label, unit = 't/h', showPoints = false }: { values: readonly number[]; labels: readonly string[]; label: string; unit?: string; showPoints?: boolean }) {
-  const padding = Math.max((Math.max(...values) - Math.min(...values)) * 0.2, Math.max(...values) * 0.02, 0.01);
-  const low = Math.min(...values) - padding;
-  const range = Math.max(...values) - low + padding;
+function TrendLine({ values, labels, label, unit = 't/h', showPoints = false, reference }: { values: readonly number[]; labels: readonly string[]; label: string; unit?: string; showPoints?: boolean; reference?: number }) {
+  const scaleValues = reference === undefined ? values : [...values, reference];
+  const padding = Math.max((Math.max(...scaleValues) - Math.min(...scaleValues)) * 0.2, Math.max(...scaleValues) * 0.02, 0.01);
+  const low = Math.min(...scaleValues) - padding;
+  const range = Math.max(...scaleValues) - low + padding;
   const coordinates = values.map((value, index) => ({ x: index * 360 / Math.max(1, values.length - 1), y: 100 - (value - low) / range * 100 }));
   return <svg className="portfolio-trend" viewBox="0 0 360 100" preserveAspectRatio="none" role="img" aria-label={`${label}: ${values.map((value, index) => `${labels[index]} ${value.toFixed(2)}`).join(', ')}`}>
     <line x1="0" y1="50" x2="360" y2="50" stroke="#e5eee5" strokeDasharray="4 4" />
+    {reference !== undefined && <line x1="0" y1={100 - (reference - low) / range * 100} x2="360" y2={100 - (reference - low) / range * 100} stroke="#6B6B6B" strokeDasharray="6 4" vectorEffect="non-scaling-stroke"><title>Reference: {reference.toFixed(2)} {unit}</title></line>}
     <polyline points={coordinates.map(({ x, y }) => `${x},${y}`).join(' ')} fill="none" stroke="#447a4f" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
     {coordinates.map(({ x, y }, index) => <circle className={showPoints ? '' : 'portfolio-hover-point'} key={labels[index]} cx={x} cy={y} r={showPoints ? 2.5 : 5} fill="#447a4f"><title>{`${labels[index]} · ${values[index].toFixed(2)} ${unit}`}</title></circle>)}
   </svg>;
@@ -47,21 +49,28 @@ function DailyBars({ values, days, label, kind, drilldown }: { values: readonly 
   </div>;
 }
 
-function PlantRateCard({ plant, window, resource }: { plant: PlantPerformance; window: ReturnType<typeof performanceWindow>; resource: ResourceState<PlantRateSeries> }) {
+type ResourceMetrics = ReturnType<typeof resourcePerformance>;
+const formatted = (value: number | undefined, unit: string) => value === undefined ? 'Unavailable' : `${value.toLocaleString('en-GB', { maximumFractionDigits: 1 })} ${unit}`;
+const percent = (value: number | undefined) => value === undefined ? 'Unavailable' : `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+
+function PlantRateCard({ plant, window, metrics, resource }: { plant: PlantPerformance; window: ReturnType<typeof performanceWindow>; metrics: ResourceMetrics; resource: ResourceState<PlantRateSeries> }) {
   const latest = window.production.at(-1);
   const observed = plant.id === 'ZCU';
   return <ChartCard className="portfolio-production-chart is-single-plant" eyebrow="Production" title={`Plant rate${observed ? ' · daily mean' : ''}`} value={latest !== undefined ? `${latest.toFixed(2)} ${window.productionUnit}` : resource.loading ? 'Loading…' : 'Unavailable'} note={observed ? `${window.productionReadings} source hourly readings → ${window.production.length} daily means, including offline hours.${window.complete ? '' : ' Incomplete coverage.'}` : `${window.production.length} hourly scenario readings.`}>
-    {window.production.length ? <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={window.production} labels={window.productionLabels} label={`${plant.id} ${window.productionCadence} plant rate`} unit={window.productionUnit} showPoints={observed} /><strong>{latest!.toFixed(2)} <small>{window.productionUnit}</small></strong></div></div> : <div className="portfolio-source-state">{resource.loading ? 'Loading observed PLANT_RATE readings…' : resource.error ?? 'No observed PLANT_RATE readings available.'}</div>}
+    {window.production.length ? <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={window.production} labels={window.productionLabels} label={`${plant.id} ${window.productionCadence} plant rate`} unit={window.productionUnit} showPoints={observed} reference={metrics.referenceRate} /><strong>{latest!.toFixed(2)} <small>{window.productionUnit}</small></strong></div></div> : <div className="portfolio-source-state">{resource.loading ? 'Loading observed PLANT_RATE readings…' : resource.error ?? 'No observed PLANT_RATE readings available.'}</div>}
     <div className="portfolio-chart-axis"><span>{shortDate(window.start)}</span><span>{shortDate(window.end)}</span></div>
+    <p className="portfolio-kpi-context">{percent(metrics.productionDeviation)} vs reference · dashed line {formatted(metrics.referenceRate, window.productionUnit)}</p>
   </ChartCard>;
 }
 
-function IntensityCard({ plant, window, metric }: { plant: PlantPerformance; window: ReturnType<typeof performanceWindow>; metric: 'energy' | 'emissions' }) {
+function IntensityCard({ plant, window, metrics, metric }: { plant: PlantPerformance; window: ReturnType<typeof performanceWindow>; metrics: ResourceMetrics; metric: 'energy' | 'emissions' }) {
   const energy = metric === 'energy';
   const unit = `${energy ? 'GJ' : 'tCO₂e'}/${plant.id === 'NUP' ? 't equiv.' : 't'}`;
   return <ChartCard className={`portfolio-production-chart portfolio-${metric} is-single-plant`} eyebrow={energy ? 'Energy efficiency' : 'Environmental performance'} title={energy ? 'Specific energy' : 'Emissions intensity'} value={`${plant[metric].at(-1)!.toFixed(2)} ${unit}`} note={`${window[metric].length} hourly scenario readings · latest daily mean shown above. ${energy ? 'Compare at similar load.' : 'Efficiency indicator, not compliance.'}`}>
-    <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={window[metric]} labels={window.labels} label={`${plant.id} hourly ${metric} intensity`} unit={unit} /><strong>{window[metric].at(-1)!.toFixed(2)} <small>{unit}</small></strong></div></div>
+    <div className="portfolio-production-lines"><div className="portfolio-production-line"><span>{plant.id}</span><TrendLine values={window[metric]} labels={window.labels} label={`${plant.id} hourly ${metric} intensity`} unit={unit} reference={energy ? metrics.energyReference : metrics.emissionsReference} /><strong>{window[metric].at(-1)!.toFixed(2)} <small>{unit}</small></strong></div></div>
     <div className="portfolio-chart-axis"><span>{window.days[0]}</span><span>{window.days.at(-1)}</span></div>
+    <p className="portfolio-kpi-context">{percent(energy ? metrics.energyDeviation : metrics.emissionsDeviation)} vs 24 Apr scenario reference · dashed line</p>
+    <p className="portfolio-kpi-context"><strong>{formatted(energy ? metrics.energyTotal : metrics.emissionsTotal, energy ? 'GJ' : 'tCO₂e')}</strong> · window total estimate from daily mean rate × intensity × 24 h</p>
   </ChartCard>;
 }
 
@@ -69,6 +78,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
   const [selectedPlant, setSelectedPlant] = useState<PlantId>('ZCU');
   const [query, setQuery] = useState('');
   const [windowDays, setWindowDays] = useState<OverviewDays>(7);
+  const [plannedRate, setPlannedRate] = useState('');
   const [reportActionId, setReportActionId] = useState<string | null>(null);
   const plantRate = useApiResource(PRIMARY_ASSET_ID, () => api.plantRate(PRIMARY_ASSET_ID));
   const zcuSource = selectedPlant === 'ZCU';
@@ -76,6 +86,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
   const { plants: visiblePlants, actions, issues } = overview;
   const plant = visiblePlants[0];
   const window = performanceWindow(plant, plantRate.data, windowDays);
+  const metrics = resourcePerformance(plant, plantRate.data, windowDays, plannedRate.trim() ? Number(plannedRate) : undefined);
   const { attention, downtime } = window;
   const visibleIssues = issues.filter((item) => `${item.tag} ${item.title} ${item.plant} ${item.owner}`.toLowerCase().includes(query.trim().toLowerCase()));
   const actionStates = ['Open', 'In progress', 'Awaiting verification', 'Verified'] as const;
@@ -94,7 +105,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
     </header>
 
     <nav className="portfolio-plant-filter" aria-label="Select plant">
-      {plantScenarios.map((plant) => <button key={plant.id} className={selectedPlant === plant.id ? 'active' : ''} aria-pressed={selectedPlant === plant.id} onClick={() => setSelectedPlant(plant.id)}>{plant.id} <small>{String(plant.assets).padStart(2, '0')}</small></button>)}
+      {plantScenarios.map((plant) => <button key={plant.id} className={selectedPlant === plant.id ? 'active' : ''} aria-pressed={selectedPlant === plant.id} onClick={() => { setSelectedPlant(plant.id); setPlannedRate(''); }}>{plant.id} <small>{String(plant.assets).padStart(2, '0')}</small></button>)}
     </nav>
 
     <section className="portfolio-shift-brief" aria-label="Operating brief">
@@ -106,10 +117,12 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
     <div className="portfolio-section-heading"><span>01 · Performance</span><p>Read production alongside resource efficiency.</p></div>
 
     <div className="portfolio-dashboard portfolio-performance-grid">
-      <PlantRateCard plant={plant} window={window} resource={plantRate} />
-      <IntensityCard plant={plant} window={window} metric="energy" />
-      <IntensityCard plant={plant} window={window} metric="emissions" />
+      <PlantRateCard plant={plant} window={window} metrics={metrics} resource={plantRate} />
+      <IntensityCard plant={plant} window={window} metrics={metrics} metric="energy" />
+      <IntensityCard plant={plant} window={window} metrics={metrics} metric="emissions" />
     </div>
+
+    <section className="portfolio-card portfolio-forecast" aria-label="Energy forecast"><div><span className="portfolio-section-kicker">Next 24 hours · energy forecast</span><h2>{formatted(metrics.forecast, 'GJ')}</h2><p>Constant-load estimate: assumed rate × 24 Apr reference intensity × 24 hours.</p></div><label>Assumed plant rate ({window.productionUnit})<input type="number" min="0" step="0.1" value={plannedRate} placeholder={metrics.currentRate?.toFixed(2) ?? 'Unavailable'} onChange={(event) => setPlannedRate(event.target.value)} /></label><div><strong>{formatted(metrics.forecastLow, 'GJ')}–{formatted(metrics.forecastHigh, 'GJ')}</strong><p>±10% planning range, not a statistical interval. Default rate: latest daily mean; adjust for the operating plan.</p></div></section>
 
     <aside className="portfolio-output-context" aria-label="Plant performance insight"><span className="portfolio-section-kicker">Performance insight</span><p>{performanceInsight(selectedPlant, currentRate, referenceRate)} <small>{zcuSource ? 'Reference: 1–7 Apr observed mean.' : 'Reference: 24 Apr scenario daily mean.'}</small></p></aside>
 
