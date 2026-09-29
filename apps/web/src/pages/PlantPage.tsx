@@ -105,7 +105,8 @@ function IntensityCard({ plant, window, metrics, metric, source }: { plant: Plan
   </ChartCard>;
 }
 
-export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId, assetId?: string) => void }) {
+  const onNavigate = (page: PageId) => navigate(page, 'asset-ko-3201');
   const [selectedPlant, setSelectedPlant] = useState<PlantId>('ZCU');
   const [query, setQuery] = useState('');
   const [windowDays, setWindowDays] = useState<OverviewDays>(7);

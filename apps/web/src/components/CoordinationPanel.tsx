@@ -45,7 +45,7 @@ export function CoordinationPanel({ detail, onChange, refreshing = false }: { de
   const { session, review } = resource.data;
   const supervisor = session.current.role === 'SUPERVISOR';
   return <section className="coordination-panel">
-    <header><div><span>KO-3201 · Human decision record</span><h2>Validate, delegate, verify</h2><p>Cross-check the issue before authorizing work. Track the named owner and evidence through closure.</p></div>
+    <header><div><span>{detail.alert.asset_id.replace('asset-', '').toUpperCase()} · Human decision record</span><h2>Validate, delegate, verify</h2><p>Cross-check the issue before authorizing work. Track the named owner and evidence through closure.</p></div>
       {session.can_switch ? <label>Local demo role<select aria-label="Local demo role" disabled={busy || resource.loading || refreshing} value={session.current.person_id} onChange={(event) => { api.setWorkflowPerson(event.target.value); setPersonId(event.target.value); setError(null); }}>
         {session.participants.map((person) => <option value={person.person_id} key={person.person_id}>{person.display_name}</option>)}
       </select></label> : <p>{session.current.display_name} · {humanize(session.current.role)}</p>}

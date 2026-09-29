@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { AppShell, type PageId } from './components/AppShell';
 import { TraceabilityProvider } from './components/TraceabilityContext';
 import { ActionsPage } from './pages/ActionsPage';
-import { AssetPage } from './pages/AssetPage';
+import { EquipmentIndexPage } from './pages/EquipmentIndexPage';
+import { EquipmentDetailPage } from './pages/EquipmentDetailPage';
+import { PRIMARY_ASSET_ID } from './lib/appConfig';
+import './equipment.css';
 import { DataFoundationPage } from './pages/DataFoundationPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { PlantPage } from './pages/PlantPage';
@@ -11,34 +14,43 @@ import { ProblemTankPage } from './pages/ProblemTankPage';
 import { RcaPage } from './pages/RcaPage';
 import { RcaInvestigationPage } from './pages/RcaInvestigationPage';
 
-const pages: Record<PageId, React.ComponentType<{ onNavigate: (page: PageId) => void }>> = {
+const pages: Record<Exclude<PageId, 'assets'>, React.ComponentType<{ onNavigate: (page: PageId, assetId?: string, alertId?: string) => void }>> = {
   overview: OverviewPage,
   plant: PlantPage,
   problems: ProblemTankPage,
   investigation: InvestigationPage,
-  assets: AssetPage,
   rca: RcaPage,
   'rca-investigation': RcaInvestigationPage,
   actions: ActionsPage,
   data: DataFoundationPage,
 };
 
-function pageFromHash(): PageId {
-  const candidate = window.location.hash.slice(1).split('?')[0] as PageId;
-  return candidate in pages ? candidate : 'plant';
+function routeFromHash() {
+  const [path, query] = window.location.hash.slice(1).split('?');
+  const params = new URLSearchParams(query);
+  const page = path === 'assets' || Object.hasOwn(pages, path) ? path as PageId : 'plant';
+  return { page, assetId: params.get('asset') ?? PRIMARY_ASSET_ID, alertId: params.get('alert') };
 }
 
 export function App() {
-  const [activePage, setActivePage] = useState<PageId>(pageFromHash);
+  const [route, setRoute] = useState(routeFromHash);
   useEffect(() => {
-    const syncPage = () => setActivePage(pageFromHash());
+    const syncPage = () => setRoute(routeFromHash());
     window.addEventListener('hashchange', syncPage);
     return () => window.removeEventListener('hashchange', syncPage);
   }, []);
-  const navigate = (page: PageId) => {
-    window.location.hash = page;
-    setActivePage(page);
+  const navigate = (page: PageId, assetId = route.assetId, alertId?: string | null) => {
+    const params = new URLSearchParams({ asset: assetId });
+    const selectedAlert = alertId ?? (assetId === route.assetId ? route.alertId : null);
+    if (selectedAlert) params.set('alert', selectedAlert);
+    window.location.hash = `${page}?${params}`;
+    setRoute(routeFromHash());
   };
-  const Page = pages[activePage];
-  return <TraceabilityProvider><AppShell activePage={activePage} onNavigate={navigate}><Page onNavigate={navigate}/></AppShell></TraceabilityProvider>;
+  const detailPages: PageId[] = ['overview', 'investigation', 'rca', 'rca-investigation', 'actions'];
+  const content = route.page === 'assets'
+    ? <EquipmentIndexPage onSelect={(assetId) => navigate('overview', assetId)}/>
+    : route.assetId !== PRIMARY_ASSET_ID && detailPages.includes(route.page)
+      ? <EquipmentDetailPage key={route.assetId} assetId={route.assetId} view={route.page as 'overview' | 'investigation' | 'rca' | 'rca-investigation' | 'actions'} onNavigate={navigate}/>
+      : (() => { const Page = pages[route.page as Exclude<PageId, 'assets'>]; return <Page onNavigate={navigate}/>; })();
+  return <TraceabilityProvider key={route.assetId}><AppShell activePage={route.page} assetId={route.assetId} onNavigate={navigate}>{content}</AppShell></TraceabilityProvider>;
 }

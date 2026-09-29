@@ -1,7 +1,7 @@
 import type { PageId } from '../components/AppShell';
 import { Icon } from '../components/Icon';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type AlertEvent } from '../lib/api';
+import { api, type AlertDetail, type AlertEvent, type AssetSummary } from '../lib/api';
 import { formatSignal, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
@@ -9,15 +9,17 @@ import { workflowView } from '../lib/workflowView';
 interface ProblemTankData {
   alerts: AlertEvent[];
   details: AlertDetail[];
+  assets: AssetSummary[];
 }
 
 async function loadProblemTank(): Promise<ProblemTankData> {
-  const alerts = await api.alerts();
+  const [alerts, assets] = await Promise.all([api.alerts(), api.assets()]);
+  alerts.sort((left, right) => right.highest_severity_rank - left.highest_severity_rank || right.opened_at.localeCompare(left.opened_at));
   const details = await Promise.all(alerts.map((alert) => api.alertDetail(alert.alert_id)));
-  return { alerts, details };
+  return { alerts, details, assets };
 }
 
-export function ProblemTankPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function ProblemTankPage({ onNavigate }: { onNavigate: (page: PageId, assetId?: string, alertId?: string) => void }) {
   const resource = useApiResource('problem-tank', loadProblemTank);
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'No alert data returned'}/>;
@@ -45,13 +47,14 @@ export function ProblemTankPage({ onNavigate }: { onNavigate: (page: PageId) => 
       </header>
       {resource.data.details.map((detail, index) => {
         const { alert } = detail;
+        const asset = resource.data!.assets.find((candidate) => candidate.asset_id === alert.asset_id);
         const { actionPlans: plans } = workflowView(detail);
         const actions = plans.flatMap((plan) => plan.actions);
         const closedActions = actions.filter((action) => action.status === 'CLOSED').length;
-        return <button key={alert.alert_id} className="problem-list-row" onClick={() => onNavigate('investigation')}>
+        return <button key={alert.alert_id} className="problem-list-row" onClick={() => onNavigate('investigation', alert.asset_id, alert.alert_id)}>
           <div className="problem-list-identity">
             <span className="problem-priority">{String(index + 1).padStart(2, '0')}</span>
-            <div><strong>Multi-signal compressor degradation</strong><p>{alert.alert_id} · KO-3201 · {humanize(alert.primary_driver.replaceAll('.', '_'))}</p></div>
+            <div><strong>{asset?.name ?? alert.asset_id}</strong><p>{alert.alert_id} · {asset?.tag} · {humanize(alert.primary_driver.replaceAll('.', '_'))}</p></div>
           </div>
           <span className={`problem-severity ${alert.highest_severity.toLowerCase()}`}>{humanize(alert.highest_severity)}</span>
           <div className="problem-list-metric"><strong>{formatSignal(alert.peak_anomaly_score)}</strong><span>{alert.breached_signals.length} signals</span></div>

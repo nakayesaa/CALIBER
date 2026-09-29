@@ -6,6 +6,7 @@ import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type DriverAnalysis, type InvestigationEvidenceProgress, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
+import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { alertDetectionWindow, selectTelemetryWindow, timeWindowHours } from '../lib/timeWindow';
@@ -35,7 +36,7 @@ interface InvestigationData {
 }
 
 async function loadInvestigation(): Promise<InvestigationData> {
-  const [alerts, system] = await Promise.all([api.alerts(), api.status()]);
+  const [alerts, system] = await Promise.all([api.alerts(PRIMARY_ASSET_ID), api.status()]);
   const alert = alerts[0];
   if (!alert) throw new Error('No problem is available for investigation');
 
