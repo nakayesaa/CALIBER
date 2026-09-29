@@ -1,10 +1,24 @@
 import type { PlantRateSeries } from './apiContracts';
-import type { PlantPerformance } from './plantOverviewDemoData';
+import type { OperatingIssue, PlantPerformance, FollowUpAction } from './plantOverviewDemoData';
 
 export type OverviewDays = 1 | 3 | 7;
 export const snapshotDate = '2026-04-30';
 export const mean = (values: readonly number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
 export const deviation = (value: number | undefined, reference: number | undefined) => value !== undefined && reference !== undefined && reference > 0 ? (value - reference) / reference * 100 : undefined;
+
+export function operatingBrief(plant: PlantPerformance, metrics: ReturnType<typeof resourcePerformance>, downtime: readonly number[], issues: readonly OperatingIssue[], actions: readonly FollowUpAction[]) {
+  const change = metrics.productionDeviation;
+  const hours = downtime.reduce((sum, value) => sum + value, 0);
+  const rateText = change === undefined ? 'Production comparison is unavailable.' : Math.abs(change) < 0.1 ? 'Production is in line with its reference.' : `Production is ${Math.abs(change).toFixed(1)}% ${change < 0 ? 'below' : 'above'} reference.`;
+  const energyText = metrics.energyDeviation === undefined ? '' : ` Specific energy is ${Math.abs(metrics.energyDeviation).toFixed(1)}% ${metrics.energyDeviation < 0 ? 'below' : 'above'} its scenario reference.`;
+  const overdue = actions.filter((action) => action.overdue && action.status !== 'Verified').length;
+  const next = issues[0];
+  return {
+    title: change === undefined ? `${plant.id}: production data needs attention.` : next || hours ? `${plant.id}: check performance and equipment recovery.` : `${plant.id}: continue performance monitoring.`,
+    summary: `${rateText}${energyText} ${hours} equipment-hours of downtime in this window; ${overdue} overdue ${overdue === 1 ? 'action' : 'actions'}. These trends indicate exposure, not a confirmed causal link.`,
+    next: next ? `${next.severity} priority · ${next.owner}: ${next.nextStep}` : 'Next: monitor trends at comparable load; no current issue assigned.',
+  };
+}
 
 export function resourcePerformance(plant: PlantPerformance, observed: PlantRateSeries | null, length: OverviewDays, plannedRate?: number) {
   const window = performanceWindow(plant, observed, length);

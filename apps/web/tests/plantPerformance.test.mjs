@@ -8,8 +8,8 @@ async function load(name) {
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
   return import(`data:text/javascript,${encodeURIComponent(js)}`);
 }
-const { performanceWindow, resourcePerformance } = await load('plantPerformance');
-const { plantScenarios } = await load('plantOverviewDemoData');
+const { performanceWindow, resourcePerformance, operatingBrief } = await load('plantPerformance');
+const { plantScenarios, selectPlantOverview } = await load('plantOverviewDemoData');
 const observed = { points: Array.from({ length: 30 }, (_, index) => ({ date: `2026-04-${String(index + 1).padStart(2, '0')}`, average_rate_tph: 50, sample_count: 24 })) };
 
 test('shared windows preserve cadence, units and observed coverage without fallback', () => {
@@ -43,4 +43,21 @@ test('resource totals and load-based forecast respect cadence and missing source
   assert.equal(unavailable.forecast, undefined);
   const incomplete = resourcePerformance(zcu, { points: observed.points.slice(0, 29) }, 7);
   assert.equal(incomplete.energyTotal, undefined);
+  assert.equal(resourcePerformance(zcu, observed, 1, 0).forecast, 0);
+  assert.equal(resourcePerformance(zcu, observed, 1, -1).forecast, undefined);
+  assert.equal(resourcePerformance(zcu, observed, 1, Infinity).forecast, undefined);
+});
+
+test('operating brief joins measured deviations, exposure and accountable next steps', () => {
+  const overview = selectPlantOverview('ZCU');
+  const plant = overview.plants[0];
+  const metrics = resourcePerformance(plant, observed, 7);
+  const brief = operatingBrief(plant, metrics, overview.downtime, overview.issues, overview.actions);
+  assert.match(brief.summary, /32 equipment-hours/);
+  assert.match(brief.summary, /1 overdue action/);
+  assert.match(brief.next, /ZCU Maintenance/);
+  assert.match(brief.summary, /not a confirmed causal link/);
+  const unavailable = operatingBrief(plant, resourcePerformance(plant, null, 7), [], [], []);
+  assert.match(unavailable.summary, /unavailable/);
+  assert.match(unavailable.next, /no current issue/);
 });

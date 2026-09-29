@@ -1009,6 +1009,7 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .portfolio-shift-brief { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:30px; padding:22px 26px; margin:20px 0 24px; border:1px solid #dce9d5; border-radius:14px; background:#eaf7e3; }
 .portfolio-shift-brief h2 { margin:7px 0; font-size:24px; letter-spacing:-.035em; }
 .portfolio-shift-brief p { margin:0; max-width:700px; color:#46594a; font-size:15px; line-height:1.6; }
+.portfolio-shift-brief .portfolio-brief-next { margin-top:9px; font-weight:700; }
 .portfolio-brief-stat { display:grid; gap:5px; }
 .portfolio-brief-stat > strong { font-size:32px; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
 .portfolio-brief-stat small { font-size:18px; color:#5b715c; }

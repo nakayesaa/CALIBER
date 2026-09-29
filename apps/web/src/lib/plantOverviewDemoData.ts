@@ -111,10 +111,10 @@ const overviewSources = [
 
 const severityOrder: Record<Severity, number> = { High: 0, Warning: 1, Watch: 2 };
 
-export function performanceInsight(plant: PlantId, current: number | undefined, reference: number | undefined) {
+export function performanceInsight(plant: PlantId, current: number | undefined, reference: number | undefined, unit = 't/h') {
   if (current === undefined || reference === undefined || reference <= 0) return `${plant} production comparison is unavailable until the rate data loads.`;
   const change = (current - reference) / reference * 100;
-  return `${plant} daily mean production is ${Math.abs(change) < 0.1 ? 'in line with' : `${Math.abs(change).toFixed(1)}% ${change < 0 ? 'below' : 'above'}`} its reference (${current.toFixed(2)} vs ${reference.toFixed(2)} t/h).`;
+  return `${plant} daily mean production is ${Math.abs(change) < 0.1 ? 'in line with' : `${Math.abs(change).toFixed(1)}% ${change < 0 ? 'below' : 'above'}`} its reference (${current.toFixed(2)} vs ${reference.toFixed(2)} ${unit}).`;
 }
 
 export function selectPlantOverview(plantId: PlantId, productionStatus: 'ready' | 'loading' | 'unavailable' = 'unavailable') {

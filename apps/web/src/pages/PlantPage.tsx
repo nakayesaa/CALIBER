@@ -7,7 +7,7 @@ import { api } from '../lib/api';
 import type { PlantRateSeries } from '../lib/apiContracts';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { plantScenarios, performanceInsight, selectActionReport, selectPlantOverview, type PlantId, type PlantPerformance } from '../lib/plantOverviewDemoData';
-import { performanceWindow, resourcePerformance, type OverviewDays } from '../lib/plantPerformance';
+import { operatingBrief, performanceWindow, resourcePerformance, type OverviewDays } from '../lib/plantPerformance';
 import { useApiResource, type ResourceState } from '../lib/useApiResource';
 
 function shortDate(date: string): string {
@@ -92,11 +92,8 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
   const actionStates = ['Open', 'In progress', 'Awaiting verification', 'Verified'] as const;
   const actionCounts = actionStates.map((status) => actions.filter((action) => action.status === status).length);
   const overdue = actions.filter((action) => action.overdue).length;
-  const firstIssue = issues[0];
+  const brief = operatingBrief(plant, metrics, downtime, issues, actions);
   const actionReport = reportActionId ? selectActionReport(selectedPlant, reportActionId) : undefined;
-  const observed = plantRate.data?.points;
-  const currentRate = zcuSource ? observed?.at(-1)?.average_rate_tph : visiblePlants[0].production.at(-1);
-  const referenceRate = zcuSource && observed?.length ? observed.slice(0, 7).reduce((sum, point) => sum + point.average_rate_tph, 0) / Math.min(7, observed.length) : zcuSource ? undefined : visiblePlants[0].production[0];
 
   return <div className="portfolio-page">
     <header className="portfolio-heading">
@@ -109,7 +106,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
     </nav>
 
     <section className="portfolio-shift-brief" aria-label="Operating brief">
-      <div><span className="portfolio-section-kicker">Shift brief</span><h2>{firstIssue ? `${firstIssue.plant} needs a closer look.` : 'No open issues in this scenario.'}</h2><p>{firstIssue?.impact ?? 'The selected plant has no current attention flags. Continue routine trend monitoring.'}</p></div>
+      <div><span className="portfolio-section-kicker">Operating brief</span><h2>{brief.title}</h2><p>{brief.summary}</p><p className="portfolio-brief-next">{brief.next}</p></div>
       <div className="portfolio-brief-stat"><strong>{attention.at(-1)}<small> / {overview.assetCount}</small></strong><span>assets flagged now</span></div>
       <div className="portfolio-brief-stat"><strong>{overdue}</strong><span>overdue actions</span></div>
     </section>
@@ -124,7 +121,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
 
     <section className="portfolio-card portfolio-forecast" aria-label="Energy forecast"><div><span className="portfolio-section-kicker">Next 24 hours · energy forecast</span><h2>{formatted(metrics.forecast, 'GJ')}</h2><p>Constant-load estimate: assumed rate × 24 Apr reference intensity × 24 hours.</p></div><label>Assumed plant rate ({window.productionUnit})<input type="number" min="0" step="0.1" value={plannedRate} placeholder={metrics.currentRate?.toFixed(2) ?? 'Unavailable'} onChange={(event) => setPlannedRate(event.target.value)} /></label><div><strong>{formatted(metrics.forecastLow, 'GJ')}–{formatted(metrics.forecastHigh, 'GJ')}</strong><p>±10% planning range, not a statistical interval. Default rate: latest daily mean; adjust for the operating plan.</p></div></section>
 
-    <aside className="portfolio-output-context" aria-label="Plant performance insight"><span className="portfolio-section-kicker">Performance insight</span><p>{performanceInsight(selectedPlant, currentRate, referenceRate)} <small>{zcuSource ? 'Reference: 1–7 Apr observed mean.' : 'Reference: 24 Apr scenario daily mean.'}</small></p></aside>
+    <aside className="portfolio-output-context" aria-label="Plant performance insight"><span className="portfolio-section-kicker">Performance insight</span><p>{performanceInsight(selectedPlant, metrics.currentRate, metrics.referenceRate, window.productionUnit)} <small>{zcuSource ? 'Reference: 1–7 Apr observed mean, screening context only.' : 'Reference: 24 Apr scenario daily mean.'}</small></p></aside>
 
     <div className="portfolio-section-heading"><span>02 · Operating exceptions</span><p>Locate equipment exposure and follow-up gaps.</p></div>
     <div className="portfolio-dashboard portfolio-performance-grid">
