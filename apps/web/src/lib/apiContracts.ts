@@ -187,6 +187,7 @@ export interface SimilarIncident {
   business_consequences: string[];
   hybrid_score: number;
   match_reasons: string[];
+  source_reference: string;
 }
 
 export interface RCAHypothesis {

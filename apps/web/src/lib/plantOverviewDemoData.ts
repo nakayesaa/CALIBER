@@ -22,6 +22,7 @@ export interface OperatingIssue {
   plant: PlantCode;
   tag: string;
   severity: Severity;
+  priorityReason: string;
   title: string;
   impact: string;
   indication: string;
@@ -66,8 +67,8 @@ export const plantScenarios: readonly PlantPerformance[] = ([
 } }));
 
 const operatingIssues: readonly OperatingIssue[] = [
-  { id: 'ko-oil', plant: 'ZCU', tag: 'KO-3201', severity: 'High', title: 'Compressor recovery needs confirmation', impact: 'Plant rate remains below its earlier operating level after the compressor outage.', indication: 'Oil contamination is a probable contributor to bearing distress, pending confirmation.', evidence: 'Review water content, oil-pressure decline and inspection records together. A plant-rate decline alone does not establish the cause.', nextStep: 'Confirm oil condition and bearing inspection before closing the recovery action.', owner: 'ZCU Maintenance', investigationAvailable: true },
-  { id: 'he-duty', plant: 'ZCU', tag: 'HE-3301', severity: 'Watch', title: 'Exchanger duty needs a trend review', impact: 'Reduced heat transfer could increase utility demand.', indication: 'Fouling is a candidate, not a confirmed diagnosis.', evidence: 'Compare inlet and outlet temperatures, flow and differential pressure at comparable load.', nextStep: 'Check duty against matched-load reference conditions.', owner: 'ZCU Process Engineering', investigationAvailable: false },
+  { id: 'ko-oil', plant: 'ZCU', tag: 'KO-3201', severity: 'High', priorityReason: 'Recorded compressor outage, unresolved recovery checks and an overdue oil-review action. Review before the unconfirmed exchanger concern.', title: 'Compressor recovery needs confirmation', impact: 'Plant rate remains below its earlier operating level after the compressor outage.', indication: 'Oil contamination is a probable contributor to bearing distress, pending confirmation.', evidence: 'Review water content, oil-pressure decline and inspection records together. A plant-rate decline alone does not establish the cause.', nextStep: 'Confirm oil condition and bearing inspection before closing the recovery action.', owner: 'ZCU Maintenance', investigationAvailable: true },
+  { id: 'he-duty', plant: 'ZCU', tag: 'HE-3301', severity: 'Watch', priorityReason: 'Potential efficiency exposure only; no measured duty deviation or confirmed outage in this scenario. First establish comparable operating conditions.', title: 'Exchanger duty needs a trend review', impact: 'Reduced heat transfer could increase utility demand.', indication: 'Fouling is a candidate, not a confirmed diagnosis.', evidence: 'Compare inlet and outlet temperatures, flow and differential pressure at comparable load.', nextStep: 'Check duty against matched-load reference conditions.', owner: 'ZCU Process Engineering', investigationAvailable: false },
 ];
 
 const followUpActions: readonly FollowUpAction[] = [

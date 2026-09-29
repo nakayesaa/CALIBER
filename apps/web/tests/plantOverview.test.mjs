@@ -75,6 +75,7 @@ test('one selected plant ranks severity first and keeps daily counts scoped', ()
   const overview = selectPlantOverview('ZCU');
   assert.equal(overview.assetCount, 2);
   assert.equal(overview.issues[0].severity, 'High');
+  assert.ok(overview.issues.every((issue) => issue.priorityReason.length > 0));
   assert.equal(overview.plants.length, 1);
   assert.ok(!('production' in overview));
   for (const plant of plantScenarios) {

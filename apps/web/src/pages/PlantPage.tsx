@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import type { PageId } from '../components/AppShell';
 import { ActionReportDialog } from '../components/ActionReportDialog';
 import { Icon } from '../components/Icon';
+import { SimilarIncidentPreview } from '../components/SimilarIncidentPreview';
 import { api } from '../lib/api';
 import type { PlantRateSeries } from '../lib/apiContracts';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
@@ -144,7 +145,7 @@ export function PlantPage({ onNavigate }: { onNavigate: (page: PageId) => void }
       <div className="portfolio-issue-tools"><label><Icon name="search"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search equipment or issue" aria-label="Search equipment or issue"/></label><span>{visibleIssues.length} {visibleIssues.length === 1 ? 'result' : 'results'}</span></div>
       <div className="portfolio-issue-rows">{visibleIssues.map((item) => <details className="portfolio-operating-issue" key={item.id}>
         <summary><span className={`portfolio-status ${item.severity.toLowerCase()}`}>{item.severity}</span><span><strong>{item.tag} <small>· {item.plant}</small></strong><span>{item.title}</span></span><span className="portfolio-issue-owner">{item.owner}</span><span className="portfolio-disclosure" aria-hidden="true">+</span></summary>
-        <div className="portfolio-issue-evidence"><div><span>Operating impact</span><p>{item.impact}</p></div><div><span>Probable cause</span><p>{item.indication}</p></div><div><span>Supporting checks</span><p>{item.evidence}</p></div><div><span>Next action</span><p>{item.nextStep}</p></div>{item.investigationAvailable && <button onClick={() => onNavigate('investigation')}>Open KO-3201 investigation <Icon name="arrow" /></button>}</div>
+        <div className="portfolio-issue-evidence"><div><span>Priority rationale</span><p>{item.priorityReason}</p></div><div><span>Operating impact</span><p>{item.impact}</p></div><div><span>Probable cause</span><p>{item.indication}</p></div><div><span>Supporting checks</span><p>{item.evidence}</p></div><div><span>Next action</span><p>{item.nextStep}</p></div>{item.investigationAvailable && <><SimilarIncidentPreview /><button onClick={() => onNavigate('investigation')}>Open KO-3201 investigation <Icon name="arrow" /></button></>}</div>
       </details>)}{!visibleIssues.length && <p className="portfolio-issue-empty">{query ? 'No issues match this search.' : 'No open issues in this plant scenario.'}</p>}</div>
     </section>
 
