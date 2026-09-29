@@ -1,4 +1,4 @@
-"""HTTP routes for the KO-3201 backend vertical slice."""
+"""HTTP routes for equipment investigation and controlled follow-up workflows."""
 
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ from services.api.app.schemas.coordination import (
 )
 from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.effectiveness import EffectivenessReview
+from services.api.app.schemas.equipment import EquipmentInvestigation
 from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
 from services.api.app.schemas.traceability import (
@@ -203,6 +204,16 @@ def list_assets(backend: Backend) -> list[AssetSummary]:
 def asset_overview(asset_id: str, backend: Backend) -> AssetOverview:
     try:
         return backend.asset_overview(asset_id)
+    except ArtifactNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.get(
+    "/assets/{asset_id}/investigation", response_model=EquipmentInvestigation, tags=["assets"]
+)
+def equipment_investigation(asset_id: str, backend: Backend) -> EquipmentInvestigation:
+    try:
+        return backend.equipment_investigation(asset_id)
     except ArtifactNotFoundError as error:
         raise not_found(error) from error
 

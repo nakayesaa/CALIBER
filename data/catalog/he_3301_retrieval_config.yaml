@@ -1,0 +1,41 @@
+retriever_id: he-3301-hybrid-incident-retriever-v1
+retriever_version: "1.0.0"
+input_alert_policy_id: he-3301-weekly-engineering-v1
+top_k: 8
+minimum_hybrid_score: 0.10
+word_vectorizer:
+  analyzer: word
+  ngram_range: [1, 2]
+character_vectorizer:
+  analyzer: char_wb
+  ngram_range: [3, 5]
+weights:
+  word_similarity: 0.35
+  character_similarity: 0.15
+  equipment_family: 0.20
+  discipline: 0.05
+  component_overlap: 0.10
+  symptom_overlap: 0.10
+  plant: 0.05
+eligibility:
+  exclude_incident_ids: [incident-0004]
+  require_occurred_before_alert_open: true
+diversity:
+  maximum_per_failure_mechanism: 2
+signal_mappings:
+  tube_dp:
+    symptom: HIGH
+    component: TUBE_BUNDLE
+    narrative: high tube-side pressure drop with possible hydraulic restriction
+  heat_duty:
+    symptom: FOULING
+    component: TUBE_BUNDLE
+    narrative: reduced exchanger heat duty requiring flow and thermal checks
+  cold_outlet_temp:
+    symptom: HIGH
+    component: TUBE_BUNDLE
+    narrative: reduced cold-side outlet temperature
+  heavy_ends:
+    symptom: FOULING
+    component: TUBE_BUNDLE
+    narrative: heavy-ends concentration outside the monitored limit

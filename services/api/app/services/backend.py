@@ -36,6 +36,7 @@ from services.api.app.schemas.coordination import (
 )
 from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.effectiveness import EffectivenessReview
+from services.api.app.schemas.equipment import EquipmentInvestigation
 from services.api.app.schemas.rca import RCAGenerationConfig, RCARecord, RCAStatus
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
 from services.api.app.schemas.traceability import (
@@ -49,7 +50,7 @@ from services.api.app.services.actions.workflow import (
     transition_action,
     update_plan_status,
 )
-from services.api.app.services.artifacts import KO3201ArtifactRepository
+from services.api.app.services.artifacts import ArtifactNotFoundError, KO3201ArtifactRepository
 from services.api.app.services.coordination import (
     assign_action,
     record_execution_evidence,
@@ -59,10 +60,14 @@ from services.api.app.services.coordination import (
     review_case,
     submit_case,
 )
+from services.api.app.services.data.he_3301 import load_he_3301
+from services.api.app.services.demo.prepared_he_rca import PreparedHERCAProvider
 from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
 from services.api.app.services.demo.prepared_workflow import build_prepared_workflow
 from services.api.app.services.driver_analysis import DriverAnalysisService
 from services.api.app.services.effectiveness import build_effectiveness_review
+from services.api.app.services.equipment_traceability import equipment_source_details
+from services.api.app.services.he_repository import HE3301ArtifactRepository
 from services.api.app.services.production_impact import load_production_impact_policy
 from services.api.app.services.rca.case_assessment import assess_case, load_case_policy
 from services.api.app.services.rca.generation import (
@@ -95,6 +100,7 @@ class BackendService:
     ) -> None:
         self.root = root.resolve()
         self.repository = repository or KO3201ArtifactRepository(self.root)
+        self.he_repository = HE3301ArtifactRepository(self.root)
         self.provider_factory = provider_factory or OpenAIRCAProvider
         self.traceability = TraceabilityService(self.root)
         self.driver_analysis_service = DriverAnalysisService(self.root)
@@ -105,19 +111,20 @@ class BackendService:
         artifacts = self.repository.pipeline_status()
         required = ["canonical", "features", "model_scores", "alerts", "retrieval"]
         return SystemStatus(
-            phase="ko_3201_vertical_slice",
+            phase="equipment_verticals",
             api_status="ready" if all(artifacts[name] for name in required) else "partial",
             pipeline_artifacts=artifacts,
             llm_enabled=self._llm_ready(),
         )
 
     def list_assets(self) -> list[AssetSummary]:
-        return self.repository.list_assets()
+        return [asset for repository in self._repositories() for asset in repository.list_assets()]
 
     def asset_overview(self, asset_id: str) -> AssetOverview:
-        asset = self.repository.get_asset(asset_id)
-        start, end, latest_state = self.repository.timeline_summary(asset_id)
-        alerts = [alert for alert in self.repository.list_alerts() if alert.asset_id == asset_id]
+        repository = self._repository_for_asset(asset_id)
+        asset = repository.get_asset(asset_id)
+        start, end, latest_state = repository.timeline_summary(asset_id)
+        alerts = [alert for alert in repository.list_alerts() if alert.asset_id == asset_id]
         highest = max(alerts, key=lambda alert: alert.highest_severity_rank, default=None)
         production_impact = self._production_impact(asset_id, highest)
         return AssetOverview(
@@ -131,10 +138,21 @@ class BackendService:
         )
 
     def list_data_sources(self) -> list[DataSourceSummary]:
-        return self.traceability.list_sources()
+        return [
+            *self.traceability.list_sources(),
+            *[detail.source for detail in equipment_source_details(self.root)],
+        ]
 
     def data_source_detail(self, source_key: str) -> DataSourceDetail:
+        for detail in equipment_source_details(self.root):
+            if detail.source.source_key == source_key:
+                return detail
         return self.traceability.source_detail(source_key)
+
+    def equipment_investigation(self, asset_id: str) -> EquipmentInvestigation:
+        if self._repository_for_asset(asset_id) is not self.he_repository:
+            raise ArtifactNotFoundError(f"Source-series investigation unavailable for {asset_id}")
+        return load_he_3301(self.root)
 
     def traceability_claim(self, trace_id: str) -> TraceClaim:
         alert = max(
@@ -146,6 +164,8 @@ class BackendService:
         return self.traceability.claim(trace_id, alert, impact, effectiveness)
 
     def effectiveness_review(self, asset_id: str) -> EffectivenessReview | None:
+        if self._repository_for_asset(asset_id) is self.he_repository:
+            return self.he_repository.effectiveness_review()
         check = self.repository.effectiveness_check(asset_id)
         return build_effectiveness_review(check) if check else None
 
@@ -154,7 +174,12 @@ class BackendService:
         alert_id: str,
         requested_at: datetime | None = None,
     ) -> DriverAnalysis:
-        alert = self.repository.get_alert(alert_id)
+        repository = self._repository_for_alert(alert_id)
+        if repository is not self.repository:
+            raise ValueError(
+                "Model attribution is unavailable for this asset; inspect its condition evidence"
+            )
+        alert = repository.get_alert(alert_id)
         return self.driver_analysis_service.for_alert(alert, requested_at)
 
     def telemetry(
@@ -164,24 +189,26 @@ class BackendService:
         end: str | None,
         max_points: int,
     ) -> TelemetrySeries:
-        return self.repository.telemetry(asset_id, start, end, max_points)
+        return self._repository_for_asset(asset_id).telemetry(asset_id, start, end, max_points)
 
     def plant_rate_daily(self, asset_id: str) -> PlantRateSeries:
-        return self.repository.plant_rate_daily(asset_id)
+        return self._repository_for_asset(asset_id).plant_rate_daily(asset_id)
 
     def list_alerts(self, asset_id: str | None = None) -> list[AlertEvent]:
-        alerts = self.repository.list_alerts()
+        repositories = [self._repository_for_asset(asset_id)] if asset_id else self._repositories()
+        alerts = [alert for repository in repositories for alert in repository.list_alerts()]
         return [alert for alert in alerts if alert.asset_id == asset_id] if asset_id else alerts
 
     def alert_detail(self, alert_id: str) -> AlertDetail:
-        alert = self.repository.get_alert(alert_id)
-        rca = self.repository.get_rca(alert_id)
-        action_plans = self.repository.list_action_plans(alert_id)
+        repository = self._repository_for_alert(alert_id)
+        alert = repository.get_alert(alert_id)
+        rca = repository.get_rca(alert_id)
+        action_plans = repository.list_action_plans(alert_id)
         return AlertDetail(
             alert=alert,
-            state_transitions=self.repository.get_alert_transitions(alert_id),
-            opening_snapshot=self.repository.get_opening_snapshot(alert),
-            similar_incidents=self.repository.get_similar_incidents(alert_id),
+            state_transitions=repository.get_alert_transitions(alert_id),
+            opening_snapshot=repository.get_opening_snapshot(alert),
+            similar_incidents=repository.get_similar_incidents(alert_id),
             rca=rca,
             action_plans=action_plans,
             prepared_workflow=(self._prepared_workflow(alert_id) if rca is None else None),
@@ -190,22 +217,21 @@ class BackendService:
     def investigation_evidence(
         self, alert_id: str, as_of: datetime | None = None
     ) -> InvestigationEvidenceProgress:
-        alert = self.repository.get_alert(alert_id)
+        repository = self._repository_for_alert(alert_id)
+        alert = repository.get_alert(alert_id)
         current_time = self._aware_time(as_of)
         if current_time < datetime.fromisoformat(alert.opened_at):
             raise ValueError("Evidence replay cannot precede the alert opening")
-        events = self.repository.investigation_events(alert)
-        policy = load_case_policy(self.root / "data/catalog/ko_3201_rca_case.yaml")
-        opening = self.repository.get_opening_snapshot(alert)
+        events = repository.investigation_events(alert)
+        policy = load_case_policy(self._policy_path(repository, "rca_case"))
+        opening = repository.get_opening_snapshot(alert)
         return assess_case(alert_id, current_time, events, set(opening["breached_signals"]), policy)
 
     def similar_incidents(self, alert_id: str) -> list[IncidentRetrievalResult]:
-        self.repository.get_alert(alert_id)
-        return self.repository.get_similar_incidents(alert_id)
+        return self._repository_for_alert(alert_id).get_similar_incidents(alert_id)
 
     def get_rca(self, alert_id: str) -> RCARecord | None:
-        self.repository.get_alert(alert_id)
-        return self.repository.get_rca(alert_id)
+        return self._repository_for_alert(alert_id).get_rca(alert_id)
 
     def generate_rca(
         self,
@@ -214,8 +240,8 @@ class BackendService:
         mode: Literal["ai", "prepared"] = "ai",
     ) -> RCARecord:
         with self._mutation_lock:
-            self.repository.get_alert(alert_id)
-            existing = self.repository.get_rca(alert_id)
+            repository = self._repository_for_alert(alert_id)
+            existing = repository.get_rca(alert_id)
             if existing is not None:
                 return existing
             if mode == "ai" and not self._llm_ready():
@@ -223,13 +249,17 @@ class BackendService:
                     "OpenAI RCA generation requires CALIBER_LLM_ENABLED=true and OPENAI_API_KEY"
                 )
             config = load_generation_config(self.root / "data/catalog/ko_3201_rca_generation.yaml")
-            package = self.repository.get_evidence_package(alert_id)
+            package = repository.get_evidence_package(alert_id)
             try:
-                provider = self.provider_factory(config) if mode == "ai" else PreparedRCAProvider()
+                provider = (
+                    self.provider_factory(config)
+                    if mode == "ai"
+                    else self._prepared_provider(repository)
+                )
                 record = generate_rca_record(package, provider, config, requested_by)
             except Exception as error:
                 raise LLMGenerationError("RCA generation failed") from error
-            self.repository.save_rca(record)
+            repository.save_rca(record)
             return record
 
     def transition_rca(
@@ -252,7 +282,7 @@ class BackendService:
                 note,
                 self._aware_time(occurred_at),
             )
-            self.repository.save_rca(changed)
+            self._repository_for_alert(record.alert_id).save_rca(changed)
             return changed
 
     def create_action_plan(
@@ -267,7 +297,8 @@ class BackendService:
             if rca.status != RCAStatus.APPROVED:
                 raise ValueError("Action plans require an approved RCA")
             require_verified(self.case_review(rca.alert_id))
-            policy = load_action_policy(self.root / "data/catalog/ko_3201_action_policy.yaml")
+            repository = self._repository_for_alert(rca.alert_id)
+            policy = load_action_policy(self._policy_path(repository, "action_policy"))
             plan = build_action_plan(
                 rca,
                 hypothesis_id,
@@ -275,23 +306,28 @@ class BackendService:
                 rca.evidence_as_of.date(),
             )
             try:
-                return self.repository.get_action_plan(plan.plan_id)
+                return repository.get_action_plan(plan.plan_id)
             except FileNotFoundError:
-                self.repository.save_action_plan(plan)
+                repository.save_action_plan(plan)
                 return plan
 
     def get_action_plan(self, plan_id: str) -> ActionPlan:
-        return self.repository.get_action_plan(plan_id)
+        for repository in self._repositories():
+            try:
+                return repository.get_action_plan(plan_id)
+            except ArtifactNotFoundError:
+                continue
+        raise ArtifactNotFoundError(f"Action plan not found: {plan_id}")
 
     def case_review(self, alert_id: str) -> CaseReview:
-        return self.repository.case_review(alert_id)
+        return self._repository_for_alert(alert_id).case_review(alert_id)
 
     def submit_cross_check(
         self, alert_id: str, data: CrossCheckInput, person: Participant
     ) -> CaseReview:
         with self._mutation_lock:
             changed = submit_case(self.case_review(alert_id), data, person, self._aware_time(None))
-            self.repository.save_case_review(changed)
+            self._repository_for_alert(alert_id).save_case_review(changed)
             return changed
 
     def review_cross_check(
@@ -299,7 +335,7 @@ class BackendService:
     ) -> CaseReview:
         with self._mutation_lock:
             changed = review_case(self.case_review(alert_id), data, person, self._aware_time(None))
-            self.repository.save_case_review(changed)
+            self._repository_for_alert(alert_id).save_case_review(changed)
             return changed
 
     def transition_action(
@@ -322,7 +358,9 @@ class BackendService:
             action = record_execution_evidence(
                 action, status, evidence, person, self._aware_time(None)
             )
-            policy = load_action_policy(self.root / "data/catalog/ko_3201_action_policy.yaml")
+            policy = load_action_policy(
+                self._policy_path(self._repository_for_alert(plan.alert_id), "action_policy")
+            )
             return transition_action(
                 action,
                 status,
@@ -359,7 +397,7 @@ class BackendService:
         self, action_id: str, change: Callable[[ActionItem, ActionPlan], ActionItem]
     ) -> ActionPlan:
         with self._mutation_lock:
-            plan = self.repository.find_action_plan(action_id)
+            plan = self._action_plan_for_item(action_id)
             actions = [
                 change(action, plan).model_copy(update={"revision": action.revision + 1})
                 if action.action_id == action_id
@@ -367,13 +405,21 @@ class BackendService:
                 for action in plan.actions
             ]
             changed = update_plan_status(plan.model_copy(update={"actions": actions}))
-            self.repository.save_action_plan(changed)
+            self._repository_for_alert(plan.alert_id).save_action_plan(changed)
             return changed
 
+    def _action_plan_for_item(self, action_id: str) -> ActionPlan:
+        for repository in self._repositories():
+            try:
+                return repository.find_action_plan(action_id)
+            except ArtifactNotFoundError:
+                continue
+        raise ArtifactNotFoundError(f"Action not found: {action_id}")
+
     def _require_rca_id(self, rca_id: str) -> RCARecord:
-        alerts = self.repository.list_alerts()
+        alerts = self.list_alerts()
         for alert in alerts:
-            record = self.repository.get_rca(alert.alert_id)
+            record = self._repository_for_alert(alert.alert_id).get_rca(alert.alert_id)
             if record is not None and record.rca_id == rca_id:
                 return record
         raise FileNotFoundError(f"RCA not found: {rca_id}")
@@ -382,6 +428,8 @@ class BackendService:
         self, asset_id: str, alert: AlertEvent | None
     ) -> ProductionImpact | None:
         if alert is None:
+            return None
+        if self._repository_for_asset(asset_id) is self.he_repository:
             return None
         policy = load_production_impact_policy(
             self.root / "data/catalog/ko_3201_production_impact.yaml"
@@ -392,13 +440,43 @@ class BackendService:
         generation_config = load_generation_config(
             self.root / "data/catalog/ko_3201_rca_generation.yaml"
         )
-        action_policy = load_action_policy(self.root / "data/catalog/ko_3201_action_policy.yaml")
+        repository = self._repository_for_alert(alert_id)
+        action_policy = load_action_policy(self._policy_path(repository, "action_policy"))
         rca, plan = build_prepared_workflow(
-            self.repository.get_evidence_package(alert_id),
+            repository.get_evidence_package(alert_id),
             generation_config,
             action_policy,
+            self._prepared_provider(repository),
         )
         return PreparedWorkflow(rca=rca, action_plans=[plan])
+
+    def _repositories(self) -> list[KO3201ArtifactRepository]:
+        return (
+            [self.repository, self.he_repository]
+            if (self.root / "data/normalized/he_3301/equipment.json").is_file()
+            else [self.repository]
+        )
+
+    def _repository_for_asset(self, asset_id: str) -> KO3201ArtifactRepository:
+        for repository in self._repositories():
+            if any(asset.asset_id == asset_id for asset in repository.list_assets()):
+                return repository
+        raise ArtifactNotFoundError(f"Asset not found: {asset_id}")
+
+    def _repository_for_alert(self, alert_id: str) -> KO3201ArtifactRepository:
+        for repository in self._repositories():
+            if any(alert.alert_id == alert_id for alert in repository.list_alerts()):
+                return repository
+        raise ArtifactNotFoundError(f"Alert not found: {alert_id}")
+
+    def _policy_path(self, repository: KO3201ArtifactRepository, policy: str) -> Path:
+        return self.root / "data/catalog" / f"{repository.asset_key}_{policy}.yaml"
+
+    @staticmethod
+    def _prepared_provider(repository: KO3201ArtifactRepository) -> RCAProvider:
+        return (
+            PreparedHERCAProvider() if repository.asset_key == "he_3301" else PreparedRCAProvider()
+        )
 
     @staticmethod
     def _aware_time(value: datetime | None) -> datetime:

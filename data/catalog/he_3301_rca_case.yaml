@@ -1,0 +1,42 @@
+policy_id: he-3301-rca-case-v1
+stages:
+  - id: PROBABLE
+    requires: []
+    summary: Weekly hydraulic and thermal readings support a performance investigation. Fouling remains a hypothesis until physical inspection is available.
+    decision: Cross-check instruments and operating conditions, then obtain as-found bundle evidence.
+  - id: CAUSE_REPORTED
+    requires: [he-evidence-3]
+    summary: The source RCA reports deposits at exchanger inspection. This supports fouling but the original inspection sheet is required for acceptance.
+    decision: Reconcile the inspection finding with the preceding pressure-drop and heat-duty trends.
+  - id: REPAIR_REPORTED
+    requires: [he-evidence-4]
+    summary: The RCA reports completed exchanger cleaning. Subsequent weekly readings test whether the measured recovery persists.
+    decision: Review post-cleaning hydraulic and thermal performance and assign effectiveness approval before closure.
+causal_path:
+  - id: deposit_loading
+    suspected: Possible deposit accumulation in the exchanger
+    reported: Deposits reported during bundle inspection
+    report_event_id: he-evidence-3
+  - id: hydraulic_restriction
+    suspected: Tube pressure drop indicates possible restriction
+    reported: Pressure-drop and thermal degradation reported
+    opening_signal: tube_dp
+    report_event_id: he-evidence-1
+  - id: thermal_performance
+    suspected: Heat duty may decline as resistance increases
+    reported: Cleaning recorded to restore exchanger performance
+    opening_signal: heat_duty
+    report_event_id: he-evidence-4
+explanations:
+  - id: fouling
+    title: Exchanger fouling
+    starting_basis: Pressure-drop and thermal indicators can be consistent with deposits; the opening trend alone does not identify their origin.
+    supporting_event_ids: [he-evidence-3, he-evidence-4]
+    challenging_event_ids: []
+    next_check: Retrieve as-found inspection, deposit analysis, and post-cleaning test records.
+  - id: process_change
+    title: Changed process conditions or measurement error
+    starting_basis: Feed properties, load and instrument error can change exchanger readings without deposits.
+    supporting_event_ids: []
+    challenging_event_ids: [he-evidence-3]
+    next_check: Compare flow, temperature instruments and upstream feed history before accepting the mechanism.

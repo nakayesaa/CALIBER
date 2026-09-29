@@ -55,6 +55,18 @@ PARTICIPANTS = [
         role="ENGINEER",
         owner_roles=["Maintenance Planner"],
     ),
+    Participant(
+        person_id="demo-static",
+        display_name="Demo ST-01 · Static Equipment",
+        role="ENGINEER",
+        owner_roles=["Static Equipment Engineer"],
+    ),
+    Participant(
+        person_id="demo-process",
+        display_name="Demo PR-01 · Process",
+        role="ENGINEER",
+        owner_roles=["Process Engineer"],
+    ),
     Participant(person_id="demo-manager", display_name="Demo MG-01 · Manager", role="MANAGER"),
 ]
 

@@ -82,7 +82,7 @@ class ActionWorkflowPolicy(ActionModel):
 class ActionPolicyConfig(ActionModel):
     policy_id: str
     policy_version: str
-    cause_policies: list[CauseActionPolicy]
+    cause_policies: list[CauseActionPolicy] = Field(min_length=1)
     workflow: ActionWorkflowPolicy
 
     @model_validator(mode="after")
@@ -90,8 +90,6 @@ class ActionPolicyConfig(ActionModel):
         categories = [policy.cause_category for policy in self.cause_policies]
         if len(categories) != len(set(categories)):
             raise ValueError("Cause action policies must be unique")
-        if set(categories) != set(CauseCategory):
-            raise ValueError("Action policy must cover every RCA cause category")
         return self
 
 

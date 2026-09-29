@@ -13,18 +13,23 @@ from services.api.app.services.actions.workflow import (
     update_plan_status,
 )
 from services.api.app.services.demo.prepared_rca import PreparedRCAProvider
-from services.api.app.services.rca.generation import generate_rca_record, transition_rca
+from services.api.app.services.rca.generation import (
+    RCAProvider,
+    generate_rca_record,
+    transition_rca,
+)
 
 
 def build_prepared_workflow(
     package: RAGEvidencePackage,
     generation_config: RCAGenerationConfig,
     action_policy: ActionPolicyConfig,
+    provider: RCAProvider | None = None,
 ) -> tuple[RCARecord, ActionPlan]:
     """Return an approved RCA and representative action progress without persistence."""
     rca = generate_rca_record(
         package,
-        PreparedRCAProvider(),
+        provider or PreparedRCAProvider(),
         generation_config,
         requested_by="Reliability Engineer",
     )

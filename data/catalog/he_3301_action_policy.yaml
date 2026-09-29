@@ -1,0 +1,72 @@
+policy_id: he-3301-ca-pa-policy-v1
+policy_version: "1.0.0"
+cause_policies:
+  - cause_category: FOULING
+    actions:
+      - template_id: he-fouling-containment
+        action_type: CONTAINMENT
+        title: Verify exchanger restriction and operating limits
+        guidance: Cross-check pressure drop and thermal performance against source limits; agree operating restrictions with the shift supervisor.
+        default_owner_role: Shift Supervisor
+        priority: HIGH
+        due_in_days: 0
+        completion_criteria: Instrument cross-check and approved operating decision are attached.
+        effectiveness_check: Operation remains within the approved temporary limits.
+      - template_id: he-fouling-corrective
+        action_type: CORRECTIVE
+        title: Inspect and clean the confirmed fouling
+        guidance: Inspect deposits and clean the exchanger under the approved procedure after confirming the mechanism.
+        default_owner_role: Static Equipment Engineer
+        priority: HIGH
+        due_in_days: 7
+        completion_criteria: As-found inspection, completed cleaning and acceptance readings are documented.
+        effectiveness_check: Weekly pressure drop, heat duty and outlet temperature show sustained recovery.
+        affected_scope: HE-3301 tube bundle
+        execution_route: Corrective maintenance
+        change_control: Approved maintenance procedure and operating handoff
+      - template_id: he-fouling-preventive
+        action_type: PREVENTIVE
+        title: Review feed filtration and cleaning triggers
+        guidance: Review feed filtration, upstream heavy-ends trends and exchanger KPI monitoring using the source RCA recommendations; approve a condition-based cleaning trigger.
+        default_owner_role: Reliability Engineer
+        priority: MEDIUM
+        due_in_days: 30
+        completion_criteria: Monitoring, filtration review and cleaning trigger have assigned owners and approved tasks.
+        effectiveness_check: Follow-up trend reviews detect deterioration before the approved cleaning threshold.
+  - cause_category: UNDETERMINED
+    actions:
+      - template_id: he-undetermined-containment
+        action_type: CONTAINMENT
+        title: Preserve evidence and agree operating restrictions
+        guidance: Preserve the process trend and cross-check suspect measurements with operations.
+        default_owner_role: Shift Supervisor
+        priority: HIGH
+        due_in_days: 0
+        completion_criteria: Evidence and approved operating decision are recorded.
+        effectiveness_check: The temporary operating envelope controls the observed deviation.
+      - template_id: he-undetermined-corrective
+        action_type: CORRECTIVE
+        title: Separate exchanger condition from process effects
+        guidance: Review flow, feed properties, thermal boundary conditions and instrument checks before approving permanent work.
+        default_owner_role: Process Engineer
+        priority: HIGH
+        due_in_days: 7
+        completion_criteria: A reviewed mechanism is supported by source evidence.
+        effectiveness_check: The selected correction removes the measured condition signature.
+      - template_id: he-undetermined-preventive
+        action_type: PREVENTIVE
+        title: Close the exchanger diagnostic gap
+        guidance: Assign missing inspection, feed-quality and instrument assurance records identified by the investigation.
+        default_owner_role: Reliability Engineer
+        priority: MEDIUM
+        due_in_days: 30
+        completion_criteria: Required records and follow-up owners are defined.
+        effectiveness_check: A later review can distinguish the competing explanations.
+workflow:
+  transitions:
+    PROPOSED: [APPROVED, REJECTED]
+    APPROVED: [IN_PROGRESS, REJECTED]
+    IN_PROGRESS: [EFFECTIVENESS_REVIEW]
+    EFFECTIVENESS_REVIEW: [IN_PROGRESS, CLOSED]
+    CLOSED: []
+    REJECTED: []

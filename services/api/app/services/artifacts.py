@@ -42,6 +42,8 @@ class ArtifactNotFoundError(FileNotFoundError):
 
 
 class KO3201ArtifactRepository:
+    asset_key = "ko_3201"
+
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
         self._write_lock = threading.RLock()

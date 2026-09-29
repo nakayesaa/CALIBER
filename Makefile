@@ -1,5 +1,5 @@
 .PHONY: help install dev web-dev web-build api-install api-dev canonical scenario \
-	features train-preflight train alerts retrieval rca-preflight rca actions \
+	features train-preflight train alerts retrieval rca-preflight rca actions he-canonical \
 	db-seed test lint security-check check
 
 help:
@@ -11,6 +11,7 @@ help:
 	@echo "  make api-install  Create API virtualenv and install dependencies"
 	@echo "  make api-dev      Start the FastAPI development server"
 	@echo "  make canonical    Rebuild and validate KO-3201 canonical data"
+	@echo "  make he-canonical Import and validate HE-3301 source data"
 	@echo "  make scenario     Build the six-month KO-3201 hourly scenario"
 	@echo "  make features     Build the KO-3201 model-independent features"
 	@echo "  make train-preflight  Validate model inputs without training"
@@ -47,6 +48,9 @@ api-dev:
 
 canonical:
 	.venv/bin/python scripts/ingest_ko_3201.py
+
+he-canonical:
+	.venv/bin/python scripts/ingest_he_3301.py
 
 scenario: canonical
 	.venv/bin/python scripts/generate_ko_3201_scenario.py

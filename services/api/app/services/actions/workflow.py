@@ -41,6 +41,8 @@ def build_action_plan(
         cause_policy.cause_category: cause_policy
         for cause_policy in policy.cause_policies
     }
+    if hypothesis.category not in cause_policies:
+        raise ValueError(f"No action policy configured for cause: {hypothesis.category}")
     cause_policy = cause_policies[hypothesis.category]
     plan_id = _stable_id("plan", rca.rca_id, selected_hypothesis_id, policy.policy_id)
     actions = [
