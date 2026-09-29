@@ -5,12 +5,11 @@ import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type ActionStatus, type AlertDetail, type DriverAnalysis, type InvestigationEvidenceProgress, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type DriverAnalysis, type InvestigationEvidenceProgress, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { alertDetectionWindow, selectTelemetryWindow, timeWindowHours } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
-import { actionTransitionLabel, nextActionStatus } from '../lib/workflow';
 import { workflowView } from '../lib/workflowView';
 
 type SignalField = keyof Pick<TelemetryPoint,
@@ -107,12 +106,11 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
   const selectedValues = detectionPoints.map((point) => Number(point[selectedField]));
   const latestPoint = detectionPoints.at(-1);
 
-  async function runWorkflow(operation: () => Promise<unknown>, nextStep?: number) {
+  async function runWorkflow(operation: () => Promise<unknown>) {
     setWorkflowBusy(true);
     setWorkflowError(null);
     try {
       await operation();
-      if (nextStep !== undefined) setActiveStep(nextStep);
     } catch (error) {
       setWorkflowError(error instanceof Error ? error.message : 'Workflow update failed');
     } finally {
@@ -125,46 +123,6 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     return runWorkflow(() => api.generateRca(
       alert.alert_id,
       system.llm_enabled ? 'ai' : 'prepared',
-    ));
-  }
-
-  function startReview() {
-    if (!detail.rca) return;
-    return runWorkflow(() => api.updateRcaStatus(
-      detail.rca!.rca_id,
-      'UNDER_REVIEW',
-      'Evidence review started from the investigation workspace.',
-    ));
-  }
-
-  function approveAndCreatePlan() {
-    if (!detail.rca) return;
-    const selectedHypothesis = detail.rca.generation.hypotheses[0];
-    return runWorkflow(async () => {
-      const approved = await api.updateRcaStatus(
-        detail.rca!.rca_id,
-        'APPROVED',
-        'Leading cause accepted against the available evidence.',
-      );
-      await api.createActionPlan(approved.rca_id, selectedHypothesis.hypothesis_id);
-    }, 3);
-  }
-
-  function createPlan() {
-    if (!detail.rca) return;
-    return runWorkflow(() => api.createActionPlan(
-      detail.rca!.rca_id,
-      detail.rca!.generation.hypotheses[0].hypothesis_id,
-    ), 3);
-  }
-
-  function updateAction(actionId: string, currentStatus: ActionStatus) {
-    const nextStatus = nextActionStatus(currentStatus);
-    if (!nextStatus) return;
-    return runWorkflow(() => api.updateActionStatus(
-      actionId,
-      nextStatus,
-      `Action advanced to ${humanize(nextStatus)} from the investigation workspace.`,
     ));
   }
 
@@ -244,18 +202,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
           <h3>{causeTitle}</h3>
           <p>{progress?.summary ?? 'Reviewing the condition evidence available at this time.'}</p>
           <div><strong>{causeReported ? 'Case interpretation' : 'What remains unverified'}</strong><p>{causeReported ? hypothesis?.rationale : 'The source of water entry and bearing condition require lab and inspection evidence. The current signal pattern alone cannot prove the physical cause.'}</p></div>
-          {causeReported && <WorkflowControls
-            rcaStatus={detail.rca?.status ?? null}
-            hasPlan={detail.action_plans.length > 0}
-            busy={workflowBusy}
-            error={workflowError}
-            draftMode={system.llm_enabled ? 'AI-generated' : 'Prepared-case'}
-            onCreateDraft={createDraft}
-            onStartReview={startReview}
-            onApprove={approveAndCreatePlan}
-            onReject={() => detail.rca && runWorkflow(() => api.updateRcaStatus(detail.rca!.rca_id, 'REJECTED', 'Draft rejected for further investigation.'))}
-            onCreatePlan={createPlan}
-          />}
+          {causeReported && <div className="rca-workflow-controls"><div><span>Decision workflow</span><strong>{detail.rca ? humanize(detail.rca.status) : 'Draft preview'}</strong></div><div>{!detail.rca && <button disabled={workflowBusy} onClick={createDraft}>Create reviewable draft</button>}<button onClick={() => onNavigate('actions')}>Open cross-check and authorization</button></div>{workflowError && <p role="alert">{workflowError}</p>}</div>}
         </article>
         <article className="cause-evidence panel">
           <header><span>Model contribution at replay time</span><strong>{replayDriver?.contributions.length ?? '—'} condition drivers</strong></header>
@@ -273,8 +220,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
       <div className="investigation-action-list panel">
         <header><span>Priority and action</span><span>Owner</span><span>Status</span><span>Due date</span></header>
         {actions.map((action) => {
-          const nextStatus = detail.action_plans.length ? nextActionStatus(action.status) : null;
-          return <div key={action.action_id}><div><span>{humanize(action.priority)}</span><strong>{action.title}</strong><p>{action.effectiveness_check}</p></div><strong>{action.owner_role}</strong><div className="action-workflow-state"><span className={`action-state ${action.status.toLowerCase()}`}>{humanize(action.status)}</span>{nextStatus && <button disabled={workflowBusy} onClick={() => updateAction(action.action_id, action.status)}>{actionTransitionLabel(nextStatus)}</button>}</div><time>{formatDate(action.due_date)}</time></div>;
+          return <div key={action.action_id}><div><span>{humanize(action.priority)}</span><strong>{action.title}</strong><p>{action.effectiveness_check}</p></div><strong>{action.assignment?.person_id ?? action.owner_role}</strong><div className="action-workflow-state"><span className={`action-state ${action.status.toLowerCase()}`}>{humanize(action.status)}</span><button onClick={() => onNavigate('actions')}>Open action record</button></div><time>{formatDate(action.due_date)}</time></div>;
         })}
       </div>
       {workflowError && <p className="workflow-error">{workflowError}</p>}
@@ -287,31 +233,5 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
         ? <button className="story-next" onClick={() => openStep(Math.min(storySteps.length - 1, activeStep + 1))}>Next: {storySteps[activeStep + 1]} <Icon name="arrow"/></button>
         : <button className="story-next" onClick={() => onNavigate('actions')}>Open action tracker <Icon name="arrow"/></button>}
     </footer>
-  </div>;
-}
-
-function WorkflowControls({ rcaStatus, hasPlan, busy, error, draftMode, onCreateDraft, onStartReview, onApprove, onReject, onCreatePlan }: {
-  rcaStatus: string | null;
-  hasPlan: boolean;
-  busy: boolean;
-  error: string | null;
-  draftMode: string;
-  onCreateDraft: () => void;
-  onStartReview: () => void;
-  onApprove: () => void;
-  onReject: () => void;
-  onCreatePlan: () => void;
-}) {
-  return <div className="rca-workflow-controls">
-    <div><span>Decision workflow</span><strong>{rcaStatus ? humanize(rcaStatus) : `${draftMode} draft preview`}</strong></div>
-    <div>
-      {!rcaStatus && <button className="workflow-primary" disabled={busy} onClick={onCreateDraft}>{busy ? 'Creating…' : 'Create reviewable draft'}</button>}
-      {rcaStatus === 'AI_DRAFT' && <button className="workflow-primary" disabled={busy} onClick={onStartReview}>{busy ? 'Updating…' : 'Start human review'}</button>}
-      {rcaStatus === 'UNDER_REVIEW' && <><button className="workflow-secondary" disabled={busy} onClick={onReject}>Reject draft</button><button className="workflow-primary" disabled={busy} onClick={onApprove}>{busy ? 'Creating plan…' : 'Approve and create CA/PA'}</button></>}
-      {rcaStatus === 'APPROVED' && !hasPlan && <button className="workflow-primary" disabled={busy} onClick={onCreatePlan}>{busy ? 'Creating…' : 'Create CA/PA plan'}</button>}
-      {rcaStatus === 'APPROVED' && hasPlan && <span className="workflow-complete"><Icon name="check"/> Approved · CA/PA created</span>}
-      {rcaStatus === 'REJECTED' && <span className="workflow-rejected">Rejected · further evidence required</span>}
-    </div>
-    {error && <p>{error}</p>}
   </div>;
 }

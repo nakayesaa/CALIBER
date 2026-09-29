@@ -239,6 +239,7 @@ export type ActionType = 'CONTAINMENT' | 'CORRECTIVE' | 'PREVENTIVE';
 export type ActionStatus = 'PROPOSED' | 'APPROVED' | 'IN_PROGRESS' | 'EFFECTIVENESS_REVIEW' | 'CLOSED' | 'REJECTED';
 
 export interface ActionItem {
+  revision?: number;
   action_id: string;
   action_type: ActionType;
   title: string;
@@ -252,6 +253,11 @@ export interface ActionItem {
   affected_scope?: string | null;
   execution_route?: string | null;
   change_control?: string | null;
+  assignment?: ActionAssignment | null;
+  requirements?: RequirementCheck[];
+  completion?: ExecutionEvidence | null;
+  verification?: ExecutionEvidence | null;
+  evidence_history?: ExecutionEvidence[];
   status_history?: Array<{
     previous_status: ActionStatus;
     new_status: ActionStatus;
@@ -259,6 +265,71 @@ export interface ActionItem {
     occurred_at: string;
     note: string;
   }>;
+}
+
+export interface WorkflowParticipant {
+  person_id: string;
+  display_name: string;
+  role: 'OPERATOR' | 'SUPERVISOR' | 'ENGINEER' | 'MANAGER';
+  owner_roles: string[];
+}
+
+export interface WorkflowSession {
+  current: WorkflowParticipant;
+  participants: WorkflowParticipant[];
+  can_switch: boolean;
+}
+
+export interface ReviewHistory {
+  status: string;
+  actor_id: string;
+  occurred_at: string;
+  note: string;
+  recipient_id?: string | null;
+  due_date?: string | null;
+}
+
+export interface CaseReview {
+  alert_id: string;
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'VERIFIED' | 'CHANGES_REQUESTED';
+  revision: number;
+  note: string;
+  references: string[];
+  human_context: string;
+  submitted_by: string | null;
+  reviewed_by: string | null;
+  history: ReviewHistory[];
+}
+
+export interface ActionAssignment {
+  revision: number;
+  person_id: string;
+  assigned_by: string;
+  assigned_at: string;
+  accepted_at: string | null;
+  blocked_reason: string | null;
+  history: ReviewHistory[];
+}
+
+export interface RequirementCheck {
+  requirement: 'PROCEDURE' | 'AUTHORIZATION' | 'CHANGE_CONTROL';
+  disposition: 'CONFIRMED' | 'NOT_APPLICABLE';
+  reference: string;
+  note: string;
+}
+
+export interface ExecutionEvidenceInput {
+  requirements?: RequirementCheck[];
+  reference?: string;
+  finding?: string;
+}
+
+export interface ExecutionEvidence {
+  reference: string;
+  finding: string;
+  actor_id: string;
+  occurred_at: string;
+  outcome: 'COMPLETED' | 'EFFECTIVE' | 'REWORK_REQUIRED';
 }
 
 export interface ActionPlan {

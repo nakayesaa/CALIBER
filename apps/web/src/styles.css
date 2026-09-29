@@ -16,6 +16,32 @@
   --brand-primary: #1a1a1a;
 }
 
+.coordination-panel { padding:24px; border:1px solid var(--line); border-radius:22px; background:var(--panel); font-size:15px; line-height:1.6; }
+.coordination-panel > header { display:flex; justify-content:space-between; align-items:start; gap:24px; margin-bottom:16px; }
+.coordination-panel h2 { margin:4px 0; font-size:24px; }
+.coordination-panel h3 { font-size:18px; margin:0; }
+.coordination-panel p { margin:8px 0 14px; }
+.coordination-panel header span,.coordination-record summary > span { color:var(--muted); font-size:14px; }
+.coordination-panel fieldset { padding:0; border:0; min-width:0; }
+.coordination-panel label { display:grid; gap:6px; font-weight:600; }
+.coordination-panel input,.coordination-panel select,.coordination-panel textarea { width:100%; padding:10px 12px; border:1px solid #b9c2b5; border-radius:8px; font:inherit; background:white; }
+.coordination-panel textarea { resize:vertical; min-height:80px; }
+.coordination-panel form { display:grid; gap:16px; max-width:840px; margin:18px 0; }
+.coordination-panel button { justify-self:start; padding:10px 16px; border:1px solid #809774; border-radius:8px; background:var(--lime-tint); font-weight:650; }
+.coordination-panel :is(button,input,select,textarea,summary):focus-visible { outline:2px solid #4d703d; outline-offset:3px; }
+.coordination-panel button:disabled { opacity:.55; cursor:wait; }
+.coordination-panel .workflow-error { font-size:15px; }
+.coordination-sop { color:var(--muted); max-width:950px; }
+.coordination-record { border-top:1px solid var(--line); padding:18px 0; }
+.coordination-record summary { cursor:pointer; font-size:16px; }
+.coordination-record > summary > strong { margin-right:18px; }
+.coordination-record > summary > span { display:inline-block; }
+.coordination-record details { margin-top:16px; }
+.coordination-record li { padding:6px 0; overflow-wrap:anywhere; }
+.coordination-checks { display:grid; gap:18px; }
+.coordination-checks > div { display:grid; gap:10px; padding:16px; border:1px solid var(--line); border-radius:10px; }
+@media(max-width:800px) { .coordination-panel > header { flex-direction:column; }.coordination-panel { padding:18px; } }
+
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; overflow: hidden; }
 body { margin: 0; min-width: 320px; background: #e8e8e8; line-height: 1.45; font-weight: 450; }
@@ -352,13 +378,7 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .rca-workflow-controls > div:first-child strong { margin-top: 3px; font-size: 13px; }
 .rca-workflow-controls > div:nth-child(2) { display: flex; justify-content: flex-end; gap: 8px; }
 .rca-workflow-controls button { min-height: 36px; padding: 0 11px; border-radius: 8px; font-size: 11px; font-weight: 600; }
-.workflow-primary { background: #26343b; color: #fff; }
-.workflow-secondary { border: 1px solid var(--story-line); color: #65737a; }
 .rca-workflow-controls > p, .workflow-error { grid-column: 1 / -1; color: #a6362e; font-size: 11px; }
-.workflow-complete, .workflow-rejected { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; }
-.workflow-complete { color: #2d6c51; }
-.workflow-complete .app-icon { width: 13px; height: 13px; }
-.workflow-rejected { color: #a6362e; }
 .cause-evidence > header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 12px; }
 .cause-evidence > header span, .cause-evidence footer { color: var(--story-muted); }
 .cause-evidence > div { min-height: 60px; display: grid; grid-template-columns: 30px minmax(0,1fr) 52px; gap: 10px; align-items: center; border-top: 1px solid var(--story-line); }
@@ -381,7 +401,7 @@ h3 { font-size: 15px; font-weight: 620; letter-spacing: -.12px; }
 .action-state.closed { background: #e7f3ed; color: #2d6c51; }
 .action-state.in_progress { background: #fff3d5; color: #8c651c; }
 .action-workflow-state { display: flex; align-items: flex-start; flex-direction: column; gap: 5px; }
-.action-workflow-state button { color: var(--brand-primary); font-size: 10px; font-weight: 600; }
+.action-workflow-state button { color: var(--brand-primary); font-size: 14px; font-weight: 600; }
 .action-workflow-state button:disabled { opacity: .45; cursor: wait; }
 .investigation-action-list time { color: var(--story-muted); font-size: 12px; }
 .story-controls { min-height: 58px; margin-top: 14px; padding: 8px 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--story-line); }
