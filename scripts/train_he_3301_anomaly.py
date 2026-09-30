@@ -71,6 +71,24 @@ def validate_scoring_order(expected: list[str], actual: list[str]) -> None:
         raise ValueError("Scoring feature order does not match the fitted model")
 
 
+def blocked_healthy_split(frame: pd.DataFrame, cutoff: pd.Timestamp) -> tuple[TrainingSplit, pd.DataFrame]:
+    """Cover historical normal levels in fixed blocks, never random overlapping rows."""
+    times = frame.timestamp
+    if times.duplicated().any() or not times.is_monotonic_increasing:
+        raise ValueError("Feature timestamps must be unique and chronological")
+    hours = (times - times.iloc[0].normalize()) / pd.Timedelta(hours=1)
+    # Third gap prevents the next cycle's fit inputs sharing the preceding holdout.
+    phase = hours % (18 * 24)
+    eligible = frame.model_training_eligible & times.lt(cutoff)
+    fit = frame.loc[eligible & phase.lt(240)].copy()
+    calibration = frame.loc[eligible & phase.ge(264) & phase.lt(324)].copy()
+    holdout = frame.loc[eligible & phase.ge(348) & phase.lt(408)].copy()
+    for name, part, minimum in [("Fit", fit, 720), ("Calibration", calibration, 168), ("Holdout", holdout, 168)]:
+        if len(part) < minimum:
+            raise ValueError(f"{name} partition has {len(part)} rows, requires {minimum}")
+    return TrainingSplit(fit, calibration), holdout
+
+
 def prepare_inputs(root: Path, directory: Path):
     config_path = root / "data/catalog/he_3301_anomaly_model.yaml"
     payload = yaml.safe_load(config_path.read_text())
@@ -111,14 +129,17 @@ def prepare_inputs(root: Path, directory: Path):
             ],
         }
     columns = validate_feature_contract(frame, manifest, config)
-    split, holdout = healthy_split(
-        frame,
-        pd.Timestamp(validation["healthy_end_exclusive"]),
-        validation["exclusion_gap_hours"],
-        config.split.minimum_fit_rows,
-        config.split.minimum_calibration_rows,
-        validation["minimum_holdout_rows"],
-    )
+    strategy = validation.get("strategy", "forward_chronological")
+    if strategy == "retrospective_blocked":
+        split, holdout = blocked_healthy_split(frame, pd.Timestamp(validation["healthy_end_exclusive"]))
+    elif strategy == "forward_chronological":
+        split, holdout = healthy_split(
+            frame, pd.Timestamp(validation["healthy_end_exclusive"]), validation["exclusion_gap_hours"],
+            config.split.minimum_fit_rows, config.split.minimum_calibration_rows,
+            validation["minimum_holdout_rows"],
+        )
+    else:
+        raise ValueError(f"Unknown HE validation strategy: {strategy}")
     for partition in [split.fit, split.calibration, holdout]:
         numeric_matrix(partition, columns)
     return (
@@ -149,6 +170,8 @@ def evaluate(frame, scores, holdout, validation):
     scored = scores.score_status.eq("SCORED")
     anomalous = scored & scores.anomaly_score.ge(scores.anomaly_threshold)
     healthy_fraction = float(anomalous.loc[holdout.index].mean())
+    blocks = holdout.timestamp.diff().gt(pd.Timedelta(hours=1)).cumsum()
+    terminal = holdout.loc[blocks.eq(blocks.iloc[-1])]
     cutoff = pd.Timestamp(validation["healthy_end_exclusive"])
     isolation = pd.Timestamp(validation["isolation_at"])
     degradation = scored & frame.timestamp.ge(cutoff) & frame.timestamp.lt(isolation)
@@ -173,6 +196,10 @@ def evaluate(frame, scores, holdout, validation):
         "scope": "Retrospective anchored HE hourly scenario; not independent intraday observations",
         "healthy_holdout_rows": len(holdout),
         "healthy_exceedance": healthy_fraction,
+        "terminal_healthy_exceedance": float(anomalous.loc[terminal.index].mean()),
+        "validation_strategy": validation.get("strategy", "forward_chronological"),
+        "validation_limitations": "Retrospective normal-envelope validation; terminal block is reported separately. WATCH novelty alone cannot open an investigation.",
+        "lead_time_basis": "Historical replay interval, not prospectively validated warning lead time",
         "degradation_rows": int(degradation.sum()),
         "degradation_exceedance": degradation_fraction,
         "recovery_rows": int(recovery.sum()),
@@ -216,6 +243,13 @@ def train(root: Path, directory: Path, artifacts: Path, score_directory: Path, p
         )
         raise ValueError("HE model promotion rejected: " + json.dumps(evaluation))
     timeline = build_scored_timeline(frame, scores, config.model_id)
+    if validation.get("strategy") == "retrospective_blocked":
+        forward_split, forward_holdout = healthy_split(frame, pd.Timestamp(validation["healthy_end_exclusive"]))
+        forward_bundle, _ = fit_anomaly_model(forward_split, columns, config, bundle.trained_at)
+        forward_scores = score_feature_table(frame, forward_bundle, config.drivers.maximum_drivers)
+        evaluation["forward_reference"] = evaluate(
+            frame, forward_scores, forward_holdout, {**validation, "strategy": "forward_chronological"}
+        )
     # Stage all candidate files before publication; active analytics is a separate promotion step.
     artifacts.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="he-model-", dir=artifacts.parent) as temporary:
@@ -259,6 +293,7 @@ def train(root: Path, directory: Path, artifacts: Path, score_directory: Path, p
                 ]
             },
             "exclusion_gap_hours": validation["exclusion_gap_hours"],
+            "validation_strategy": validation.get("strategy", "forward_chronological"),
             "training": diagnostics.as_dict(),
             "versions": {
                 "python": sys.version.split()[0],

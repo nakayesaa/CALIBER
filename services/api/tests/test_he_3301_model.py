@@ -13,7 +13,12 @@ import pytest
 import yaml
 
 from scripts import train_he_3301_anomaly as trainer
-from scripts.train_he_3301_anomaly import evaluate, healthy_split, validate_scoring_order
+from scripts.train_he_3301_anomaly import (
+    blocked_healthy_split,
+    evaluate,
+    healthy_split,
+    validate_scoring_order,
+)
 from scripts.train_ko_3201_anomaly import publish_bundle
 from services.api.app.schemas.anomaly import AnomalyModelConfig
 from services.api.app.services.analytics.anomaly_model import (
@@ -38,6 +43,28 @@ def test_healthy_blocks_have_full_lookback_gaps():
     assert split.calibration.timestamp.min() - split.fit.timestamp.max() > pd.Timedelta(hours=24)
     assert holdout.timestamp.min() - split.calibration.timestamp.max() > pd.Timedelta(hours=24)
     assert holdout.timestamp.max() < pd.Timestamp("2026-02-26", tz="Asia/Jakarta")
+
+
+def test_retrospective_blocks_are_disjoint_and_have_no_shared_lookback():
+    frame = pd.DataFrame({
+        "timestamp": pd.date_range("2026-01-01", periods=1680, freq="h", tz="Asia/Jakarta"),
+        "model_training_eligible": True,
+    })
+    split, holdout = blocked_healthy_split(frame, pd.Timestamp("2026-02-26", tz="Asia/Jakarta"))
+    partitions = [split.fit, split.calibration, holdout]
+    assert [len(part) for part in partitions] == [768, 180, 180]
+    for index, part in enumerate(partitions):
+        assert part.timestamp.is_monotonic_increasing
+        for other in partitions[index + 1:]:
+            assert set(part.index).isdisjoint(other.index)
+            # A full 24-hour gap prevents rolling inputs crossing partition boundaries.
+            distances = abs(part.timestamp.dt.as_unit("ns").astype("int64").to_numpy()[:, None] - other.timestamp.dt.as_unit("ns").astype("int64").to_numpy())
+            assert distances.min() > pd.Timedelta(hours=24).value
+    changed = frame.copy()
+    changed.loc[changed.timestamp.ge(pd.Timestamp("2026-02-26", tz="Asia/Jakarta")), "model_training_eligible"] = False
+    other_split, other_holdout = blocked_healthy_split(changed, pd.Timestamp("2026-02-26", tz="Asia/Jakarta"))
+    assert list(split.fit.index) == list(other_split.fit.index)
+    assert list(holdout.index) == list(other_holdout.index)
 
 
 def test_small_or_unsorted_training_fails():

@@ -39,6 +39,7 @@ evaluation:
   trip_phase: TRIP_AND_SHUTDOWN
   recovery_phases: [POST_REPAIR_MONITORING, STABLE_RECOVERY]
 validation:
+  strategy: retrospective_blocked
   healthy_end_exclusive: '2026-02-26T00:00:00+07:00'
   exclusion_gap_hours: 24
   minimum_holdout_rows: 168
