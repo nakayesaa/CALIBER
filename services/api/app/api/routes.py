@@ -216,6 +216,8 @@ def equipment_investigation(asset_id: str, backend: Backend) -> EquipmentInvesti
         return backend.equipment_investigation(asset_id)
     except ArtifactNotFoundError as error:
         raise not_found(error) from error
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=422, detail="HE analytics unavailable; rebuild with make he-train and make he-alerts") from error
 
 
 @router.get(

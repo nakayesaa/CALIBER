@@ -19,16 +19,20 @@ from services.api.app.schemas.features import (
 
 
 class DriverAnalysisService:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self, root: Path, asset_key: str = "ko_3201", snapshot: Path | None = None
+    ) -> None:
         self.root = root.resolve()
+        self.asset_key = asset_key
+        self.snapshot = snapshot
 
     def for_alert(
         self,
         alert: AlertEvent,
         requested_at: datetime | None = None,
     ) -> DriverAnalysis:
-        scenario = self._read_csv("data/synthetic/ko_3201/v1/hourly_scenario.csv")
-        scores = self._read_csv("data/scored/ko_3201/v1/hourly_anomaly_scores.csv")
+        scenario = self._read_csv(f"data/synthetic/{self.asset_key}/v1/hourly_scenario.csv")
+        scores = self._read_csv(f"data/scored/{self.asset_key}/v1/hourly_anomaly_scores.csv")
         config = self._load_config()
         scenario["timestamp"] = pd.to_datetime(scenario["timestamp"], errors="raise")
         scores["timestamp"] = pd.to_datetime(scores["timestamp"], errors="raise")
@@ -36,13 +40,10 @@ class DriverAnalysisService:
         if requested_time.tzinfo is None:
             raise ValueError("Driver analysis timestamp must include a timezone")
         eligible_scores = scores.loc[
-            scores["timestamp"].le(requested_time)
-            & scores["score_status"].eq("SCORED")
+            scores["timestamp"].le(requested_time) & scores["score_status"].eq("SCORED")
         ]
         if eligible_scores.empty:
-            raise ValueError(
-                f"No scored evidence is available by {requested_time.isoformat()}"
-            )
+            raise ValueError(f"No scored evidence is available by {requested_time.isoformat()}")
         evidence_time = pd.Timestamp(eligible_scores.iloc[-1]["timestamp"])
         evidence_scenario = self._single_row(scenario, evidence_time, "scenario")
         evidence_score = eligible_scores.iloc[-1]
@@ -186,8 +187,20 @@ class DriverAnalysisService:
         signal: ConditionSignalConfig,
     ) -> str:
         if signal.direction_of_concern == ConcernDirection.HIGH:
-            return "TRIP" if value >= signal.trip_limit else "ALARM" if value >= signal.alarm_limit else "NORMAL"
-        return "TRIP" if value <= signal.trip_limit else "ALARM" if value <= signal.alarm_limit else "NORMAL"
+            return (
+                "TRIP"
+                if value >= signal.trip_limit
+                else "ALARM"
+                if value >= signal.alarm_limit
+                else "NORMAL"
+            )
+        return (
+            "TRIP"
+            if value <= signal.trip_limit
+            else "ALARM"
+            if value <= signal.alarm_limit
+            else "NORMAL"
+        )
 
     @staticmethod
     def _trend(values: pd.Series) -> str:
@@ -199,13 +212,19 @@ class DriverAnalysisService:
         return "RISING" if slope > tolerance else "FALLING" if slope < -tolerance else "STABLE"
 
     def _load_config(self) -> FeaturePipelineConfig:
-        path = self.root / "data/catalog/ko_3201_feature_config.yaml"
+        path = (
+            self.snapshot / "feature_config.yaml"
+            if self.snapshot
+            else self.root / f"data/catalog/{self.asset_key}_feature_config.yaml"
+        )
         return FeaturePipelineConfig.model_validate(
             yaml.safe_load(path.read_text(encoding="utf-8"))
         )
 
     def _read_csv(self, relative_path: str) -> pd.DataFrame:
-        path = self.root / relative_path
+        path = (
+            self.snapshot / Path(relative_path).name if self.snapshot else self.root / relative_path
+        )
         if not path.is_file():
             raise FileNotFoundError(f"Required artifact not found: {path}")
         return pd.read_csv(path)

@@ -152,7 +152,10 @@ class BackendService:
     def equipment_investigation(self, asset_id: str) -> EquipmentInvestigation:
         if self._repository_for_asset(asset_id) is not self.he_repository:
             raise ArtifactNotFoundError(f"Source-series investigation unavailable for {asset_id}")
-        return load_he_3301(self.root)
+        bundle = load_he_3301(self.root)
+        from services.api.app.services.he_analytics import hourly_analytics
+
+        return bundle.model_copy(update={"analytics": hourly_analytics(self.root, bundle)})
 
     def traceability_claim(self, trace_id: str) -> TraceClaim:
         alert = max(
@@ -175,9 +178,18 @@ class BackendService:
         requested_at: datetime | None = None,
     ) -> DriverAnalysis:
         repository = self._repository_for_alert(alert_id)
-        if repository is not self.repository:
-            raise ValueError(
-                "Model attribution is unavailable for this asset; inspect its condition evidence"
+        if repository is self.he_repository:
+            from services.api.app.services.he_analytics import active_snapshot
+
+            active_snapshot(self.root)
+            directory = repository._alert_snapshot(alert_id)
+            if directory is None:
+                raise ValueError(
+                    "HE model attribution unavailable; run make he-train and make he-alerts"
+                )
+            alert = repository.get_alert(alert_id)
+            return DriverAnalysisService(self.root, "he_3301", directory).for_alert(
+                alert, requested_at
             )
         alert = repository.get_alert(alert_id)
         return self.driver_analysis_service.for_alert(alert, requested_at)
@@ -422,6 +434,15 @@ class BackendService:
             record = self._repository_for_alert(alert.alert_id).get_rca(alert.alert_id)
             if record is not None and record.rca_id == rca_id:
                 return record
+        paths = [
+            self.root / "data/rca/he_3301/v1/rca_record.json",
+            *sorted((self.root / "data/rca/he_3301/v1/records").glob("*.json")),
+        ]
+        for path in paths:
+            if path.is_file():
+                record = RCARecord.model_validate_json(path.read_text())
+                if record.rca_id == rca_id:
+                    return record
         raise FileNotFoundError(f"RCA not found: {rca_id}")
 
     def _production_impact(
@@ -465,8 +486,11 @@ class BackendService:
 
     def _repository_for_alert(self, alert_id: str) -> KO3201ArtifactRepository:
         for repository in self._repositories():
-            if any(alert.alert_id == alert_id for alert in repository.list_alerts()):
+            try:
+                repository.get_alert(alert_id)
                 return repository
+            except ArtifactNotFoundError:
+                continue
         raise ArtifactNotFoundError(f"Alert not found: {alert_id}")
 
     def _policy_path(self, repository: KO3201ArtifactRepository, policy: str) -> Path:

@@ -72,6 +72,32 @@ class EquipmentOperatingState(APIModel):
     source_reference: str
 
 
+class EquipmentHourlyAssessment(APIModel):
+    timestamp: AwareDatetime
+    state: str
+    score: float | None = Field(default=None, ge=0, le=100)
+    breached_signals: list[str]
+    reason: str
+    source_status: str
+
+
+class EquipmentModelRecovery(APIModel):
+    eligible_hours: int = Field(ge=0)
+    anomalous_hours: int = Field(ge=0)
+    anomaly_rate: float = Field(ge=0, le=1)
+
+
+class EquipmentHourlyAnalytics(APIModel):
+    mode: Literal["HOURLY_MODEL"] = "HOURLY_MODEL"
+    version: str
+    model_id: str
+    signals: list[EquipmentSignal]
+    assessments: list[EquipmentHourlyAssessment]
+    transitions: list[AlertStateTransition]
+    alert: AlertEvent
+    recovery: EquipmentModelRecovery
+
+
 class EquipmentInvestigation(APIModel):
     asset: AssetSummary
     signals: list[EquipmentSignal]
@@ -84,3 +110,4 @@ class EquipmentInvestigation(APIModel):
     quality_issues: list[str]
     reported_downtime_hours: float = Field(ge=0)
     reported_production_loss_tonnes: float = Field(ge=0)
+    analytics: EquipmentHourlyAnalytics | None = None

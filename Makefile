@@ -1,4 +1,4 @@
-.PHONY: help install dev web-dev web-build api-install api-dev canonical scenario \
+.PHONY: help install dev web-dev web-build api-install api-dev canonical scenario he-scenario he-features he-train-preflight he-train he-alerts \
 	features train-preflight train alerts retrieval rca-preflight rca actions he-canonical \
 	db-seed test lint security-check check
 
@@ -12,6 +12,11 @@ help:
 	@echo "  make api-dev      Start the FastAPI development server"
 	@echo "  make canonical    Rebuild and validate KO-3201 canonical data"
 	@echo "  make he-canonical Import and validate HE-3301 source data"
+	@echo "  make he-scenario  Build the anchored HE hourly condition scenario"
+	@echo "  make he-features  Build HE condition features"
+	@echo "  make he-train-preflight  Validate HE inputs and chronological partitions"
+	@echo "  make he-train     Train, evaluate and stage the independent HE model"
+	@echo "  make he-alerts    Build HE alerts and promote validated analytics"
 	@echo "  make scenario     Build the six-month KO-3201 hourly scenario"
 	@echo "  make features     Build the KO-3201 model-independent features"
 	@echo "  make train-preflight  Validate model inputs without training"
@@ -51,6 +56,21 @@ canonical:
 
 he-canonical:
 	.venv/bin/python scripts/ingest_he_3301.py
+
+he-scenario: he-canonical
+	.venv/bin/python scripts/generate_he_3301_scenario.py
+
+he-features: he-scenario
+	.venv/bin/python scripts/build_ko_3201_features.py --config data/catalog/he_3301_feature_config.yaml --input data/synthetic/he_3301/v1/hourly_scenario.csv --output data/features/he_3301/v1
+
+he-train-preflight: he-features
+	.venv/bin/python scripts/train_he_3301_anomaly.py --preflight
+
+he-train: he-features
+	.venv/bin/python scripts/train_he_3301_anomaly.py
+
+he-alerts:
+	.venv/bin/python scripts/publish_he_3301_analytics.py
 
 scenario: canonical
 	.venv/bin/python scripts/generate_ko_3201_scenario.py

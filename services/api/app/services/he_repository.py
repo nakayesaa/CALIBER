@@ -17,6 +17,7 @@ from services.api.app.schemas.api import (
 )
 from services.api.app.schemas.effectiveness import EffectivenessMetric, EffectivenessReview
 from services.api.app.schemas.equipment import EquipmentInvestigation
+from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import (
     IncidentRetrievalConfig,
     IncidentRetrievalResult,
@@ -24,6 +25,7 @@ from services.api.app.schemas.retrieval import (
     RetrievalQuery,
 )
 from services.api.app.services.artifacts import ArtifactNotFoundError, KO3201ArtifactRepository
+from services.api.app.services.he_analytics import active_snapshot, snapshot_alerts
 from services.api.app.services.rca.incident_retrieval import (
     build_incident_documents,
     retrieve_incidents,
@@ -35,10 +37,11 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
 
     def pipeline_status(self) -> dict[str, bool]:
         canonical = self._path("data/normalized/he_3301/equipment.json").is_file()
+        promoted = active_snapshot(self.root) is not None
         return {
             "canonical": canonical,
-            "features": False,
-            "model_scores": False,
+            "features": self._path("data/features/he_3301/v1/feature_manifest.json").is_file(),
+            "model_scores": promoted,
             "alerts": canonical,
             "retrieval": canonical
             and self._path("data/normalized/ko_3201/incidents.csv").is_file(),
@@ -63,15 +66,96 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
         return [self.equipment().asset]
 
     def list_alerts(self) -> list[AlertEvent]:
+        directory = active_snapshot(self.root)
+        if directory:
+            return snapshot_alerts(directory)
         return [self.equipment().alert]
+
+    def get_alert(self, alert_id: str) -> AlertEvent:
+        for alert in [*self.list_alerts(), self.equipment().alert]:
+            if alert.alert_id == alert_id:
+                return alert
+        # Historical snapshot IDs retain their original evidence and human records.
+        for path in self._path("data/alerts/he_3301/bundles").glob("*/events.json"):
+            directory = path.parent
+            for alert in snapshot_alerts(directory):
+                if alert.alert_id == alert_id:
+                    return alert
+        raise ArtifactNotFoundError(f"HE alert not found: {alert_id}")
+
+    def _alert_snapshot(self, alert_id: str) -> Path | None:
+        if alert_id == self.equipment().alert.alert_id:
+            return None
+        for path in self._path("data/alerts/he_3301/bundles").glob("*/events.json"):
+            directory = path.parent
+            if any(alert.alert_id == alert_id for alert in snapshot_alerts(directory)):
+                return directory
+        raise ArtifactNotFoundError(f"HE analytics snapshot not found: {alert_id}")
+
+    def get_rca(self, alert_id: str) -> RCARecord | None:
+        self.get_alert(alert_id)
+        path = self._record_path(alert_id)
+        return self._read_model(path, RCARecord) if path.is_file() else None
+
+    def save_rca(self, record: RCARecord) -> None:
+        self.get_alert(record.alert_id)
+        self._write_model(self._record_path(record.alert_id), record)
+
+    def _record_path(self, alert_id: str) -> Path:
+        if alert_id == self.equipment().alert.alert_id:
+            return self._rca_path()
+        return self._path(f"data/rca/he_3301/v1/records/{alert_id}.json")
 
     def get_alert_transitions(self, alert_id: str) -> list[AlertStateTransition]:
         self.get_alert(alert_id)
+        directory = self._alert_snapshot(alert_id)
+        if directory:
+            import json
+
+            payload = json.loads((directory / "events.json").read_text())
+            return [
+                AlertStateTransition.model_validate(item)
+                for item in payload["transitions"]
+                if item["alert_id"] == alert_id
+            ]
         return self.equipment().transitions
 
     def get_opening_snapshot(self, alert: AlertEvent) -> dict[str, object]:
         bundle = self.equipment()
         opened = pd.Timestamp(alert.opened_at).to_pydatetime()
+        directory = self._alert_snapshot(alert.alert_id)
+        if directory:
+            scenario = pd.read_csv(directory / "hourly_scenario.csv")
+            decisions = pd.read_csv(directory / "hourly_alert_decisions.csv")
+            row = scenario.loc[pd.to_datetime(scenario.timestamp).eq(opened)].iloc[0]
+            decision = decisions.loc[pd.to_datetime(decisions.timestamp).eq(opened)].iloc[0]
+            values = {
+                signal.key: {
+                    "value": float(row[signal.key]),
+                    "timestamp": opened.isoformat(),
+                    "unit": signal.unit,
+                    "cadence": "HOURLY_SCENARIO",
+                    "source_reference": f"HE snapshot {directory.name} from he_performance anchors",
+                }
+                for signal in bundle.signals
+                if signal.direction
+            }
+            breached = (
+                [] if pd.isna(decision.breached_signals) else decision.breached_signals.split(";")
+            )
+            return {
+                "timestamp": opened.isoformat(),
+                "decision_state": decision.decision_state,
+                "decision_reason": decision.decision_reason,
+                "anomaly_score": float(decision.anomaly_score)
+                if pd.notna(decision.anomaly_score)
+                else None,
+                "alarm_breadth": len(breached),
+                "breached_signals": breached,
+                "condition_values": values,
+                "analytics_version": directory.name,
+                "score_basis": "Independent HE Isolation Forest and engineering policy",
+            }
         assessment = next(item for item in bundle.assessments if item.timestamp == opened)
         visible = {}
         for signal in bundle.signals:
@@ -103,7 +187,10 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
         config = IncidentRetrievalConfig.model_validate(
             yaml.safe_load(self._path("data/catalog/he_3301_retrieval_config.yaml").read_text())
         )
-        if alert.policy_id != config.input_alert_policy_id:
+        if (
+            alert.policy_id != config.input_alert_policy_id
+            and alert.policy_id != "he-3301-hourly-alert-policy-v1"
+        ):
             raise ValueError("HE alert policy does not match retrieval configuration")
         signals = snapshot["breached_signals"]
         supporting = [key for key in snapshot["condition_values"] if key not in signals]
@@ -164,6 +251,14 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
 
     def timeline_summary(self, asset_id: str) -> tuple[pd.Timestamp, pd.Timestamp, str]:
         self.get_asset(asset_id)
+        directory = active_snapshot(self.root)
+        if directory:
+            frame = pd.read_csv(directory / "hourly_alert_decisions.csv")
+            return (
+                pd.Timestamp(frame.timestamp.iloc[0]),
+                pd.Timestamp(frame.timestamp.iloc[-1]),
+                str(frame.decision_state.iloc[-1]),
+            )
         assessments = self.equipment().assessments
         return (
             pd.Timestamp(assessments[0].timestamp),
