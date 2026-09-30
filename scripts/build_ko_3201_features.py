@@ -103,6 +103,7 @@ def build_manifest(
     config: FeaturePipelineConfig,
     result: FeatureBuildResult,
     input_path: Path,
+    config_path: Path | None = None,
 ) -> FeatureManifest:
     table = result.feature_table
     return FeatureManifest(
@@ -110,6 +111,7 @@ def build_manifest(
         pipeline_version=config.pipeline_version,
         input_scenario_id=config.input_scenario_id,
         input_sha256=sha256_file(input_path),
+        config_sha256=sha256_file(config_path) if config_path else None,
         generated_at=GENERATED_AT,
         row_count=len(table),
         complete_row_count=int(table["feature_complete"].sum()),
@@ -225,7 +227,7 @@ def run(
     raw = pd.read_csv(input_path)
     validated = validate_hourly_input(raw, config, scenario_manifest["timestamp_count"])
     result = build_features(validated, config)
-    manifest = build_manifest(config, result, input_path)
+    manifest = build_manifest(config, result, input_path, config_path or root / "data/catalog/ko_3201_feature_config.yaml")
     quality_report = build_quality_report(
         config,
         result,

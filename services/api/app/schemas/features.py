@@ -119,6 +119,7 @@ class FeatureManifest(FeatureConfigModel):
     pipeline_version: str
     input_scenario_id: str
     input_sha256: str
+    config_sha256: str | None = None
     generated_at: AwareDatetime
     row_count: int
     complete_row_count: int

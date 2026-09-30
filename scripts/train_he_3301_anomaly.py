@@ -84,6 +84,8 @@ def prepare_inputs(root: Path, directory: Path):
         if not path.is_file():
             raise FileNotFoundError(f"Missing {path}. Run make he-features.")
     manifest = json.loads(manifest_path.read_text())
+    if manifest.get("config_sha256") != file_sha256(root / "data/catalog/he_3301_feature_config.yaml"):
+        raise ValueError("HE feature configuration changed; run make he-features")
     scenario_path = root / "data/synthetic/he_3301/v1/hourly_scenario.csv"
     scenario_manifest_path = scenario_path.with_name("scenario_manifest.json")
     if file_sha256(scenario_path) != manifest["input_sha256"]:
@@ -130,6 +132,7 @@ def prepare_inputs(root: Path, directory: Path):
             "feature_table_sha256": file_sha256(table_path),
             "feature_manifest_sha256": file_sha256(manifest_path),
             "model_config_sha256": file_sha256(config_path),
+            "feature_config_sha256": file_sha256(root / "data/catalog/he_3301_feature_config.yaml"),
             "scenario_input_sha256": manifest["input_sha256"],
             "scenario_manifest_sha256": file_sha256(scenario_manifest_path),
             "canonical_source_sha256": scenario_manifest["source_sha256"],
@@ -226,6 +229,7 @@ def train(root: Path, directory: Path, artifacts: Path, score_directory: Path, p
             scores.anomaly_score, replay.anomaly_score, equal_nan=True, atol=1e-12, rtol=0
         ):
             raise ValueError("Reloaded HE model changed predictions")
+        timeline.to_csv(stage / "hourly_anomaly_scores.csv", index=False)
         manifest = {
             **hashes,
             "model_id": config.model_id,
@@ -237,6 +241,7 @@ def train(root: Path, directory: Path, artifacts: Path, score_directory: Path, p
             "trained_at": bundle.trained_at.isoformat(),
             "artifact_file": "model.joblib",
             "artifact_sha256": checksum,
+            "scored_timeline_sha256": file_sha256(stage / "hourly_anomaly_scores.csv"),
             "normalized_anomaly_threshold": bundle.score_transform.threshold_normalized_score,
             "raw_anomaly_threshold": bundle.score_transform.threshold_raw_score,
             "score_transform": bundle.score_transform.as_dict(),
@@ -281,7 +286,6 @@ def train(root: Path, directory: Path, artifacts: Path, score_directory: Path, p
                 ],
             },
         )
-        timeline.to_csv(stage / "hourly_anomaly_scores.csv", index=False)
         artifacts.mkdir(parents=True, exist_ok=True)
         score_directory.mkdir(parents=True, exist_ok=True)
         for name in [
