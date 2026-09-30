@@ -84,7 +84,10 @@ def hourly_analytics(root: Path, bundle: EquipmentInvestigation) -> EquipmentHou
                     EquipmentPoint(
                         timestamp=row.timestamp,
                         value=getattr(row, signal.key),
-                        source_reference=f"HE scenario {manifest['version']} · weekly anchors in he_performance",
+                        source_reference=(
+                            f"Reconstructed hour · {getattr(row, f'{signal.key}_previous_anchor', 'weekly anchor')} → "
+                            f"{getattr(row, f'{signal.key}_following_anchor', 'weekly anchor')} · snapshot {manifest['version']}"
+                        ),
                     )
                     for row in scenario.itertuples(index=False)
                 ],

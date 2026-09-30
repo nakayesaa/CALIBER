@@ -44,11 +44,14 @@ def test_he_read_models_preserve_source_cadence_and_asset_scope(he_client):
 
 
 def test_he_review_and_action_plan_persist_in_separate_namespace(he_client):
-    client = he_client
-    generated = client.post(f"/api/v1/alerts/{ALERT}/rca", json={"mode": "prepared"})
+    exercise_he_action_lifecycle(he_client, ALERT)
+
+
+def exercise_he_action_lifecycle(client, alert_id):
+    generated = client.post(f"/api/v1/alerts/{alert_id}/rca", json={"mode": "prepared"})
     assert generated.status_code == 200, generated.text
     rca = generated.json()
-    path = f"/api/v1/alerts/{ALERT}/cross-check"
+    path = f"/api/v1/alerts/{alert_id}/cross-check"
     submitted = client.post(path, json={
         "note": "Cross-checked weekly condition records",
         "references": ["he_performance:Condition History:row:12"],
@@ -67,7 +70,7 @@ def test_he_review_and_action_plan_persist_in_separate_namespace(he_client):
                            json={"hypothesis_id": rca["generation"]["hypotheses"][0]["hypothesis_id"]})
     assert response.status_code == 200, response.text
     plan = response.json()
-    assert plan["alert_id"] == ALERT
+    assert plan["alert_id"] == alert_id
     assert plan["selected_cause_category"] == "FOULING"
     assert len(plan["actions"]) == 3
     assert client.get(f"/api/v1/action-plans/{plan['plan_id']}").status_code == 200
@@ -110,5 +113,6 @@ def test_he_review_and_action_plan_persist_in_separate_namespace(he_client):
     ko = client.get("/api/v1/alerts/alert-asset-ko-3201-0001").json()
     assert ko["rca"] is None and not ko["action_plans"]
     root = client.app.state.backend.root
-    assert (root / "data/rca/he_3301/v1/rca_record.json").is_file()
+    record_path = "data/rca/he_3301/v1/rca_record.json" if alert_id == ALERT else f"data/rca/he_3301/v1/records/{alert_id}.json"
+    assert (root / record_path).is_file()
     assert not (root / "data/rca/ko_3201/v1/rca_record.json").exists()

@@ -135,7 +135,10 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
                     "timestamp": opened.isoformat(),
                     "unit": signal.unit,
                     "cadence": "HOURLY_SCENARIO",
-                    "source_reference": f"HE snapshot {directory.name} from he_performance anchors",
+                    "source_reference": (
+                        f"Reconstructed HE hour · {row[f'{signal.key}_previous_anchor']} → "
+                        f"{row[f'{signal.key}_following_anchor']} · snapshot {directory.name}"
+                    ),
                 }
                 for signal in bundle.signals
                 if signal.direction
@@ -230,7 +233,9 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
             alert_snapshot=snapshot,
             historical_analogues=retrieve_incidents(documents, query, config),
             evidence_boundaries=[
-                "Only measurements available at alert opening are included.",
+                "Hourly condition values are retrospective reconstructions between dated weekly anchors, not measurements observed at opening."
+                if "analytics_version" in snapshot
+                else "Only measurements available at alert opening are included.",
                 "Weekly condition measurements and hourly production measurements retain their separate cadence.",
                 "Inspection, cleaning findings and the HE anchor incident are excluded from opening retrieval.",
                 "Incident labels are normalized historical descriptors and require review.",
