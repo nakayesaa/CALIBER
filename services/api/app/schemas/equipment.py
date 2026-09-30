@@ -96,6 +96,7 @@ class EquipmentHourlyAnalytics(APIModel):
     transitions: list[AlertStateTransition]
     alert: AlertEvent
     recovery: EquipmentModelRecovery
+    validation_note: str = "Historical replay model; warnings require persistent engineering evidence."
 
 
 class EquipmentInvestigation(APIModel):

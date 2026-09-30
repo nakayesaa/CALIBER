@@ -54,9 +54,12 @@ def hourly_analytics(root: Path, bundle: EquipmentInvestigation) -> EquipmentHou
     if directory is None:
         return None
     manifest = json.loads((directory / "manifest.json").read_text())
+    evaluation = json.loads((directory / "evaluation_report.json").read_text())
     scenario = pd.read_csv(directory / "hourly_scenario.csv")
     scores = pd.read_csv(directory / "hourly_anomaly_scores.csv")
     decisions = pd.read_csv(directory / "hourly_alert_decisions.csv")
+    for table in [scenario, scores, decisions]:
+        table["timestamp"] = pd.to_datetime(table.timestamp, errors="raise")
     thresholds = scores.anomaly_threshold.dropna().unique()
     if len(thresholds) != 1:
         raise ValueError("HE scoring threshold must be consistent within a model version")
@@ -126,5 +129,11 @@ def hourly_analytics(root: Path, bundle: EquipmentInvestigation) -> EquipmentHou
             eligible_hours=int(eligible.sum()),
             anomalous_hours=int(anomalous.sum()),
             anomaly_rate=float(anomalous.sum() / max(eligible.sum(), 1)),
+        ),
+        validation_note=(
+            f"Retrospective replay · healthy holdout {evaluation['healthy_exceedance']:.1%}; "
+            f"terminal normal block {evaluation['terminal_healthy_exceedance']:.1%}. "
+            "WATCH novelty alone cannot open an investigation. "
+            f"Forward-only reference: {evaluation.get('forward_reference', {}).get('status', 'not recorded')}."
         ),
     )

@@ -75,7 +75,7 @@ def test_hourly_read_model_keeps_null_scores_and_separate_recovery(tmp_path):
         **{signal.key: [signal.points[-1].value] * 3 for signal in condition},
     }).to_csv(directory / "hourly_scenario.csv", index=False)
     pd.DataFrame({
-        "timestamp": timestamps, "anomaly_score": [None, 40.0, 60.0], "anomaly_threshold": 50.0,
+        "timestamp": [stamp.replace("T", " ") for stamp in timestamps], "anomaly_score": [None, 40.0, 60.0], "anomaly_threshold": 50.0,
     }).to_csv(directory / "hourly_anomaly_scores.csv", index=False)
     pd.DataFrame({
         "timestamp": timestamps, "decision_state": ["SUPPRESSED", "NORMAL", "WATCH"],
@@ -83,6 +83,9 @@ def test_hourly_read_model_keeps_null_scores_and_separate_recovery(tmp_path):
     }).to_csv(directory / "hourly_alert_decisions.csv", index=False)
     atomic_write_json(directory / "events.json", {
         "events": [bundle.alert.model_dump(mode="json")], "transitions": [],
+    })
+    atomic_write_json(directory / "evaluation_report.json", {
+        "healthy_exceedance": 0.01, "terminal_healthy_exceedance": 0.02,
     })
     manifest = json.loads((directory / "manifest.json").read_text())
     manifest.update(version="test-v1", model_id="he-contract-fixture", row_count=3,

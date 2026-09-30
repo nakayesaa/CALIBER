@@ -10,6 +10,7 @@ export interface EquipmentAssessment {
 }
 export interface EquipmentAnalytics {
   mode: 'HOURLY_MODEL'; version: string; model_id: string;
+  validation_note: string;
   signals: EquipmentSignal[]; assessments: EquipmentAssessment[];
   transitions: AlertStateTransition[]; alert: AlertEvent;
   recovery: { eligible_hours: number; anomalous_hours: number; anomaly_rate: number };
