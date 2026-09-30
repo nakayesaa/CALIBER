@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train an independent HE model with untouched chronological healthy holdout."""
+"""Train HE historical-envelope support with isolated blocks and forward comparison."""
 
 from __future__ import annotations
 
@@ -71,7 +71,10 @@ def validate_scoring_order(expected: list[str], actual: list[str]) -> None:
         raise ValueError("Scoring feature order does not match the fitted model")
 
 
-def blocked_healthy_split(frame: pd.DataFrame, cutoff: pd.Timestamp) -> tuple[TrainingSplit, pd.DataFrame]:
+def blocked_healthy_split(
+    frame: pd.DataFrame, cutoff: pd.Timestamp, minimum_fit: int = 720,
+    minimum_calibration: int = 168, minimum_holdout: int = 168,
+) -> tuple[TrainingSplit, pd.DataFrame]:
     """Cover historical normal levels in fixed blocks, never random overlapping rows."""
     times = frame.timestamp
     if times.duplicated().any() or not times.is_monotonic_increasing:
@@ -83,7 +86,7 @@ def blocked_healthy_split(frame: pd.DataFrame, cutoff: pd.Timestamp) -> tuple[Tr
     fit = frame.loc[eligible & phase.lt(240)].copy()
     calibration = frame.loc[eligible & phase.ge(264) & phase.lt(324)].copy()
     holdout = frame.loc[eligible & phase.ge(348) & phase.lt(408)].copy()
-    for name, part, minimum in [("Fit", fit, 720), ("Calibration", calibration, 168), ("Holdout", holdout, 168)]:
+    for name, part, minimum in [("Fit", fit, minimum_fit), ("Calibration", calibration, minimum_calibration), ("Holdout", holdout, minimum_holdout)]:
         if len(part) < minimum:
             raise ValueError(f"{name} partition has {len(part)} rows, requires {minimum}")
     return TrainingSplit(fit, calibration), holdout
@@ -131,7 +134,13 @@ def prepare_inputs(root: Path, directory: Path):
     columns = validate_feature_contract(frame, manifest, config)
     strategy = validation.get("strategy", "forward_chronological")
     if strategy == "retrospective_blocked":
-        split, holdout = blocked_healthy_split(frame, pd.Timestamp(validation["healthy_end_exclusive"]))
+        if validation["exclusion_gap_hours"] != 24:
+            raise ValueError("Fixed HE retrospective blocks require a 24-hour exclusion gap")
+        split, holdout = blocked_healthy_split(
+            frame, pd.Timestamp(validation["healthy_end_exclusive"]),
+            config.split.minimum_fit_rows, config.split.minimum_calibration_rows,
+            validation["minimum_holdout_rows"],
+        )
     elif strategy == "forward_chronological":
         split, holdout = healthy_split(
             frame, pd.Timestamp(validation["healthy_end_exclusive"]), validation["exclusion_gap_hours"],

@@ -1,6 +1,7 @@
 """Time-blocked HE training must not leak healthy holdout into calibration."""
 
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -65,6 +66,8 @@ def test_retrospective_blocks_are_disjoint_and_have_no_shared_lookback():
     other_split, other_holdout = blocked_healthy_split(changed, pd.Timestamp("2026-02-26", tz="Asia/Jakarta"))
     assert list(split.fit.index) == list(other_split.fit.index)
     assert list(holdout.index) == list(other_holdout.index)
+    with pytest.raises(ValueError, match="Fit partition"):
+        blocked_healthy_split(frame, pd.Timestamp("2026-02-26", tz="Asia/Jakarta"), minimum_fit=1000)
 
 
 def test_small_or_unsorted_training_fails():
@@ -78,6 +81,30 @@ def test_small_or_unsorted_training_fails():
         healthy_split(frame, pd.Timestamp("2026-02-26", tz="Asia/Jakarta"))
     with pytest.raises(ValueError, match="chronological"):
         healthy_split(frame.iloc[::-1], pd.Timestamp("2026-02-26", tz="Asia/Jakarta"))
+
+
+@pytest.mark.parametrize("change,expected", [("gap", "24-hour"), ("minimum", "Fit partition")])
+def test_blocked_preflight_enforces_configuration_contract(tmp_path, change, expected):
+    root = Path(__file__).parents[3]
+    paths = [
+        "data/catalog/he_3301_anomaly_model.yaml", "data/catalog/he_3301_feature_config.yaml",
+        "data/synthetic/he_3301/v1/hourly_scenario.csv", "data/synthetic/he_3301/v1/scenario_manifest.json",
+        "data/features/he_3301/v1/feature_table.csv", "data/features/he_3301/v1/feature_manifest.json",
+        "data/features/he_3301/v1/feature_quality_report.json",
+    ]
+    for relative in paths:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, path)
+    config_path = tmp_path / paths[0]
+    config = yaml.safe_load(config_path.read_text())
+    if change == "gap":
+        config["validation"]["exclusion_gap_hours"] = 12
+    else:
+        config["split"]["minimum_fit_rows"] = 1000
+    config_path.write_text(yaml.safe_dump(config))
+    with pytest.raises(ValueError, match=expected):
+        trainer.prepare_inputs(tmp_path, tmp_path / "data/features/he_3301/v1")
 
 
 def test_model_contract_rejects_reordered_features():
