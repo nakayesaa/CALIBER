@@ -7,7 +7,7 @@ import { TraceButton } from '../components/TraceabilityContext';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type InvestigationEvidenceProgress, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
-import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
+import { conditionSignalsFor, equipmentPresentation, type ConditionField } from '../lib/conditionSignals';
 import { formatDateTime, formatSignal, humanize } from '../lib/format';
 import { rcaCheckpoints, type RcaCheckpoint } from '../lib/rcaCheckpoints';
 import { alertDetectionWindow, selectTelemetryWindow, type TimeWindow } from '../lib/timeWindow';
@@ -24,6 +24,9 @@ const linkSignals: Record<string, { field: ConditionField; interpretation: strin
   water_contamination: { field: 'water_in_oil_ppm', interpretation: 'The monitored water trend supports contamination; the reported lab sample is a separate source.' },
   bearing_distress: { field: 'bearing_metal_temperature_degc', interpretation: 'Bearing temperature gives thermal context. Physical distress requires the inspection record.' },
   vibration_trip: { field: 'radial_vibration_micron', interpretation: 'Vibration tracks the mechanical response. The trip value is reported in the RCA chronology.' },
+  deposit_loading: { field: 'tube_dp', interpretation: 'Pressure drop is a downstream clue to restriction. Deposits and their origin require inspection and feed evidence.' },
+  hydraulic_restriction: { field: 'tube_dp', interpretation: 'Tube pressure drop supports hydraulic restriction, but load changes and instrument error must also be checked.' },
+  thermal_performance: { field: 'heat_duty', interpretation: 'Heat duty shows the thermal response. It does not identify deposit chemistry or prove the physical cause.' },
 };
 
 const initialLink: Record<RcaCheckpoint['kind'], string> = {
@@ -34,8 +37,8 @@ const initialLink: Record<RcaCheckpoint['kind'], string> = {
   ACTION: 'cooler_ingress',
 };
 
-async function loadInvestigation(): Promise<InvestigationData | null> {
-  const alerts = await api.alerts(PRIMARY_ASSET_ID);
+async function loadInvestigation(assetId: string): Promise<InvestigationData | null> {
+  const alerts = await api.alerts(assetId);
   const alert = alerts[0];
   if (!alert) return null;
   const [detail, chronology, telemetry] = await Promise.all([
@@ -61,10 +64,12 @@ function nearestReading(points: TelemetryPoint[], at: string): TelemetryPoint | 
   }, null);
 }
 
-export function RcaInvestigationPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function RcaInvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { onNavigate: (page: PageId) => void; assetId?: string }) {
+  const equipment = equipmentPresentation(assetId);
+  const conditionSignals = conditionSignalsFor(assetId);
   const [selectedAsOf, setSelectedAsOf] = useState(() => new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('at'));
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
-  const resource = useApiResource('rca-investigation', loadInvestigation);
+  const resource = useApiResource(`rca-investigation:${assetId}`, () => loadInvestigation(assetId));
   const checkpoints = resource.data ? rcaCheckpoints(resource.data.detail.alert.opened_at, resource.data.chronology.events) : [];
   const selectedIndex = checkpoints.findIndex((item) => item.asOf === selectedAsOf);
   const stepIndex = selectedIndex < 0 ? 0 : selectedIndex;
@@ -83,7 +88,9 @@ export function RcaInvestigationPage({ onNavigate }: { onNavigate: (page: PageId
 
   const { detail, telemetry } = resource.data;
   const progress = evidenceResource.data?.requestedAt === checkpoint.asOf ? evidenceResource.data.progress : null;
-  const activeLinkId = selectedLinkId ?? initialLink[checkpoint.kind];
+  const activeLinkId = selectedLinkId ?? (assetId === 'asset-he-3301'
+    ? checkpoint.kind === 'INSPECTION' ? 'deposit_loading' : checkpoint.kind === 'ACTION' ? 'thermal_performance' : 'hydraulic_restriction'
+    : initialLink[checkpoint.kind]);
   const link = progress?.causal_path.find((item) => item.link_id === activeLinkId) ?? progress?.causal_path[0];
   const signalContext = link ? linkSignals[link.link_id] : null;
   const signal = signalContext ? conditionSignals.find((item) => item.field === signalContext.field) : null;
@@ -99,7 +106,7 @@ export function RcaInvestigationPage({ onNavigate }: { onNavigate: (page: PageId
   return <div className="decision-workspace rca-investigation-page">
     <button className="rca-investigation-back" onClick={() => onNavigate('rca')}><Icon name="arrow"/> Back to RCA workspace</button>
     <header className="decision-workspace-heading">
-      <div><span>KO-3201 · RCA investigation</span><h1>Follow the evidence</h1><p>Move through the reported chronology, then inspect the monitored trend and source behind each causal link.</p></div>
+      <div><span>{equipment.tag} · RCA investigation</span><h1>Follow the evidence</h1><p>Move through the reported chronology, then inspect the monitored trend and source behind each causal link.</p></div>
       <TraceButton traceId="rca-indication">View source lineage</TraceButton>
     </header>
 
@@ -120,7 +127,7 @@ export function RcaInvestigationPage({ onNavigate }: { onNavigate: (page: PageId
 
       <section className="rca-investigation-evidence">
         <article className="rca-investigation-chart">
-          <header><div><span>Supporting monitored data</span><h2>{signal?.label ?? 'No mapped signal'}</h2></div>{reading && signal && <strong>{formatSignal(Number(reading[signal.field]))} {signal.unit}<small>Nearest hourly reading · {formatDateTime(reading.timestamp)}</small></strong>}</header>
+          <header><div><span>Supporting monitored data</span><h2>{signal?.label ?? 'No mapped signal'}</h2></div>{reading && signal && <strong>{typeof reading[signal.field] === 'number' ? formatSignal(reading[signal.field] as number) : 'Unavailable'} {signal.unit}<small>Nearest hourly reading · {formatDateTime(reading.timestamp)}</small></strong>}</header>
           {signalContext && <div className="rca-investigation-chart-canvas"><SignalChart points={points} field={signalContext.field} highlightTimestamp={reading?.timestamp} yPaddingRatio={0.15}/></div>}
           <p>{signalContext?.interpretation ?? 'This causal step has no direct monitored signal mapped.'}</p>
           <footer>Window: {formatDateTime(chartWindow.start)} to {formatDateTime(chartWindow.end)} · Hourly condition series</footer>
@@ -128,7 +135,7 @@ export function RcaInvestigationPage({ onNavigate }: { onNavigate: (page: PageId
         <article className="rca-investigation-source">
           <span>Evidence for selected link</span>
           <h2>{link.label}</h2>
-          {link.source_event ? <><strong>{link.source_event.title}</strong><p>{link.source_event.detail}</p><dl><div><dt>Event time</dt><dd>{formatDateTime(link.source_event.occurred_at)}</dd></div><div><dt>Evidence grade</dt><dd>{humanize(link.source_event.source_grade)}</dd></div><div><dt>Source</dt><dd>{link.source_event.source_reference}</dd></div></dl></> : <p>{link.state === 'MONITORED_TREND' ? 'Supported by the opening water-in-oil trend. No independent lab or inspection result had yet occurred in this chronology.' : 'No direct source record for this step at the selected checkpoint. Keep it as a hypothesis.'}</p>}
+          {link.source_event ? <><strong>{link.source_event.title}</strong><p>{link.source_event.detail}</p><dl><div><dt>Event time</dt><dd>{formatDateTime(link.source_event.occurred_at)}</dd></div><div><dt>Evidence grade</dt><dd>{humanize(link.source_event.source_grade)}</dd></div><div><dt>Source</dt><dd>{link.source_event.source_reference}</dd></div></dl></> : <p>{link.state === 'MONITORED_TREND' ? 'Supported by the opening condition trend. No independent lab or inspection result had yet occurred in this chronology.' : 'No direct source record for this step at the selected checkpoint. Keep it as a hypothesis.'}</p>}
           <TraceButton traceId="rca-indication">Inspect lineage</TraceButton>
         </article>
       </section>

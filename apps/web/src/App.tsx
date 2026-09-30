@@ -3,7 +3,6 @@ import { AppShell, type PageId } from './components/AppShell';
 import { TraceabilityProvider } from './components/TraceabilityContext';
 import { ActionsPage } from './pages/ActionsPage';
 import { EquipmentIndexPage } from './pages/EquipmentIndexPage';
-import { EquipmentDetailPage } from './pages/EquipmentDetailPage';
 import { PRIMARY_ASSET_ID } from './lib/appConfig';
 import './equipment.css';
 import { DataFoundationPage } from './pages/DataFoundationPage';
@@ -14,7 +13,7 @@ import { ProblemTankPage } from './pages/ProblemTankPage';
 import { RcaPage } from './pages/RcaPage';
 import { RcaInvestigationPage } from './pages/RcaInvestigationPage';
 
-const pages: Record<Exclude<PageId, 'assets'>, React.ComponentType<{ onNavigate: (page: PageId, assetId?: string, alertId?: string) => void }>> = {
+const pages: Record<Exclude<PageId, 'assets'>, React.ComponentType<{ assetId?: string; onNavigate: (page: PageId, assetId?: string, alertId?: string) => void }>> = {
   overview: OverviewPage,
   plant: PlantPage,
   problems: ProblemTankPage,
@@ -46,11 +45,8 @@ export function App() {
     window.location.hash = `${page}?${params}`;
     setRoute(routeFromHash());
   };
-  const detailPages: PageId[] = ['overview', 'investigation', 'rca', 'rca-investigation', 'actions'];
   const content = route.page === 'assets'
     ? <EquipmentIndexPage onSelect={(assetId) => navigate('overview', assetId)}/>
-    : route.assetId !== PRIMARY_ASSET_ID && detailPages.includes(route.page)
-      ? <EquipmentDetailPage key={route.assetId} assetId={route.assetId} view={route.page as 'overview' | 'investigation' | 'rca' | 'rca-investigation' | 'actions'} onNavigate={navigate}/>
-      : (() => { const Page = pages[route.page as Exclude<PageId, 'assets'>]; return <Page onNavigate={navigate}/>; })();
-  return <TraceabilityProvider key={route.assetId}><AppShell activePage={route.page} assetId={route.assetId} onNavigate={navigate}>{content}</AppShell></TraceabilityProvider>;
+    : (() => { const Page = pages[route.page as Exclude<PageId, 'assets'>]; return <Page key={route.assetId} assetId={route.assetId} onNavigate={navigate}/>; })();
+  return <TraceabilityProvider key={route.assetId} assetId={route.assetId}><AppShell activePage={route.page} assetId={route.assetId} onNavigate={navigate}>{content}</AppShell></TraceabilityProvider>;
 }

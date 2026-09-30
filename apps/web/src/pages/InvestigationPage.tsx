@@ -5,26 +5,14 @@ import { Icon } from '../components/Icon';
 import { SignalChart } from '../components/SignalChart';
 import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
-import { api, type AlertDetail, type DriverAnalysis, type InvestigationEvidenceProgress, type SystemStatus, type TelemetryPoint, type TelemetrySeries } from '../lib/api';
+import { api, type AlertDetail, type DriverAnalysis, type InvestigationEvidenceProgress, type SystemStatus, type TelemetrySeries } from '../lib/api';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
+import { conditionSignalsFor, equipmentPresentation, operatingSignalsFor, type EquipmentSignalField } from '../lib/conditionSignals';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { alertDetectionWindow, selectTelemetryWindow, timeWindowHours } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
-
-type SignalField = keyof Pick<TelemetryPoint,
-  'radial_vibration_micron' | 'water_in_oil_ppm' | 'lube_oil_pressure_barg' |
-  'bearing_metal_temperature_degc' | 'feed_rate_tph' | 'discharge_pressure_barg'>;
-
-const signalDefinitions: Array<{ field: SignalField; label: string; unit: string; source: string }> = [
-  { field: 'water_in_oil_ppm', label: 'Water in oil', unit: 'ppm', source: 'Equipment Performance · Condition History' },
-  { field: 'radial_vibration_micron', label: 'Radial vibration', unit: 'µm', source: 'Equipment Performance · Condition History' },
-  { field: 'lube_oil_pressure_barg', label: 'Lube oil pressure', unit: 'barg', source: 'Equipment Performance · Condition History' },
-  { field: 'bearing_metal_temperature_degc', label: 'Bearing temperature', unit: '°C', source: 'Equipment Performance · Condition History' },
-  { field: 'feed_rate_tph', label: 'Feed rate', unit: 'tph', source: 'Production Data · Sheet2' },
-  { field: 'discharge_pressure_barg', label: 'Discharge pressure', unit: 'barg', source: 'Production Data · Sheet2' },
-];
 
 const storySteps = ['Detection', 'Variables', 'Probable RCA', 'CA/PA'];
 
@@ -35,8 +23,8 @@ interface InvestigationData {
   driverAnalysis: DriverAnalysis;
 }
 
-async function loadInvestigation(): Promise<InvestigationData> {
-  const [alerts, system] = await Promise.all([api.alerts(PRIMARY_ASSET_ID), api.status()]);
+async function loadInvestigation(assetId: string): Promise<InvestigationData> {
+  const [alerts, system] = await Promise.all([api.alerts(assetId), api.status()]);
   const alert = alerts[0];
   if (!alert) throw new Error('No problem is available for investigation');
 
@@ -53,14 +41,19 @@ async function loadInvestigation(): Promise<InvestigationData> {
   return { detail, telemetry, system, driverAnalysis };
 }
 
-export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
-  const [selectedField, setSelectedField] = useState<SignalField>('water_in_oil_ppm');
+export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { onNavigate: (page: PageId) => void; assetId?: string }) {
+  const equipment = equipmentPresentation(assetId);
+  const signalDefinitions = [
+    ...conditionSignalsFor(assetId).map((signal) => ({ ...signal, source: 'Equipment Performance · Condition History' })),
+    ...operatingSignalsFor(assetId).map((signal) => ({ ...signal, source: 'Production Data · Hourly observations' })),
+  ];
+  const [selectedField, setSelectedField] = useState<EquipmentSignalField>(signalDefinitions[0].field);
   const [activeStep, setActiveStep] = useState(0);
   const [workflowBusy, setWorkflowBusy] = useState(false);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [replayAt, setReplayAt] = useState<string | null>(null);
   const [replayPlaying, setReplayPlaying] = useState(false);
-  const resource = useApiResource('problem-investigation', loadInvestigation);
+  const resource = useApiResource(`problem-investigation:${assetId}`, () => loadInvestigation(assetId));
   const alertId = resource.data?.detail.alert.alert_id;
   const evidenceResource = useApiResource<InvestigationEvidenceProgress | null>(
     `${alertId ?? ''}:${replayAt ?? ''}`,
@@ -98,13 +91,15 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     ? replayDriverResource.data.analysis : null;
   const causeReported = progress?.stage === 'CAUSE_REPORTED' || progress?.stage === 'REPAIR_REPORTED';
   const repairReported = progress?.stage === 'REPAIR_REPORTED';
-  const causeTitle = causeReported
+  const causeTitle = assetId === 'asset-he-3301'
+    ? causeReported ? 'Exchanger deposits reported at inspection' : 'Hydraulic and thermal degradation under investigation'
+    : causeReported
     ? 'Cooler leak and bearing distress reported'
     : progress?.stage === 'CONTAMINATION_SUPPORTED'
       ? 'Oil contamination supported by sample'
       : 'Lubrication contamination suspected';
-  const selectedSignal = signalDefinitions.find((signal) => signal.field === selectedField)!;
-  const selectedValues = detectionPoints.map((point) => Number(point[selectedField]));
+  const selectedSignal = signalDefinitions.find((signal) => signal.field === selectedField) ?? signalDefinitions[0];
+  const selectedValues = detectionPoints.map((point) => point[selectedSignal.field]).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
   const latestPoint = detectionPoints.at(-1);
 
   async function runWorkflow(operation: () => Promise<unknown>) {
@@ -138,7 +133,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     <header className="investigation-heading">
       <div>
         <span className="investigation-case-id">Priority 01 · {alert.alert_id}</span>
-        <h1>KO-3201 compressor degradation</h1>
+        <h1>{equipment.tag} equipment degradation</h1>
         <p>One governed view from abnormal signal detection to root-cause decision and follow-up execution.</p>
       </div>
       <div className="investigation-state"><span>{activeStep === 2 ? 'Evidence state' : 'Current workflow'}</span><strong>{activeStep === 2 ? humanize(progress?.stage ?? 'Probable') : humanize(plans[0]?.status ?? rca?.status ?? 'RCA not started')}</strong><p>{activeStep === 2 ? formatDateTime(replayAt ?? alert.opened_at) : plans.length ? `${actions.filter((action) => action.status === 'CLOSED').length} of ${actions.length} actions closed` : 'No action plan created'}</p></div>
@@ -168,12 +163,12 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
     <section className="investigation-section" hidden={activeStep !== 1}>
       <article className="investigation-signal-panel panel">
         <nav aria-label="Investigated variables">
-          {signalDefinitions.map((signal) => { const contribution = contributionForField(driverAnalysis, signal.field); return <button key={signal.field} className={selectedField === signal.field ? 'active' : ''} onClick={() => setSelectedField(signal.field)}><span>{signal.label}</span><strong>{contribution ? `${formatSignal(contribution.contribution_percent)}%` : latestPoint ? formatSignal(Number(latestPoint[signal.field])) : '—'} <small>{contribution ? 'contribution' : signal.unit}</small></strong><i>{signal.source}</i></button>; })}
+          {signalDefinitions.map((signal) => { const contribution = contributionForField(driverAnalysis, signal.field); const value = latestPoint?.[signal.field]; return <button key={signal.field} className={selectedSignal.field === signal.field ? 'active' : ''} onClick={() => setSelectedField(signal.field)}><span>{signal.label}</span><strong>{contribution ? `${formatSignal(contribution.contribution_percent)}%` : typeof value === 'number' ? formatSignal(value) : '—'} <small>{contribution ? 'contribution' : signal.unit}</small></strong><i>{signal.source}</i></button>; })}
         </nav>
         <div className="investigation-signal-chart">
           <header><div><span>{selectedSignal.label}</span><h3>Degradation-window trend</h3></div><div><span>Window peak</span><strong>{selectedValues.length ? formatSignal(Math.max(...selectedValues)) : '—'} {selectedSignal.unit}</strong></div></header>
-          <SignalChart points={detectionPoints} field={selectedField} highlightWindow={detectionWindow}/>
-          <div className="investigation-trace-footer"><p>Source: {selectedSignal.source}</p><TraceButton traceId="condition-insights">Inspect lineage</TraceButton></div>
+          <SignalChart points={detectionPoints} field={selectedSignal.field} highlightWindow={detectionWindow}/>
+          <div className="investigation-trace-footer"><p>Source: {selectedSignal.source}</p><TraceButton traceId={operatingSignalsFor(assetId).some((signal) => signal.field === selectedSignal.field) ? 'production-shortfall' : 'condition-insights'}>Inspect lineage</TraceButton></div>
         </div>
       </article>
     </section>
@@ -202,7 +197,7 @@ export function InvestigationPage({ onNavigate }: { onNavigate: (page: PageId) =
           <header className="investigation-trace-heading"><span>{causeReported ? 'RCA-reported cause' : 'Leading hypothesis'}</span>{causeReported && <TraceButton traceId="rca-indication">View evidence sources</TraceButton>}</header>
           <h3>{causeTitle}</h3>
           <p>{progress?.summary ?? 'Reviewing the condition evidence available at this time.'}</p>
-          <div><strong>{causeReported ? 'Case interpretation' : 'What remains unverified'}</strong><p>{causeReported ? hypothesis?.rationale : 'The source of water entry and bearing condition require lab and inspection evidence. The current signal pattern alone cannot prove the physical cause.'}</p></div>
+          <div><strong>{causeReported ? 'Case interpretation' : 'What remains unverified'}</strong><p>{causeReported ? hypothesis?.rationale : assetId === 'asset-he-3301' ? 'Deposits and their origin require bundle inspection and feed evidence. Pressure-drop and heat-duty trends alone cannot distinguish fouling from changed operating conditions.' : 'The source of water entry and bearing condition require lab and inspection evidence. The current signal pattern alone cannot prove the physical cause.'}</p></div>
           {causeReported && <div className="rca-workflow-controls"><div><span>Decision workflow</span><strong>{detail.rca ? humanize(detail.rca.status) : 'Draft preview'}</strong></div><div>{!detail.rca && <button disabled={workflowBusy} onClick={createDraft}>Create reviewable draft</button>}<button onClick={() => onNavigate('actions')}>Open cross-check and authorization</button></div>{workflowError && <p role="alert">{workflowError}</p>}</div>}
         </article>
         <article className="cause-evidence panel">

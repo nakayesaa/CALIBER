@@ -5,7 +5,8 @@ import type { TimeWindow } from '../lib/timeWindow';
 export type SignalField = keyof Pick<TelemetryPoint,
   'anomaly_score' | 'radial_vibration_micron' | 'water_in_oil_ppm' |
   'lube_oil_pressure_barg' | 'bearing_metal_temperature_degc' |
-  'feed_rate_tph' | 'discharge_pressure_barg' | 'motor_current_a' | 'plant_rate_tph'>;
+  'feed_rate_tph' | 'discharge_pressure_barg' | 'motor_current_a' | 'plant_rate_tph' |
+  'tube_dp' | 'heat_duty' | 'cold_outlet_temp' | 'heavy_ends'>;
 
 export type ChartWindowTone = 'signal' | 'warning' | 'high' | 'critical' | 'closed' | 'focus';
 
@@ -16,6 +17,10 @@ export interface ChartTimeWindow extends TimeWindow {
 }
 
 const signalMetadata: Record<SignalField, { label: string; unit: string }> = {
+  tube_dp: { label: 'Tube pressure drop', unit: 'bar' },
+  heat_duty: { label: 'Heat duty', unit: '% design' },
+  cold_outlet_temp: { label: 'Cold outlet temperature', unit: '°C' },
+  heavy_ends: { label: 'Heavy ends', unit: '%' },
   anomaly_score: { label: 'Anomaly score', unit: '' },
   radial_vibration_micron: { label: 'Radial vibration', unit: 'µm' },
   water_in_oil_ppm: { label: 'Water in oil', unit: 'ppm' },
@@ -43,9 +48,11 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, high
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   if (!points.length) return <div className="chart-empty">No telemetry points</div>;
 
-  const values = points.map((point) => Number(point[field] ?? 0));
-  const rawMin = Math.min(...values, threshold ?? Number.POSITIVE_INFINITY);
-  const rawMax = Math.max(...values, threshold ?? Number.NEGATIVE_INFINITY);
+  const values = points.map((point) => point[field] == null ? NaN : Number(point[field]));
+  const finiteValues = values.filter(Number.isFinite);
+  if (!finiteValues.length) return <div className="chart-empty">No readings in this interval</div>;
+  const rawMin = Math.min(...finiteValues, threshold ?? Number.POSITIVE_INFINITY);
+  const rawMax = Math.max(...finiteValues, threshold ?? Number.NEGATIVE_INFINITY);
   const rawSpan = Math.max(rawMax - rawMin, 1);
   const padding = rawSpan * yPaddingRatio;
   const min = rawMin - padding;
@@ -53,9 +60,9 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, high
   const span = max - min;
   const coordinates = values.map((value, index) => ({
     x: values.length === 1 ? 0 : index / (values.length - 1) * 100,
-    y: 96 - (value - min) / span * 88,
+    y: Number.isFinite(value) ? 96 - (value - min) / span * 88 : 50,
   }));
-  const path = coordinates.map(({ x, y }, index) => `${index === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`).join(' ');
+  const path = coordinates.map(({ x, y }, index) => Number.isFinite(values[index]) ? `${index === 0 || !Number.isFinite(values[index - 1]) ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}` : '').join(' ');
   const thresholdY = threshold === undefined ? null : 96 - (threshold - min) / span * 88;
   const hoveredPoint = hoveredIndex === null ? null : points[hoveredIndex];
   const hoveredCoordinate = hoveredIndex === null ? null : coordinates[hoveredIndex];
@@ -108,7 +115,7 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, high
       </svg>
       {hoveredPoint && hoveredCoordinate && <div className={`chart-tooltip${hoveredCoordinate.x > 72 ? ' align-right' : hoveredCoordinate.x < 28 ? ' align-left' : ''}`} style={{ left: `${hoveredCoordinate.x}%`, top: `${Math.min(82, Math.max(12, hoveredCoordinate.y))}%` }}>
         <time>{formatTimestamp(hoveredPoint.timestamp)}</time>
-        <strong>{formatValue(Number(hoveredPoint[field]))} {signalMetadata[field].unit}</strong>
+        <strong>{hoveredPoint[field] == null ? 'Unavailable' : formatValue(Number(hoveredPoint[field]))} {signalMetadata[field].unit}</strong>
         <span>{signalMetadata[field].label}{field === 'anomaly_score' ? ` · ${formatDecisionState(hoveredPoint.decision_state)}` : showRunStatus ? ` · ${hoveredPoint.run_status}` : ''}</span>
         {hoveredWindow && <span className="chart-window-label">{hoveredWindow.label}{onWindowSelect ? ' · Click for evidence' : ''}</span>}
       </div>}

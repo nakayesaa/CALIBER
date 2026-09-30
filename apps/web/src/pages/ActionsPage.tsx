@@ -6,12 +6,13 @@ import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { TraceButton } from '../components/TraceabilityContext';
 import { api, type ActionItem, type ActionPlan, type EffectivenessMetric, type EffectivenessReview } from '../lib/api';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
+import { equipmentPresentation } from '../lib/conditionSignals';
 import { formatDate, humanize } from '../lib/format';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
 
-async function loadActions() {
-  const alerts = await api.alerts(PRIMARY_ASSET_ID);
+async function loadActions(assetId: string) {
+  const alerts = await api.alerts(assetId);
   if (!alerts[0]) return null;
   const [detail, effectiveness] = await Promise.all([
     api.alertDetail(alerts[0].alert_id),
@@ -20,9 +21,10 @@ async function loadActions() {
   return { detail, effectiveness };
 }
 
-export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function ActionsPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { onNavigate: (page: PageId) => void; assetId?: string }) {
+  const equipment = equipmentPresentation(assetId);
   const [reportOpen, setReportOpen] = useState(false);
-  const resource = useApiResource('actions', loadActions);
+  const resource = useApiResource(`actions:${assetId}`, () => loadActions(assetId));
 
   useEffect(() => {
     if (!reportOpen) return;
@@ -38,7 +40,7 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
   const plans = workflow?.actionPlans ?? [];
   if (!resource.data) return <EmptyState title="No issue available" description="An equipment alert starts the review and follow-up workflow."/>;
   const heading = <header className="decision-workspace-heading">
-    <div><span>KO-3201 · Controlled records</span><h1>Corrective and preventive action</h1><p>Track the formal CAPA record created from the approved equipment investigation.</p></div>
+    <div><span>{equipment.tag} · Controlled records</span><h1>Corrective and preventive action</h1><p>Track the formal CAPA record created from the approved equipment investigation.</p></div>
     <div><b>{humanize(plans[0]?.status ?? resource.data.detail.rca?.status ?? 'DRAFT')}</b><TraceButton traceId="capa-plan">View supporting sources</TraceButton><button onClick={() => onNavigate('rca')}>Review RCA evidence</button></div>
   </header>;
   if (!plans.length) return <div className="decision-workspace action-workspace">{heading}<CoordinationPanel detail={resource.data.detail} onChange={resource.reload} refreshing={resource.loading}/><EmptyState title="No CAPA report created yet" description="An approved RCA hypothesis unlocks containment, corrective, and preventive work."/></div>;
@@ -49,7 +51,7 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
   const pendingActions = caPaActions.filter((action) => action.status !== 'CLOSED');
   const nextDueAction = [...pendingActions].sort((left, right) => left.due_date.localeCompare(right.due_date))[0];
 
-  const sourceSummary = workflow?.rca?.generation.executive_summary ?? 'Approved investigation links the equipment degradation to lubrication contamination.';
+  const sourceSummary = workflow?.rca?.generation.executive_summary ?? 'Review the approved investigation for the recorded cause and supporting evidence.';
   const improvedSignals = effectiveness.metrics.filter((metric) => metric.outcome === 'IMPROVED').length;
 
   return <div className="decision-workspace action-workspace">
@@ -67,18 +69,18 @@ export function ActionsPage({ onNavigate }: { onNavigate: (page: PageId) => void
       <header><div><span>CAPA register</span><h2>Formal action records</h2><p>Open the record to review its source, actions, evidence, and approval trail.</p></div><strong>1 record</strong></header>
       <div className="capa-register-columns"><span>Report</span><span>Equipment</span><span>Source</span><span>Target</span><span>Status</span><span/></div>
       <button className="capa-register-row" onClick={() => setReportOpen(true)}>
-        <div><span>CAPA report</span><strong>Lubrication contamination on KO-3201</strong><small>{plan.plan_id}</small></div>
-        <span>KO-3201</span><span>Approved RCA</span><time>{nextDueAction ? formatDate(nextDueAction.due_date) : 'Completed'}</time><b>{humanize(plan.status)}</b><i>›</i>
+        <div><span>CAPA report</span><strong>{humanize(plan.selected_cause_category)} on {equipment.tag}</strong><small>{plan.plan_id}</small></div>
+        <span>{equipment.tag}</span><span>Approved RCA</span><time>{nextDueAction ? formatDate(nextDueAction.due_date) : 'Completed'}</time><b>{humanize(plan.status)}</b><i>›</i>
       </button>
     </section>
 
     <section className="capa-closure-note"><div><span>Effectiveness result</span><strong>{humanize(effectiveness.result)}</strong></div><p>{effectiveness.recovery_confirmed ? `All anchor signals improved across ${effectiveness.monitoring_periods} normal post-repair weeks with no recurrence detected. Formal closure remains a separate approval.` : effectiveness.explanation}</p><TraceButton traceId="recovery-effectiveness">View evidence</TraceButton></section>
 
-    {reportOpen && <CapaReportModal plan={plan} effectiveness={effectiveness} sourceSummary={sourceSummary} onClose={() => setReportOpen(false)}/>}
+    {reportOpen && <CapaReportModal plan={plan} effectiveness={effectiveness} sourceSummary={sourceSummary} assetTag={equipment.tag} onClose={() => setReportOpen(false)}/>}
   </div>;
 }
 
-function CapaReportModal({ plan, effectiveness, sourceSummary, onClose }: { plan: ActionPlan; effectiveness: EffectivenessReview; sourceSummary: string; onClose: () => void }) {
+function CapaReportModal({ plan, effectiveness, sourceSummary, assetTag, onClose }: { plan: ActionPlan; effectiveness: EffectivenessReview; sourceSummary: string; assetTag: string; onClose: () => void }) {
   const containment = plan.actions.find((action) => action.action_type === 'CONTAINMENT');
   const plannedActions = plan.actions.filter((action) => action.action_type !== 'CONTAINMENT');
   const issueDate = containment?.due_date ?? plannedActions[0]?.due_date ?? 'Not recorded';
@@ -93,13 +95,13 @@ function CapaReportModal({ plan, effectiveness, sourceSummary, onClose }: { plan
       <div className="capa-report-scroll">
         <section className="capa-document-control">
           <DocumentField label="Report number" value={plan.plan_id}/><DocumentField label="Revision" value="01"/><DocumentField label="Status" value={humanize(plan.status)}/><DocumentField label="Issue date" value={formatDate(issueDate)}/>
-          <DocumentField label="Equipment" value="KO-3201"/><DocumentField label="Source record" value={plan.rca_id}/><DocumentField label="Record type" value="Equipment problem"/><DocumentField label="Classification" value="Reliability / Process safety"/>
+          <DocumentField label="Equipment" value={assetTag}/><DocumentField label="Source record" value={plan.rca_id}/><DocumentField label="Record type" value="Equipment problem"/><DocumentField label="Classification" value="Reliability / Process safety"/>
         </section>
 
         <ReportSection number="1" title="Problem and investigation basis">
           <ReportLine label="Approved root cause" value={humanize(plan.selected_cause_category)}/>
           <ReportLine label="Investigation conclusion" value={sourceSummary}/>
-          <ReportLine label="CAPA objective" value="Restore KO-3201 lubrication integrity and prevent recurrence of the confirmed degradation pattern on comparable equipment."/>
+          <ReportLine label="CAPA objective" value={`Restore ${assetTag} performance and prevent recurrence of the approved failure mechanism through the actions and acceptance criteria below.`}/>
         </ReportSection>
 
         <ReportSection number="2" title="Immediate correction and containment">

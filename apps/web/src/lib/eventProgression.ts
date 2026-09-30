@@ -1,5 +1,6 @@
 import type { AlertEvent, AlertStateTransition, TelemetryPoint } from './api';
 import { formatSignal, humanize } from './format';
+import { equipmentPresentation } from './conditionSignals';
 
 export type EventTone = 'signal' | 'warning' | 'high' | 'critical' | 'closed';
 
@@ -63,7 +64,12 @@ export function buildEventMilestones(
   ];
 
   return events.map((event, index) => {
-    const presentation = statePresentation[event.state] ?? fallbackPresentation(event.state, event.reason);
+    const equipment = equipmentPresentation(alert.asset_id);
+    const presentation = { ...(statePresentation[event.state] ?? fallbackPresentation(event.state, event.reason)) };
+    if (alert.asset_id === 'asset-he-3301') {
+      if (event.state === 'FIRST_SIGNAL') { presentation.title = equipment.firstSignalTitle; presentation.description = equipment.firstSignalDetail; }
+      if (event.state === 'CRITICAL') presentation.description = equipment.escalationDetail;
+    }
     const snapshot = nearestTelemetryPoint(telemetry, event.timestamp);
     return {
       id: `${index}-${event.timestamp}-${event.state}`,
@@ -74,7 +80,10 @@ export function buildEventMilestones(
       description: presentation.description,
       tone: presentation.tone,
       snapshot,
-      synthesis: buildConditionSynthesis(event.state, snapshot),
+      synthesis: alert.asset_id === 'asset-he-3301' ? {
+        title: event.state === 'CLOSED' ? 'Monitoring closure requires recovery verification' : 'Exchanger degradation requires cause verification',
+        detail: `At this checkpoint, ${snapshot?.breached_signals.length ?? 0} condition signals breached their engineering limits. Compare pressure drop, heat duty, outlet temperature and heavy ends over this window. Fouling is a working hypothesis; process conditions and inspection evidence must distinguish it from alternative causes.`,
+      } : buildConditionSynthesis(event.state, snapshot),
     };
   });
 }

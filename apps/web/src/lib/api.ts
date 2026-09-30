@@ -60,7 +60,7 @@ export const api = {
   effectiveness: (assetId: string) => request<EffectivenessReview>(`/assets/${assetId}/effectiveness`),
   dataSources: () => request<DataSourceSummary[]>('/data-sources'),
   dataSource: (sourceKey: string) => request<DataSourceDetail>(`/data-sources/${sourceKey}`),
-  traceClaim: (traceId: string) => request<TraceClaim>(`/traceability/claims/${traceId}`),
+  traceClaim: (traceId: string, assetId?: string) => request<TraceClaim>(`/traceability/claims/${traceId}${assetId ? `?asset_id=${encodeURIComponent(assetId)}` : ''}`),
   telemetry: (assetId: string, maxPoints = 360, start?: string, end?: string) => {
     const query = new URLSearchParams({ max_points: String(maxPoints) });
     if (start) query.set('start', start);

@@ -12,6 +12,7 @@ export function formatDateTime(value: string): string {
 }
 
 export function formatSignal(value: number, digits = 1): string {
+  if (!Number.isFinite(value)) return 'Unavailable';
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

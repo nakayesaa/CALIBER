@@ -6,13 +6,13 @@ import { useTraceability } from './TraceabilityContext';
 export function SourceInspector() {
   const { target, close, openSource } = useTraceability();
   if (!target) return null;
-  return <InspectorContent kind={target.kind} id={target.id} onClose={close} onOpenSource={openSource}/>;
+  return <InspectorContent kind={target.kind} id={target.id} assetId={target.kind === 'claim' ? target.assetId : undefined} onClose={close} onOpenSource={openSource}/>;
 }
 
-function InspectorContent({ kind, id, onClose, onOpenSource }: { kind: 'claim' | 'source'; id: string; onClose: () => void; onOpenSource: (sourceKey: string) => void }) {
+function InspectorContent({ kind, id, assetId, onClose, onOpenSource }: { kind: 'claim' | 'source'; id: string; assetId?: string; onClose: () => void; onOpenSource: (sourceKey: string) => void }) {
   const resource = useApiResource<TraceClaim | DataSourceDetail>(
-    `traceability-${kind}-${id}`,
-    () => kind === 'claim' ? api.traceClaim(id) : api.dataSource(id),
+    `traceability-${kind}-${id}-${assetId ?? ''}`,
+    () => kind === 'claim' ? api.traceClaim(id, assetId) : api.dataSource(id),
   );
   return <aside className="source-inspector" aria-label="Source inspector">
     <header><div><span>Source inspector</span><h2>{resource.loading ? 'Loading evidence…' : resource.error ? 'Evidence unavailable' : kind === 'claim' ? (resource.data as TraceClaim).title : (resource.data as DataSourceDetail).source.title}</h2></div><button onClick={onClose} aria-label="Close source inspector">×</button></header>

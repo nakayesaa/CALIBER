@@ -8,7 +8,7 @@ import { TraceButton } from '../components/TraceabilityContext';
 import { ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type AlertEvent, type AssetOverview, type DriverAnalysis, type TelemetrySeries } from '../lib/api';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
-import { conditionSignals, operatingSignals, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
+import { conditionSignalsFor, operatingSignalsFor, equipmentPresentation, type EquipmentSignal, type EquipmentSignalField } from '../lib/conditionSignals';
 import { contributionForField, contributionRank } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { alertDetectionWindow, alertProgressionWindows, selectIncidentWindow, timeWindowHours, type AlertTimeWindow, type HealthTimeRange } from '../lib/timeWindow';
@@ -33,11 +33,11 @@ interface OverviewData {
   driverAnalysis: DriverAnalysis | null;
 }
 
-async function loadOverview(): Promise<OverviewData> {
+async function loadOverview(assetId: string): Promise<OverviewData> {
   const [overview, telemetry, alerts] = await Promise.all([
-    api.assetOverview(PRIMARY_ASSET_ID),
-    api.telemetry(PRIMARY_ASSET_ID, 5000),
-    api.alerts(PRIMARY_ASSET_ID),
+    api.assetOverview(assetId),
+    api.telemetry(assetId, 5000),
+    api.alerts(assetId),
   ]);
   const [alertDetails, driverAnalysis] = await Promise.all([
     Promise.all(alerts.map((alert) => api.alertDetail(alert.alert_id))),
@@ -51,12 +51,15 @@ interface ProgressionSelection {
   milestoneIndex: number | null;
 }
 
-export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
+export function OverviewPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { onNavigate: (page: PageId) => void; assetId?: string }) {
+  const conditionSignals = conditionSignalsFor(assetId);
+  const operatingSignals = operatingSignalsFor(assetId);
+  const equipment = equipmentPresentation(assetId);
   const [healthRange, setHealthRange] = useState<HealthTimeRange>('6M');
   const [signalMode, setSignalMode] = useState<SignalMode>('condition');
-  const [selectedSignalField, setSelectedSignalField] = useState<EquipmentSignalField>('water_in_oil_ppm');
+  const [selectedSignalField, setSelectedSignalField] = useState<EquipmentSignalField>(conditionSignals[0].field);
   const [selectedProgression, setSelectedProgression] = useState<ProgressionSelection | null>(null);
-  const resource = useApiResource('overview', loadOverview);
+  const resource = useApiResource(`overview:${assetId}`, () => loadOverview(assetId));
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Overview data unavailable'}/>;
 
@@ -90,9 +93,9 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
   const availableSignals: readonly EquipmentSignal[] = signalMode === 'condition' ? conditionSignals : operatingSignals;
   const selectedSignal = availableSignals.find((signal) => signal.field === selectedSignalField) ?? availableSignals[0];
   const selectedContribution = contributionForField(driverAnalysis, selectedSignal.field);
-  const selectedValues = healthPoints.map((point) => Number(point[selectedSignal.field]));
-  const selectedStart = selectedValues[0] ?? 0;
-  const selectedLatest = selectedValues.at(-1) ?? 0;
+  const selectedValues = healthPoints.map((point) => point[selectedSignal.field] == null ? NaN : Number(point[selectedSignal.field]));
+  const selectedStart = selectedValues[0] ?? NaN;
+  const selectedLatest = selectedValues.at(-1) ?? NaN;
 
   function selectSignalMode(mode: SignalMode) {
     setSignalMode(mode);
@@ -114,7 +117,7 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
     <section className="overview-main-grid">
       <article className="overview-health-card">
         <header>
-          <div><div><h2>Equipment health trajectory</h2><p>KO-3201 · {detectionFocused ? `${formatSignal(detectionHours)} h detection evidence` : healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
+          <div><div><h2>Equipment health trajectory</h2><p>{equipment.tag} · {detectionFocused ? `${formatSignal(detectionHours)} h detection evidence` : healthRange === '6M' ? 'full monitoring history' : `${healthRange.toLowerCase()} incident-centered window`}</p></div></div>
           <div className="overview-health-controls"><TraceButton traceId="health-trajectory">View sources</TraceButton><span>Anomaly score</span><nav className="overview-range-selector" aria-label="Health trajectory time range">{healthRanges.map((range) => <button className={healthRange === range.value ? 'active' : ''} disabled={range.value === 'DETECTION' && !detectionWindow} key={range.value} onClick={() => setHealthRange(range.value)}>{range.label}</button>)}</nav></div>
         </header>
         <div className="overview-health-body">
@@ -123,30 +126,30 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
           <div className="overview-chart-axis"><span>{formatDate(healthStart)}</span><b>{detectionFocused ? `${formatSignal(detectionHours)} h · first signal to warning` : `${progressionWindows.length} progression windows · click to inspect`}</b><span>{formatDate(healthEnd)}</span></div>
         </div>
         <div className="overview-health-context">
-          <div><span>{detectionFocused ? 'At warning · leading condition' : 'Leading condition'}</span><strong>Water in oil</strong><b>{formatSignal(contextPoint?.water_in_oil_ppm ?? 0)} ppm</b></div>
-          <div><span>{detectionFocused ? 'At warning · mechanical response' : 'Correlated response'}</span><strong>Radial vibration</strong><b>{formatSignal(contextPoint?.radial_vibration_micron ?? 0)} µm</b></div>
+          {conditionSignals.slice(0, 2).map((signal) => <div key={signal.field}><span>{detectionFocused ? 'At warning' : signal.role}</span><strong>{signal.label}</strong><b>{reading(contextPoint?.[signal.field])} {signal.unit}</b></div>)}
           <div><span>Estimated production shortfall</span><strong>{productionImpact ? `~${Math.round(productionImpact.estimated_shortfall_tonnes).toLocaleString()} tonnes` : 'Unavailable'}</strong><TraceButton traceId="production-shortfall">{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h · View calculation` : 'View calculation'}</TraceButton></div>
         </div>
       </article>
 
       <article className="overview-timeline-card">
-        <header><div><h2>Event progression</h2><p>KO-3201 degradation chronology</p></div><div className="overview-card-actions"><TraceButton traceId="event-progression">Sources</TraceButton><button onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: null })}>View all <Icon name="arrow"/></button></div></header>
+        <header><div><h2>Event progression</h2><p>{equipment.tag} degradation chronology</p></div><div className="overview-card-actions"><TraceButton traceId="event-progression">Sources</TraceButton><button onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: null })}>View all <Icon name="arrow"/></button></div></header>
         <div className="overview-schedule">
           <div className="overview-time-rule"><span>First signal</span><i/></div>
-          <ScheduleEvent title="Oil condition began to deviate" detail="Water-in-oil became persistent before the broader equipment response." date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="Warning" meta="1 leading signal" tone="warning" onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: 0 })}/>
+          <ScheduleEvent title={equipment.firstSignalTitle} detail={equipment.firstSignalDetail} date={formatDateTime(alert?.first_signal_at ?? overview.timeline_start)} status="First signal" meta="Detection evidence" tone="warning" onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: 0 })}/>
           <div className="overview-time-rule"><span>Escalation</span><i/></div>
-          <ScheduleEvent title="Condition signals converged" detail="Oil, pressure, thermal, and vibration evidence formed a critical pattern." date={formatDateTime(escalationTransition?.timestamp ?? alert?.opened_at ?? overview.timeline_start)} status={humanize(alert?.highest_severity ?? 'critical')} meta={`${alert?.breached_signals.length ?? 0} correlated signals`} tone="critical" onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: escalationIndex })}/>
+          <ScheduleEvent title="Condition signals converged" detail={equipment.escalationDetail} date={formatDateTime(escalationTransition?.timestamp ?? alert?.opened_at ?? overview.timeline_start)} status={humanize(alert?.highest_severity ?? 'critical')} meta={`${alert?.breached_signals.length ?? 0} condition breaches`} tone="critical" onClick={() => detail && setSelectedProgression({ detail, milestoneIndex: escalationIndex })}/>
         </div>
       </article>
     </section>
 
     <section className="overview-bottom-grid">
       <article className="overview-condition-card">
-        <header><div><h2>{signalMode === 'condition' ? 'Condition insights' : 'Operating performance'}</h2><p>{signalMode === 'condition' ? 'Explore how equipment condition contributed to the event' : 'Compare KO-3201 load and delivery against plant operation'}</p></div><div className="overview-card-actions"><TraceButton traceId={signalMode === 'condition' ? 'condition-insights' : 'production-shortfall'}>View sources</TraceButton><nav className="overview-signal-mode" aria-label="Equipment signal group"><button className={signalMode === 'condition' ? 'active' : ''} onClick={() => selectSignalMode('condition')}>Condition</button><button className={signalMode === 'operating' ? 'active' : ''} onClick={() => selectSignalMode('operating')}>Operating</button></nav></div></header>
+        <header><div><h2>{signalMode === 'condition' ? 'Condition insights' : 'Operating performance'}</h2><p>{signalMode === 'condition' ? 'Explore how equipment condition contributed to the event' : `Compare ${equipment.tag} throughput against plant operation`}</p></div><div className="overview-card-actions"><TraceButton traceId={signalMode === 'condition' ? 'condition-insights' : 'production-shortfall'}>View sources</TraceButton><nav className="overview-signal-mode" aria-label="Equipment signal group"><button className={signalMode === 'condition' ? 'active' : ''} onClick={() => selectSignalMode('condition')}>Condition</button><button className={signalMode === 'operating' ? 'active' : ''} onClick={() => selectSignalMode('operating')}>Operating</button></nav></div></header>
         <nav className="overview-condition-tabs" aria-label={`${signalMode} variables`}>
           {availableSignals.map((signal) => {
             const contribution = contributionForField(driverAnalysis, signal.field);
-            const reading = Number((detectionFocused ? visibleEnd : latest)?.[signal.field] ?? 0);
+            const value = (detectionFocused ? visibleEnd : latest)?.[signal.field];
+            const reading = value == null ? NaN : Number(value);
             return <button className={selectedSignal.field === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignalField(signal.field)}><span>{signal.label}</span><strong>{!detectionFocused && signalMode === 'condition' && contribution ? `${formatSignal(contribution.contribution_percent)}% contribution` : `${formatSignal(reading)} ${signal.unit}`}</strong></button>;
           })}
         </nav>
@@ -168,10 +171,10 @@ export function OverviewPage({ onNavigate }: { onNavigate: (page: PageId) => voi
             : <div className="overview-condition-summary overview-production-summary">
                 <span>Estimated production shortfall</span>
                 <strong>{productionImpact ? Math.round(productionImpact.estimated_shortfall_tonnes).toLocaleString() : '—'} <small>tonnes</small></strong>
-                <p>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h offline · contextual healthy median` : 'No qualifying offline event window'}</p>
+                <p>{productionImpact ? `${formatSignal(productionImpact.offline_hours)} h sampled offline · ${productionImpact.baseline.method === 'PRE_OUTAGE_OPERATING_MEDIAN' ? 'pre-outage operating median' : 'contextual healthy median'}` : 'No qualifying offline event window'}</p>
                 <dl><div><dt>Expected feed</dt><dd>{productionImpact ? `${formatSignal(productionImpact.baseline.expected_feed_tph)} t/h` : '—'}</dd></div><div><dt>Baseline evidence</dt><dd>{productionImpact ? `${productionImpact.baseline.healthy_sample_count.toLocaleString()} h · ${humanize(productionImpact.baseline.confidence)}` : '—'}</dd></div></dl>
               </div>}
-          <div className="overview-condition-chart"><SignalChart points={healthPoints} field={selectedSignal.field} highlightTimestamp={detectionFocused ? undefined : signalMode === 'condition' ? driverAnalysis?.as_of : alert?.first_signal_at} highlightWindows={chartWindows} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(healthStart)}</span><b>{detectionFocused ? 'First signal → warning' : signalMode === 'operating' && productionImpact ? `Healthy median at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(driverAnalysis?.as_of ?? alert?.peak_score_at ?? overview.timeline_start)} · contribution snapshot`}</b><span>{formatDate(healthEnd)}</span></div></div>
+          <div className="overview-condition-chart"><SignalChart points={healthPoints} field={selectedSignal.field} highlightTimestamp={detectionFocused ? undefined : signalMode === 'condition' ? driverAnalysis?.as_of : alert?.first_signal_at} highlightWindows={chartWindows} showRunStatus={signalMode === 'operating'}/><div><span>{formatDate(healthStart)}</span><b>{detectionFocused ? 'First signal → warning' : signalMode === 'operating' && productionImpact ? `${productionImpact.baseline.method === 'PRE_OUTAGE_OPERATING_MEDIAN' ? 'Operating median' : 'Healthy median'} at ${formatSignal(productionImpact.baseline.representative_plant_rate_tph)} ± ${formatSignal(productionImpact.baseline.plant_rate_tolerance_tph)} t/h plant load` : `${formatDate(driverAnalysis?.as_of ?? alert?.peak_score_at ?? overview.timeline_start)} · contribution snapshot`}</b><span>{formatDate(healthEnd)}</span></div></div>
         </div>
       </article>
 
@@ -200,6 +203,10 @@ function ScheduleEvent({ title, detail, date, status, meta, tone, onClick }: { t
 
 function signedSignal(value: number): string {
   return `${value > 0 ? '+' : ''}${formatSignal(value)}`;
+}
+
+function reading(value: number | null | undefined): string {
+  return value == null ? 'Unavailable' : formatSignal(value);
 }
 
 function toChartWindow(window: AlertTimeWindow): ChartTimeWindow {

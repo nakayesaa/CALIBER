@@ -7,7 +7,7 @@ import { TraceButton } from '../components/TraceabilityContext';
 import { EmptyState, ErrorState, LoadingState } from '../components/ViewState';
 import { api, type AlertDetail, type DriverAnalysis, type InvestigationEvidenceProgress, type TelemetrySeries } from '../lib/api';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
-import { conditionSignals, type ConditionField } from '../lib/conditionSignals';
+import { conditionSignalsFor, equipmentPresentation, type ConditionField } from '../lib/conditionSignals';
 import { contributionForField } from '../lib/driverAnalysis';
 import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/format';
 import { rcaCheckpoints } from '../lib/rcaCheckpoints';
@@ -22,8 +22,8 @@ interface RcaWorkspaceData {
   caseProgress: InvestigationEvidenceProgress;
 }
 
-async function loadRcaWorkspace(): Promise<RcaWorkspaceData | null> {
-  const alerts = await api.alerts(PRIMARY_ASSET_ID);
+async function loadRcaWorkspace(assetId: string): Promise<RcaWorkspaceData | null> {
+  const alerts = await api.alerts(assetId);
   const alert = alerts[0];
   if (!alert) return null;
   const [detail, telemetry, driverAnalysis, caseProgress] = await Promise.all([
@@ -35,11 +35,13 @@ async function loadRcaWorkspace(): Promise<RcaWorkspaceData | null> {
   return { detail, telemetry, driverAnalysis, caseProgress };
 }
 
-export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) {
-  const [selectedSignal, setSelectedSignal] = useState<ConditionField>('water_in_oil_ppm');
+export function RcaPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { onNavigate: (page: PageId) => void; assetId?: string }) {
+  const equipment = equipmentPresentation(assetId);
+  const conditionSignals = conditionSignalsFor(assetId);
+  const [selectedSignal, setSelectedSignal] = useState<ConditionField>(conditionSignals[0].field);
   const [selectedHypothesisId, setSelectedHypothesisId] = useState<string | null>(null);
   const [selectedAsOf, setSelectedAsOf] = useState<string | null>(null);
-  const resource = useApiResource('rca-workspace', loadRcaWorkspace);
+  const resource = useApiResource(`rca-workspace:${assetId}`, () => loadRcaWorkspace(assetId));
   const alertId = resource.data?.detail.alert.alert_id;
   const activeAsOf = selectedAsOf ?? resource.data?.detail.alert.opened_at ?? null;
   const checkpointResource = useApiResource<{ requestedAt: string; progress: InvestigationEvidenceProgress } | null>(
@@ -58,14 +60,14 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
 
   const leadingHypothesis = rca.generation.hypotheses[0];
   const selectedHypothesis = rca.generation.hypotheses.find((hypothesis) => hypothesis.hypothesis_id === selectedHypothesisId) ?? leadingHypothesis;
-  const signal = conditionSignals.find((candidate) => candidate.field === selectedSignal)!;
-  const contribution = contributionForField(driverAnalysis, selectedSignal)!;
+  const signal = conditionSignals.find((candidate) => candidate.field === selectedSignal) ?? conditionSignals[0];
+  const contribution = contributionForField(driverAnalysis, signal.field);
   const detectionWindow = alertDetectionWindow(detail.alert, detail.state_transitions);
   const checkpoints = rcaCheckpoints(detail.alert.opened_at, caseProgress.events);
   const progress = checkpointResource.data?.requestedAt === activeAsOf ? checkpointResource.data.progress : null;
   return <div className="decision-workspace rca-workspace">
     <header className="decision-workspace-heading">
-      <div><span>KO-3201 · {detail.alert.alert_id}</span><h1>Root cause analysis</h1><p>Trace the probable cause from equipment evidence, historical analogues, and explicit validation boundaries.</p></div>
+      <div><span>{equipment.tag} · {detail.alert.alert_id}</span><h1>Root cause analysis</h1><p>Trace the probable cause from equipment evidence, historical analogues, and explicit validation boundaries.</p></div>
       <div><b>{humanize(rca.status)}</b><TraceButton traceId="rca-indication">View supporting sources</TraceButton><button onClick={() => onNavigate('actions')}>Open CA/PA plan</button></div>
     </header>
 
@@ -84,10 +86,10 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
       </article>
 
       <article className="rca-signal-evidence">
-        <header><div><span>Signal evidence</span><h2>{signal.label}</h2></div><div><span>Peak-risk model contribution</span><strong>{formatSignal(contribution.contribution_percent)}%</strong></div></header>
+        <header><div><span>Signal evidence</span><h2>{signal.label}</h2></div><div><span>Peak-risk model contribution</span><strong>{contribution ? `${formatSignal(contribution.contribution_percent)}%` : 'Unavailable'}</strong></div></header>
         <nav aria-label="RCA evidence signals">{conditionSignals.map((candidate) => { const item = contributionForField(driverAnalysis, candidate.field); return <button className={candidate.field === selectedSignal ? 'active' : ''} key={candidate.field} onClick={() => setSelectedSignal(candidate.field)}>{candidate.label}<small>{item ? `${formatSignal(item.contribution_percent)}%` : '—'}</small></button>; })}</nav>
-        <div className="rca-evidence-chart"><SignalChart points={telemetry.points} field={selectedSignal} highlightTimestamp={detail.alert.peak_score_at} highlightWindow={detectionWindow}/></div>
-        <dl className="rca-driver-context"><div><dt>Event reading</dt><dd>{formatSignal(contribution.value)} {signal.unit}</dd></div><div><dt>Healthy median</dt><dd>{formatSignal(contribution.healthy_baseline)} {signal.unit}</dd></div><div><dt>Engineering state</dt><dd>{humanize(contribution.engineering_state)}</dd></div><div><dt>Alarm persistence</dt><dd>{contribution.alarm_persistence_hours.toLocaleString()} h</dd></div></dl>
+        <div className="rca-evidence-chart"><SignalChart points={telemetry.points} field={signal.field} highlightTimestamp={detail.alert.peak_score_at} highlightWindow={detectionWindow}/></div>
+        <dl className="rca-driver-context"><div><dt>Event reading</dt><dd>{contribution ? `${formatSignal(contribution.value)} ${signal.unit}` : 'Unavailable'}</dd></div><div><dt>Healthy median</dt><dd>{contribution ? `${formatSignal(contribution.healthy_baseline)} ${signal.unit}` : 'Unavailable'}</dd></div><div><dt>Engineering state</dt><dd>{contribution ? humanize(contribution.engineering_state) : 'Unavailable'}</dd></div><div><dt>Alarm persistence</dt><dd>{contribution ? `${contribution.alarm_persistence_hours.toLocaleString()} h` : 'Unavailable'}</dd></div></dl>
         <footer><span>{formatDate(detectionWindow.start)} · first signal</span><b>{formatSignal(timeWindowHours(detectionWindow))} h to warning</b><span>{formatDate(detail.alert.peak_score_at)} · peak risk</span></footer>
       </article>
     </section>
@@ -109,7 +111,7 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
     </section>
 
     <section className="rca-caseboard">
-      <header><div><span>Evidence-led case reconstruction</span><h2>How the conclusion changes</h2><p>Follow the case from first warning to repair, one checkpoint at a time.</p></div><div className="rca-caseboard-actions"><strong>{progress ? humanize(progress.stage) : 'Loading checkpoint'}</strong><button onClick={() => { window.location.hash = `rca-investigation?at=${encodeURIComponent(activeAsOf ?? detail.alert.opened_at)}`; }}>Investigate flow <Icon name="arrow"/></button></div></header>
+      <header><div><span>Evidence-led case reconstruction</span><h2>How the conclusion changes</h2><p>Follow the case from first warning to repair, one checkpoint at a time.</p></div><div className="rca-caseboard-actions"><strong>{progress ? humanize(progress.stage) : 'Loading checkpoint'}</strong><button onClick={() => { window.location.hash = `rca-investigation?asset=${encodeURIComponent(assetId)}&at=${encodeURIComponent(activeAsOf ?? detail.alert.opened_at)}`; }}>Investigate flow <Icon name="arrow"/></button></div></header>
       <nav aria-label="RCA evidence checkpoints">
         {checkpoints.map((checkpoint, index) => <button key={checkpoint.asOf} className={activeAsOf === checkpoint.asOf ? 'active' : ''} aria-current={activeAsOf === checkpoint.asOf ? 'step' : undefined} onClick={() => setSelectedAsOf(checkpoint.asOf)}><span>{String(index + 1).padStart(2, '0')} · {checkpoint.label}</span><small>{checkpoint.detail}</small><time>{formatDateTime(checkpoint.asOf)}</time></button>)}
       </nav>
@@ -117,7 +119,7 @@ export function RcaPage({ onNavigate }: { onNavigate: (page: PageId) => void }) 
         <div className="rca-case-summary"><div><span>Reconstructed through {formatDateTime(progress.as_of)}</span><p>{progress.summary}</p></div><div><span>Decision gate</span><p>{progress.decision_gate}</p></div></div>
         <details key={progress.as_of} className="rca-case-detail">
           <summary><span><strong>Supporting detail</strong><small>{progress.events.length} dated records · {progress.explanations.length} explanations</small></span><span className="rca-case-chevron" aria-hidden="true"/></summary>
-          <div className="rca-case-path"><header><h3>Working causal path</h3><p>Arrows show the proposed mechanism; each step carries its own evidence state.</p></header><div>{progress.causal_path.map((link) => <article key={link.link_id}><span>{link.state === 'RCA_REPORTED' ? 'RCA report' : link.state === 'MONITORED_TREND' ? 'Monitored trend' : 'Hypothesis'}</span><strong>{link.label}</strong><small>{link.source_event ? `${humanize(link.source_event.source_grade)} · ${link.source_event.source_reference}` : link.state === 'MONITORED_TREND' ? 'Opening alert · water-in-oil trend' : 'Not yet verified'}</small></article>)}</div></div>
+          <div className="rca-case-path"><header><h3>Working causal path</h3><p>Arrows show the proposed mechanism; each step carries its own evidence state.</p></header><div>{progress.causal_path.map((link) => <article key={link.link_id}><span>{link.state === 'RCA_REPORTED' ? 'RCA report' : link.state === 'MONITORED_TREND' ? 'Monitored trend' : 'Hypothesis'}</span><strong>{link.label}</strong><small>{link.source_event ? `${humanize(link.source_event.source_grade)} · ${link.source_event.source_reference}` : link.state === 'MONITORED_TREND' ? 'Opening alert · monitored condition trend' : 'Not yet verified'}</small></article>)}</div></div>
           <div className="rca-case-columns">
             <section><header><h3>Evidence on record</h3><span>{progress.events.length} dated items</span></header>{progress.events.length ? progress.events.map((event) => <article key={event.event_id}><time>{formatDateTime(event.occurred_at)}</time><div><strong>{event.title}</strong><p>{event.detail}</p><small>{humanize(event.source_grade)} · {event.source_reference}</small></div></article>) : <p className="rca-case-empty">No post-alert lab or inspection findings yet. The monitored trend remains the initial clue.</p>}</section>
             <section><header><h3>Competing explanations</h3><span>Evidence for and against</span></header>{progress.explanations.map((item) => <article key={item.explanation_id}><div><strong>{item.title}</strong><b>{humanize(item.state)}</b></div><p>{item.starting_basis}</p><dl><div><dt className="evidence-label support">Supports</dt><dd>{item.supporting_events.length ? item.supporting_events.map((event) => <span className="evidence-label support" key={event.event_id}>{event.title}</span>) : 'No later finding yet'}</dd></div><div><dt className="evidence-label challenge">Challenges</dt><dd>{item.challenging_events.length ? item.challenging_events.map((event) => <span className="evidence-label challenge" key={event.event_id}>{event.title}</span>) : 'None recorded yet'}</dd></div></dl><small>Next check: {item.next_check}</small></article>)}</section>

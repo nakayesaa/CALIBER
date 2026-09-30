@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
 export type TraceTarget =
-  | { kind: 'claim'; id: string }
+  | { kind: 'claim'; id: string; assetId?: string }
   | { kind: 'source'; id: string };
 
 interface TraceabilityContextValue {
@@ -13,14 +13,14 @@ interface TraceabilityContextValue {
 
 const TraceabilityContext = createContext<TraceabilityContextValue | null>(null);
 
-export function TraceabilityProvider({ children }: { children: ReactNode }) {
+export function TraceabilityProvider({ children, assetId }: { children: ReactNode; assetId?: string }) {
   const [target, setTarget] = useState<TraceTarget | null>(null);
   const value = useMemo<TraceabilityContextValue>(() => ({
     target,
-    openClaim: (id) => setTarget({ kind: 'claim', id }),
+    openClaim: (id) => setTarget({ kind: 'claim', id, assetId }),
     openSource: (id) => setTarget({ kind: 'source', id }),
     close: () => setTarget(null),
-  }), [target]);
+  }), [target, assetId]);
   return <TraceabilityContext.Provider value={value}>{children}</TraceabilityContext.Provider>;
 }
 

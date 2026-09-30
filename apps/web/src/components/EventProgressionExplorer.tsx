@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { api, type AlertEvent, type AlertStateTransition, type DriverAnalysis, type TelemetryPoint } from '../lib/api';
-import { conditionSignals, operatingSignals } from '../lib/conditionSignals';
+import { conditionSignalsFor, operatingSignalsFor } from '../lib/conditionSignals';
 import { buildEventMilestones } from '../lib/eventProgression';
 import { formatDateTime, formatSignal, humanize } from '../lib/format';
 import { alertProgressionWindows, selectTelemetryWindow, timeWindowHours } from '../lib/timeWindow';
@@ -18,6 +18,9 @@ interface EventProgressionExplorerProps {
 }
 
 export function EventProgressionExplorer({ assetTag, alert, transitions, telemetry, initialSelection, onClose }: EventProgressionExplorerProps) {
+  const conditionSignals = conditionSignalsFor(alert.asset_id);
+  const operatingSignals = operatingSignalsFor(alert.asset_id);
+  const chartSignals: Array<{ field: SignalField; label: string }> = [{ field: 'anomaly_score', label: 'Risk score' }, ...conditionSignals, ...operatingSignals];
   const milestones = useMemo(
     () => buildEventMilestones(alert, transitions, telemetry),
     [alert, transitions, telemetry],
@@ -91,7 +94,7 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
         </header>
 
         <section className="overview-event-chart">
-          <header><div><h4>Supporting evidence</h4><span>{selectedWindow ? `${humanize(selectedWindow.fromState)} → ${humanize(selectedWindow.toState)} · ${formatSignal(timeWindowHours(selectedWindow))} h` : 'Seven days before and after first signal'}</span></div><strong>{chartLabel(selectedSignal)}</strong></header>
+          <header><div><h4>Supporting evidence</h4><span>{selectedWindow ? `${humanize(selectedWindow.fromState)} → ${humanize(selectedWindow.toState)} · ${formatSignal(timeWindowHours(selectedWindow))} h` : 'Seven days before and after first signal'}</span></div><strong>{chartSignals.find((signal) => signal.field === selectedSignal)?.label}</strong></header>
           <nav aria-label="Event chart signal">
             {chartSignals.map((signal) => <button className={selectedSignal === signal.field ? 'active' : ''} key={signal.field} onClick={() => setSelectedSignal(signal.field)}>{signal.label}</button>)}
           </nav>
@@ -142,27 +145,16 @@ export function EventProgressionExplorer({ assetTag, alert, transitions, telemet
   </aside>;
 }
 
-const chartSignals: Array<{ field: SignalField; label: string }> = [
-  { field: 'anomaly_score', label: 'Risk score' },
-  ...conditionSignals.map(({ field, label }) => ({ field, label })),
-  ...operatingSignals.map(({ field, label }) => ({ field, label })),
-];
-
 function normalizeIndex(index: number | null, length: number): number | null {
   return index === null ? null : Math.max(0, Math.min(index, length - 1));
 }
 
-function formatReading(value: number | undefined): string {
-  return value === undefined ? 'Unavailable' : formatSignal(value);
+function formatReading(value: number | null | undefined): string {
+  return value == null ? 'Unavailable' : formatSignal(value);
 }
 
 function telemetryAround(points: TelemetryPoint[], timestamp: string): TelemetryPoint[] {
   const center = new Date(timestamp).getTime();
   const radius = 7 * 24 * 60 * 60 * 1000;
   return points.filter((point) => Math.abs(new Date(point.timestamp).getTime() - center) <= radius);
-}
-
-function chartLabel(field: SignalField): string {
-  if (field === 'anomaly_score') return 'Risk score';
-  return [...conditionSignals, ...operatingSignals].find((signal) => signal.field === field)?.label ?? field;
 }
