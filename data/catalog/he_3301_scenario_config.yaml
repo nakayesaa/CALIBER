@@ -1,0 +1,14 @@
+scenario_id: he-3301-six-month-v1
+seed: 3301
+start: '2026-01-01T00:00:00+07:00'
+end_exclusive: '2026-07-02T00:00:00+07:00'
+healthy_cutoff: '2026-02-26T00:00:00+07:00'
+isolation: '2026-05-21T09:00:00+07:00'
+restart: '2026-05-21T22:00:00+07:00'
+warmup_hours: 24
+noise_correlation: 0.85
+noise_amplitude:
+  tube_dp: 0.008
+  heat_duty: 0.5
+  cold_outlet_temp: 0.35
+  heavy_ends: 0.015
