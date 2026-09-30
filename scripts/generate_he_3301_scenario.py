@@ -113,8 +113,8 @@ def reconstruct(
     frame.loc[settling, "operating_mode"] = "RESTART_SETTLING"
     frame["scenario_phase"] = np.select(
         [dates < healthy_end, frame.run_status.eq("OFF"), settling, dates < restart],
-        ["HEALTHY", "MAINTENANCE", "RESTART_SETTLING", "DEGRADATION"],
-        default="RECOVERY",
+        ["HEALTHY_BASELINE", "MAINTENANCE", "RESTART_SETTLING", "EARLY_DEGRADATION"],
+        default="STABLE_RECOVERY",
     )
     frame["training_eligible"] = (dates < healthy_end) & frame.operating_mode.eq("RUNNING_STEADY")
     frame["scenario_id"] = config["scenario_id"]
@@ -204,9 +204,10 @@ def run(root: Path = ROOT, output: Path | None = None) -> dict[str, Any]:
     for scale in [0.0, 2.0]:
         variant, _ = reconstruct(bundle, config, noise_scale=scale)
         write_frame(challenges / f"noise_{scale:g}.csv", variant)
-    write_frame(challenges / "healthy.csv", frame.loc[frame.scenario_phase.eq("HEALTHY")])
+    write_frame(challenges / "healthy.csv", frame.loc[frame.scenario_phase.eq("HEALTHY_BASELINE")])
     write_frame(
-        challenges / "persistent_degradation.csv", frame.loc[frame.scenario_phase.eq("DEGRADATION")]
+        challenges / "persistent_degradation.csv",
+        frame.loc[frame.scenario_phase.eq("EARLY_DEGRADATION")],
     )
     manifest = {
         "scenario_id": config["scenario_id"],
