@@ -1,0 +1,37 @@
+policy_id: he-3301-hourly-alert-policy-v1
+policy_version: '1.0.0'
+asset_id: asset-he-3301
+input_model_id: he-3301-isolation-forest-v1
+operating_modes:
+  excluded_modes: [MAINTENANCE, OFFLINE_TRIP, RESTART, OFFLINE_PLANNED]
+  cooldown_hours_after_excluded_mode: 24
+evidence:
+  condition_driver_prefix: condition.
+  minimum_condition_driver_score: 50
+  maximum_driver_rank: 3
+  suppress_process_only_anomalies: false
+  breach_watch_enabled: true
+  alarm_ratio_columns:
+    tube_dp: condition__tube_dp__alarm_ratio
+    heat_duty: condition__heat_duty__alarm_ratio
+    cold_outlet_temp: condition__cold_outlet_temp__alarm_ratio
+    heavy_ends: condition__heavy_ends__alarm_ratio
+  trip_ratio_limits:
+    tube_dp: 1.5
+    heat_duty: 1.2857142857142858
+    cold_outlet_temp: 1.1578947368421053
+    heavy_ends: 1.6
+severity_rules:
+  - {name: WATCH, rank: 1, window_hours: 1, minimum_candidate_count: 1, minimum_consecutive_count: 1, minimum_alarm_breadth: 0, minimum_score: 50}
+  - {name: WARNING, rank: 2, window_hours: 8, minimum_candidate_count: 6, minimum_consecutive_count: 0, minimum_alarm_breadth: 0, minimum_raw_breach_count: 6, minimum_score: 50}
+  - {name: HIGH, rank: 3, window_hours: 8, minimum_candidate_count: 6, minimum_consecutive_count: 0, minimum_alarm_breadth: 3, minimum_raw_breach_count: 6, minimum_score: 50}
+  - {name: CRITICAL, rank: 4, window_hours: 1, minimum_candidate_count: 1, minimum_consecutive_count: 0, minimum_alarm_breadth: 1, minimum_score: 50}
+events:
+  open_at_or_above_rank: 2
+  clear_after_hours: 24
+  terminal_operating_modes: [MAINTENANCE, OFFLINE_TRIP]
+evaluation:
+  normal_phases: [HEALTHY_BASELINE]
+  degradation_phases: [EARLY_DEGRADATION, PERSISTENT_ALARM, ACUTE_ESCALATION]
+  trip_phase: TRIP_AND_SHUTDOWN
+  recovery_phases: [POST_REPAIR_MONITORING, STABLE_RECOVERY]

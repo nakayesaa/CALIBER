@@ -17,6 +17,7 @@ class SeverityRule(AlertConfigModel):
     minimum_consecutive_count: int = Field(ge=0)
     minimum_alarm_breadth: int = Field(ge=0)
     minimum_score: float = Field(ge=0, le=100)
+    minimum_raw_breach_count: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def validate_counts(self) -> SeverityRule:
@@ -24,6 +25,8 @@ class SeverityRule(AlertConfigModel):
             raise ValueError("Candidate count cannot exceed the rule window")
         if self.minimum_consecutive_count > self.window_hours:
             raise ValueError("Consecutive count cannot exceed the rule window")
+        if self.minimum_raw_breach_count > self.window_hours:
+            raise ValueError("Raw breach count cannot exceed the rule window")
         return self
 
 
@@ -39,6 +42,7 @@ class EvidencePolicy(AlertConfigModel):
     suppress_process_only_anomalies: bool
     alarm_ratio_columns: dict[str, str]
     breach_watch_enabled: bool
+    trip_ratio_limits: dict[str, float] = Field(default_factory=dict)
 
 
 class EventPolicy(AlertConfigModel):
@@ -79,6 +83,13 @@ class AlertPolicyConfig(AlertConfigModel):
             raise ValueError("Event opening rank must match a severity rule")
         if not self.evidence.alarm_ratio_columns:
             raise ValueError("At least one alarm ratio column is required")
+        trips = self.evidence.trip_ratio_limits
+        if trips and (
+            "CRITICAL" not in names or not set(trips) <= set(self.evidence.alarm_ratio_columns)
+        ):
+            raise ValueError("Trip override requires configured signals and a CRITICAL rule")
+        if any(not 1 < ratio < float("inf") for ratio in trips.values()):
+            raise ValueError("Trip ratios must be finite and exceed alarm ratios")
         return self
 
 

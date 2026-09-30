@@ -48,6 +48,7 @@ EVALUATION_ONLY_COLUMNS = ["scenario_phase", "health_state", "event_marker"]
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=REPOSITORY_ROOT)
+    parser.add_argument("--asset", choices=["ko_3201", "he_3301"], default="ko_3201")
     parser.add_argument(
         "--scores",
         type=Path,
@@ -69,8 +70,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_policy(root: Path) -> tuple[AlertPolicyConfig, Path]:
-    path = root / "data/catalog/ko_3201_alert_policy.yaml"
+def load_policy(root: Path, asset: str = "ko_3201") -> tuple[AlertPolicyConfig, Path]:
+    path = root / f"data/catalog/{asset}_alert_policy.yaml"
     policy = AlertPolicyConfig.model_validate(
         yaml.safe_load(path.read_text(encoding="utf-8"))
     )
@@ -217,19 +218,20 @@ def run(
     score_directory: Path | None = None,
     feature_directory: Path | None = None,
     output: Path | None = None,
+    asset: str = "ko_3201",
 ) -> dict[str, Any]:
     root = root.resolve()
     score_directory = (
-        score_directory or root / "data/scored/ko_3201/v1"
+        score_directory or root / f"data/scored/{asset}/v1"
     ).resolve()
     feature_directory = (
-        feature_directory or root / "data/features/ko_3201/v1"
+        feature_directory or root / f"data/features/{asset}/v1"
     ).resolve()
-    output = (output or root / "data/alerts/ko_3201/v1").resolve()
+    output = (output or root / f"data/alerts/{asset}/v1").resolve()
     scores_path = score_directory / "hourly_anomaly_scores.csv"
     features_path = feature_directory / "feature_table.csv"
     require_passing_report(
-        root / "artifacts/models/ko_3201/v1/technical_validation.json",
+        root / f"artifacts/models/{asset}/v1/technical_validation.json",
         "model technical validation",
     )
     require_passing_report(
@@ -239,7 +241,7 @@ def run(
     if not scores_path.is_file() or not features_path.is_file():
         raise FileNotFoundError("Missing scored timeline or feature table")
 
-    policy, policy_path = load_policy(root)
+    policy, policy_path = load_policy(root, asset)
     scores = pd.read_csv(scores_path)
     features = pd.read_csv(features_path)
     result = build_alert_decisions(scores, features, policy)
@@ -282,7 +284,7 @@ def run(
 
 def main() -> None:
     args = parse_args()
-    report = run(args.root, args.scores, args.features, args.output)
+    report = run(args.root, args.scores, args.features, args.output, args.asset)
     print(json.dumps(report, indent=2))
 
 

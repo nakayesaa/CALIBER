@@ -123,17 +123,11 @@ def apply_alert_policy(
     ratios = decisions[ratio_columns]
     decisions["alarm_breadth"] = (ratios >= 1.0).sum(axis=1).astype(int)
     decisions["breached_signals"] = [
-        ";".join(
-            signal
-            for signal, column in ratio_by_signal.items()
-            if float(row[column]) >= 1.0
-        )
+        ";".join(signal for signal, column in ratio_by_signal.items() if float(row[column]) >= 1.0)
         for _, row in decisions.iterrows()
     ]
     decisions["has_condition_driver"] = condition_driver_evidence(decisions, policy)
-    excluded_mode = decisions["operating_mode"].isin(
-        policy.operating_modes.excluded_modes
-    )
+    excluded_mode = decisions["operating_mode"].isin(policy.operating_modes.excluded_modes)
     decisions["cooldown_active"] = cooldown_mask(
         decisions["timestamp"],
         excluded_mode,
@@ -162,9 +156,7 @@ def apply_alert_policy(
     decisions["severity_rank"] = 0
     decisions["decision_reason"] = "NO_ACTIONABLE_EVIDENCE"
     decisions.loc[suppressed, "decision_state"] = "SUPPRESSED"
-    decisions.loc[suppressed, "decision_reason"] = decisions.loc[
-        suppressed, "suppression_reason"
-    ]
+    decisions.loc[suppressed, "decision_reason"] = decisions.loc[suppressed, "suppression_reason"]
 
     breach_watch = decisions["attention_signal"] & ~decisions["candidate_anomaly"]
     lowest_rule = policy.severity_rules[0]
@@ -173,7 +165,19 @@ def apply_alert_policy(
     decisions.loc[breach_watch, "decision_reason"] = "ENGINEERING_LIMIT_BREACH"
 
     for rule in policy.severity_rules:
+        if rule.name == "CRITICAL" and policy.evidence.trip_ratio_limits:
+            continue
         apply_severity_rule(decisions, rule, suppressed)
+    if policy.evidence.trip_ratio_limits:
+        trip = pd.Series(False, index=decisions.index)
+        for signal, limit in policy.evidence.trip_ratio_limits.items():
+            trip |= decisions[ratio_by_signal[signal]].ge(limit)
+        trip &= ~excluded_mode & ~decisions["cooldown_active"] & decisions["run_status"].eq("ON")
+        critical = next(rule for rule in policy.severity_rules if rule.name == "CRITICAL")
+        decisions.loc[trip, "decision_state"] = critical.name
+        decisions.loc[trip, "severity_rank"] = critical.rank
+        decisions.loc[trip, "decision_reason"] = "ENGINEERING_TRIP_LIMIT"
+        decisions.loc[trip, "attention_signal"] = True
     ordered_columns = [
         "timestamp",
         "model_id",
@@ -197,9 +201,7 @@ def apply_alert_policy(
         *ratio_columns,
     ]
     for rank in range(1, policy.evidence.maximum_driver_rank + 1):
-        ordered_columns.extend(
-            [f"top_driver_{rank}", f"top_driver_{rank}_score"]
-        )
+        ordered_columns.extend([f"top_driver_{rank}", f"top_driver_{rank}_score"])
     rolling_columns = [
         column
         for column in decisions.columns
@@ -241,9 +243,7 @@ def suppression_reasons(
 ) -> pd.Series:
     reasons = pd.Series("", index=frame.index, dtype=object)
     reasons.loc[frame["score_status"].eq("WARMUP")] = "MODEL_WARMUP"
-    reasons.loc[frame["score_status"].eq("EXCLUDED_MODE")] = (
-        "MODEL_SCORING_EXCLUDED"
-    )
+    reasons.loc[frame["score_status"].eq("EXCLUDED_MODE")] = "MODEL_SCORING_EXCLUDED"
     reasons.loc[excluded_mode] = "EXCLUDED_OPERATING_MODE"
     reasons.loc[frame["cooldown_active"]] = "OPERATING_MODE_COOLDOWN"
     process_only = (
@@ -279,20 +279,24 @@ def apply_severity_rule(
         )
     if peak_column not in decisions:
         decisions[peak_column] = (
-            decisions["anomaly_score"]
-            .fillna(0.0)
-            .rolling(rule.window_hours, min_periods=1)
-            .max()
+            decisions["anomaly_score"].fillna(0.0).rolling(rule.window_hours, min_periods=1).max()
         )
     matched = (
         ~suppressed
         & decisions[count_column].ge(rule.minimum_candidate_count)
-        & decisions["consecutive_candidate_count"].ge(
-            rule.minimum_consecutive_count
-        )
+        & decisions["consecutive_candidate_count"].ge(rule.minimum_consecutive_count)
         & decisions["alarm_breadth"].ge(rule.minimum_alarm_breadth)
         & decisions[peak_column].ge(rule.minimum_score)
     )
+    if rule.minimum_raw_breach_count:
+        raw_count = (
+            decisions["alarm_breadth"]
+            .gt(0)
+            .astype(int)
+            .rolling(rule.window_hours, min_periods=1)
+            .sum()
+        )
+        matched &= raw_count.ge(rule.minimum_raw_breach_count)
     decisions.loc[matched, "decision_state"] = rule.name
     decisions.loc[matched, "severity_rank"] = rule.rank
     decisions.loc[matched, "decision_reason"] = f"POLICY_{rule.name}"
@@ -362,9 +366,7 @@ def group_alert_events(
             pending_signal_at = None
             clear_count = 0
         elif clear_count >= policy.events.clear_after_hours:
-            events.append(
-                close_active_event(active, timestamp, "SUSTAINED_CLEAR", policy)
-            )
+            events.append(close_active_event(active, timestamp, "SUSTAINED_CLEAR", policy))
             transitions.append(
                 AlertStateTransition(
                     alert_id=active["alert_id"],
@@ -496,9 +498,7 @@ def evaluate_alert_decisions(
     if evaluated["scenario_phase"].isna().any():
         raise ValueError("Evaluation labels do not cover every alert decision")
 
-    trip_rows = evaluated.loc[
-        evaluated["scenario_phase"] == policy.evaluation.trip_phase
-    ]
+    trip_rows = evaluated.loc[evaluated["scenario_phase"] == policy.evaluation.trip_phase]
     trip_at = trip_rows["timestamp"].min() if not trip_rows.empty else None
     degradation = evaluated.loc[
         evaluated["scenario_phase"].isin(policy.evaluation.degradation_phases)
@@ -524,12 +524,8 @@ def evaluate_alert_decisions(
         .astype(int)
         .to_dict()
     )
-    normal = evaluated.loc[
-        evaluated["scenario_phase"].isin(policy.evaluation.normal_phases)
-    ]
-    recovery = evaluated.loc[
-        evaluated["scenario_phase"].isin(policy.evaluation.recovery_phases)
-    ]
+    normal = evaluated.loc[evaluated["scenario_phase"].isin(policy.evaluation.normal_phases)]
+    recovery = evaluated.loc[evaluated["scenario_phase"].isin(policy.evaluation.recovery_phases)]
     user_alert_rank = policy.events.open_at_or_above_rank
     return {
         "policy_id": policy.policy_id,
@@ -537,12 +533,8 @@ def evaluate_alert_decisions(
         "first_detection_by_state": first_by_state,
         "lead_time_hours_by_state": lead_time_by_state,
         "alert_event_count": len(events),
-        "normal_user_alert_hours": int(
-            normal["severity_rank"].ge(user_alert_rank).sum()
-        ),
-        "recovery_user_alert_hours": int(
-            recovery["severity_rank"].ge(user_alert_rank).sum()
-        ),
+        "normal_user_alert_hours": int(normal["severity_rank"].ge(user_alert_rank).sum()),
+        "recovery_user_alert_hours": int(recovery["severity_rank"].ge(user_alert_rank).sum()),
         "suppression_counts": suppression_counts,
         "state_counts_by_phase": {
             str(phase): {str(state): int(count) for state, count in counts.items()}
