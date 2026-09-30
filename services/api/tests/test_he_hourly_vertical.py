@@ -86,3 +86,25 @@ def test_fitted_model_spike_does_not_open_persistent_alert():
     assert scores.loc[pulse, "is_anomaly"].any()
     assert not result.events
     assert not result.hourly_decisions.decision_state.isin(["WARNING", "HIGH", "CRITICAL"]).any()
+
+
+@pytest.mark.parametrize("scale", [0, 2])
+def test_bounded_noise_preserves_corroborated_alert_and_recovery(scale):
+    model_path = ROOT / "artifacts/models/he_3301/v1/model.joblib"
+    if not model_path.is_file():
+        pytest.skip("Run make he-train first")
+    frame = pd.read_csv(ROOT / f"data/synthetic/he_3301/v1/challenges/noise_{scale}.csv")
+    frame.timestamp = pd.to_datetime(frame.timestamp)
+    config = load_config(ROOT, ROOT / "data/catalog/he_3301_feature_config.yaml")
+    features = build_features(frame, config).feature_table
+    model = joblib.load(model_path)
+    scores = score_feature_table(features, model, 4)
+    timeline = build_scored_timeline(features, scores, model.model_id)
+    policy, _ = load_policy(ROOT, "he_3301")
+    result = build_alert_decisions(timeline, features, policy)
+    decisions = result.hourly_decisions
+    normal_or_recovered = frame.scenario_phase.isin(["HEALTHY_BASELINE", "STABLE_RECOVERY"])
+    assert not decisions.loc[normal_or_recovered, "decision_state"].isin(["WARNING", "HIGH", "CRITICAL"]).any()
+    assert decisions.decision_state.eq("WARNING").any()
+    assert decisions.decision_state.eq("CRITICAL").any()
+    assert len(result.events) == 1
