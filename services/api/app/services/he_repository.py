@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -15,6 +16,7 @@ from services.api.app.schemas.api import (
     PlantRateSeries,
     TelemetrySeries,
 )
+from services.api.app.schemas.canonical import EffectivenessCheck
 from services.api.app.schemas.effectiveness import EffectivenessMetric, EffectivenessReview
 from services.api.app.schemas.equipment import EquipmentInvestigation
 from services.api.app.schemas.rca import RCARecord
@@ -25,7 +27,8 @@ from services.api.app.schemas.retrieval import (
     RetrievalQuery,
 )
 from services.api.app.services.artifacts import ArtifactNotFoundError, KO3201ArtifactRepository
-from services.api.app.services.he_analytics import active_snapshot, snapshot_alerts
+from services.api.app.services.he_analytics import active_snapshot, snapshot_alerts, validation_note
+from services.api.app.services.production_impact import calculate_production_impact
 from services.api.app.services.rca.incident_retrieval import (
     build_incident_documents,
     retrieve_incidents,
@@ -49,13 +52,59 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
             "actions": bool(self._action_plan_paths()),
         }
 
-    def effectiveness_check(self, asset_id: str):
+    def effectiveness_check(self, asset_id: str) -> EffectivenessCheck:
         self.get_asset(asset_id)
-        return None
+        review = self.effectiveness_review()
+        return EffectivenessCheck(
+            effectiveness_check_id=review.effectiveness_check_id,
+            rca_case_id=review.rca_case_id,
+            incident_id=review.incident_id,
+            asset_id=asset_id,
+            monitoring_start=review.monitoring_start,
+            monitoring_end=review.monitoring_end,
+            baseline_window=review.baseline_window,
+            comparison_metrics={
+                **{metric.signal_key: {"before": metric.before, "after": metric.after}
+                   for metric in review.metrics},
+                "post_repair_normal_weeks": review.monitoring_periods,
+            },
+            recurrence_detected=review.recurrence_detected,
+            result=review.result,
+            explanation=review.explanation,
+            source_type="DERIVED_FEATURE",
+            source_reference=review.source_reference,
+        )
 
     def production_impact(self, asset_id: str, alert, policy):
         self.get_asset(asset_id)
-        return None
+        operation = self._operation_frame()
+        # May production is not extended backwards to the February condition warning.
+        operation["operating_mode"] = np.where(operation.run_status.eq("ON"), "RUNNING_STEADY", "OFFLINE")
+        operation["event_marker"] = None
+        decisions = operation[["timestamp"]].assign(decision_state="NORMAL")
+        impact = calculate_production_impact(operation, decisions, alert, policy)
+        if impact is None:
+            return None
+        bundle = self.equipment()
+        return impact.model_copy(update={
+            "reported_downtime_hours": bundle.reported_downtime_hours,
+            "reported_production_loss_tonnes": bundle.reported_production_loss_tonnes,
+        })
+
+    def _operation_frame(self) -> pd.DataFrame:
+        bundle = self.equipment()
+        frames = [
+            pd.DataFrame({"timestamp": [point.timestamp for point in signal.points],
+                          column: [point.value for point in signal.points]})
+            for key, column in [("feed_rate", "feed_rate_tph"), ("plant_rate", "plant_rate_tph")]
+            for signal in bundle.signals if signal.key == key
+        ]
+        if len(frames) != 2:
+            raise ArtifactNotFoundError("HE production feed and plant rate are required")
+        operation = frames[0].merge(frames[1], on="timestamp", validate="one_to_one")
+        states = pd.DataFrame([{"timestamp": item.timestamp, "run_status": item.state}
+                               for item in bundle.operating_states])
+        return operation.merge(states, on="timestamp", validate="one_to_one")
 
     def equipment(self) -> EquipmentInvestigation:
         from services.api.app.services.data.he_3301 import load_he_3301
@@ -275,9 +324,60 @@ class HE3301ArtifactRepository(KO3201ArtifactRepository):
         self, asset_id: str, start: str | None, end: str | None, max_points: int
     ) -> TelemetrySeries:
         self.get_asset(asset_id)
-        raise ArtifactNotFoundError(
-            "HE condition and operation have separate cadences; use /assets/{id}/investigation"
+        directory = active_snapshot(self.root)
+        if directory:
+            scenario = pd.read_csv(directory / "hourly_scenario.csv")
+            scores = pd.read_csv(directory / "hourly_anomaly_scores.csv")
+            decisions = pd.read_csv(directory / "hourly_alert_decisions.csv")
+            for frame in (scenario, scores, decisions):
+                frame["timestamp"] = pd.to_datetime(frame.timestamp, errors="raise")
+            timeline = scenario[["timestamp", "operating_mode", "run_status", "tube_dp", "heat_duty", "cold_outlet_temp", "heavy_ends"]].merge(
+                scores[["timestamp", "anomaly_score", "anomaly_threshold", "is_anomaly"]],
+                on="timestamp", validate="one_to_one",
+            ).merge(
+                decisions[["timestamp", "decision_state", "severity_rank", "alarm_breadth", "breached_signals"]],
+                on="timestamp", validate="one_to_one",
+            )
+            if len(timeline) != len(scenario):
+                raise ValueError("Incomplete HE telemetry snapshot")
+            import json
+
+            evaluation = json.loads((directory / "evaluation_report.json").read_text())
+            note = validation_note(evaluation)
+        else:
+            bundle = self.equipment()
+            rows = []
+            for assessment in bundle.assessments:
+                rows.append({
+                    "timestamp": assessment.timestamp, "operating_mode": "WEEKLY_ASSESSMENT",
+                    "run_status": "UNKNOWN", "anomaly_score": assessment.score,
+                    "anomaly_threshold": 50.0, "is_anomaly": bool(assessment.breached_signals),
+                    "decision_state": assessment.state,
+                    "severity_rank": {"NORMAL": 0, "WATCH": 1, "WARNING": 2, "HIGH": 3, "CRITICAL": 4}[assessment.state],
+                    "alarm_breadth": len(assessment.breached_signals),
+                    "breached_signals": ";".join(assessment.breached_signals),
+                    **{signal.key: next(point.value for point in signal.points if point.timestamp == assessment.timestamp)
+                       for signal in bundle.signals if signal.direction},
+                })
+            timeline = pd.DataFrame(rows)
+            timeline["timestamp"] = pd.to_datetime(timeline.timestamp)
+            note = "Weekly engineering assessment; no hourly model is active."
+        timeline = timeline.merge(
+            self._operation_frame().drop(columns=["run_status"]),
+            on="timestamp", how="left", validate="one_to_one",
         )
+        if start:
+            timeline = timeline.loc[timeline.timestamp.ge(pd.Timestamp(start))]
+        if end:
+            timeline = timeline.loc[timeline.timestamp.le(pd.Timestamp(end))]
+        total = len(timeline)
+        if total > max_points:
+            timeline = timeline.iloc[np.unique(np.linspace(0, total - 1, max_points, dtype=int))]
+        points = [self._telemetry_point({key: None if pd.isna(value) else value
+                                       for key, value in record.items()})
+                  for record in timeline.to_dict("records")]
+        return TelemetrySeries(asset_id=asset_id, total_points=total,
+                               returned_points=len(points), points=points, validation_note=note)
 
     def plant_rate_daily(self, asset_id: str) -> PlantRateSeries:
         asset = self.get_asset(asset_id)

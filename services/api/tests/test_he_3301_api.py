@@ -33,7 +33,7 @@ def test_he_read_models_preserve_source_cadence_and_asset_scope(he_client):
     assert {len(signal["points"]) for signal in bundle["signals"]} == {26, 720}
     assert bundle["reported_downtime_hours"] == 12
     assert client.get(f"/api/v1/assets/{HE}/production-rate").json()["source_rows"] == 720
-    assert client.get(f"/api/v1/assets/{HE}/telemetry").status_code == 404
+    assert client.get(f"/api/v1/assets/{HE}/telemetry").status_code == 200
     assert client.get(f"/api/v1/alerts/{ALERT}/driver-analysis").status_code == 422
     assert client.get("/api/v1/assets/unknown/investigation").status_code == 404
     for key in ["he_performance", "he_production", "he_rca"]:

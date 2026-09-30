@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 import yaml
@@ -21,6 +22,9 @@ class ProductionImpactPolicy(BaseModel):
     minimum_comparable_samples: int = Field(gt=0)
     high_confidence_samples: int = Field(gt=0)
     source_reference: str
+    baseline_selection: Literal["HEALTHY_PRE_SIGNAL", "PRE_OUTAGE_OPERATING"] = (
+        "HEALTHY_PRE_SIGNAL"
+    )
 
 
 def load_production_impact_policy(path: Path) -> ProductionImpactPolicy:
@@ -62,11 +66,13 @@ def calculate_production_impact(
         return None
     representative_load = float(pre_trip["plant_rate_tph"].median())
 
+    pre_outage_baseline = policy.baseline_selection == "PRE_OUTAGE_OPERATING"
+    cutoff = outage_start if pre_outage_baseline else pd.Timestamp(alert.first_signal_at)
     healthy = timeline.loc[
-        timeline["timestamp"].lt(pd.Timestamp(alert.first_signal_at))
+        timeline["timestamp"].lt(cutoff)
         & timeline["run_status"].eq("ON")
         & timeline["operating_mode"].eq("RUNNING_STEADY")
-        & timeline["decision_state"].eq("NORMAL")
+        & (True if pre_outage_baseline else timeline["decision_state"].eq("NORMAL"))
         & timeline["event_marker"].isna()
     ]
     comparable = healthy.loc[
@@ -93,7 +99,11 @@ def calculate_production_impact(
         else "LOW"
     )
     baseline = ProductionBaseline(
-        method="CONTEXTUAL_HEALTHY_MEDIAN",
+        method=(
+            "PRE_OUTAGE_OPERATING_MEDIAN"
+            if pre_outage_baseline
+            else "CONTEXTUAL_HEALTHY_MEDIAN"
+        ),
         expected_feed_tph=expected_feed,
         representative_plant_rate_tph=representative_load,
         plant_rate_tolerance_tph=policy.plant_rate_tolerance_tph,

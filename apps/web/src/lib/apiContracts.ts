@@ -38,8 +38,10 @@ export interface ProductionImpact {
   actual_feed_tonnes: number;
   expected_feed_tonnes: number;
   estimated_shortfall_tonnes: number;
+  reported_downtime_hours: number | null;
+  reported_production_loss_tonnes: number | null;
   baseline: {
-    method: 'CONTEXTUAL_HEALTHY_MEDIAN';
+    method: 'CONTEXTUAL_HEALTHY_MEDIAN' | 'PRE_OUTAGE_OPERATING_MEDIAN';
     expected_feed_tph: number;
     representative_plant_rate_tph: number;
     plant_rate_tolerance_tph: number;
@@ -87,14 +89,18 @@ export interface TelemetryPoint {
   timestamp: string;
   operating_mode: string;
   run_status: string;
-  radial_vibration_micron: number;
-  water_in_oil_ppm: number;
-  lube_oil_pressure_barg: number;
-  bearing_metal_temperature_degc: number;
-  feed_rate_tph: number;
-  discharge_pressure_barg: number;
-  motor_current_a: number;
-  plant_rate_tph: number;
+  radial_vibration_micron: number | null;
+  water_in_oil_ppm: number | null;
+  lube_oil_pressure_barg: number | null;
+  bearing_metal_temperature_degc: number | null;
+  feed_rate_tph: number | null;
+  discharge_pressure_barg: number | null;
+  motor_current_a: number | null;
+  plant_rate_tph: number | null;
+  tube_dp?: number | null;
+  heat_duty?: number | null;
+  cold_outlet_temp?: number | null;
+  heavy_ends?: number | null;
   anomaly_score: number | null;
   anomaly_threshold: number;
   is_anomaly: boolean;
@@ -105,6 +111,7 @@ export interface TelemetryPoint {
 }
 
 export interface TelemetrySeries {
+  validation_note?: string | null;
   asset_id: string;
   total_points: number;
   returned_points: number;

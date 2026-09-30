@@ -181,11 +181,15 @@ def data_source_detail(source_key: str, backend: Backend) -> DataSourceDetail:
     response_model=TraceClaim,
     tags=["traceability"],
 )
-def traceability_claim(trace_id: str, backend: Backend) -> TraceClaim:
+def traceability_claim(
+    trace_id: str, backend: Backend, asset_id: str = "asset-ko-3201"
+) -> TraceClaim:
     try:
-        return backend.traceability_claim(trace_id)
+        return backend.traceability_claim(trace_id, asset_id)
     except TraceabilityNotFoundError as error:
         raise not_found(FileNotFoundError(error.args[0])) from error
+    except ArtifactNotFoundError as error:
+        raise not_found(error) from error
 
 
 @router.get("/assets", response_model=list[AssetSummary], tags=["assets"])

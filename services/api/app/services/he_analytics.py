@@ -49,6 +49,15 @@ def snapshot_alerts(directory: Path) -> list[AlertEvent]:
     return [AlertEvent.model_validate(item) for item in payload["events"]]
 
 
+def validation_note(evaluation: dict) -> str:
+    return (
+        f"Retrospective replay · healthy holdout {evaluation['healthy_exceedance']:.1%}; "
+        f"terminal normal block {evaluation['terminal_healthy_exceedance']:.1%}. "
+        "WATCH novelty alone cannot open an investigation. "
+        f"Forward-only reference: {evaluation.get('forward_reference', {}).get('status', 'not recorded')}."
+    )
+
+
 def hourly_analytics(root: Path, bundle: EquipmentInvestigation) -> EquipmentHourlyAnalytics | None:
     directory = active_snapshot(root)
     if directory is None:
@@ -133,10 +142,5 @@ def hourly_analytics(root: Path, bundle: EquipmentInvestigation) -> EquipmentHou
             anomalous_hours=int(anomalous.sum()),
             anomaly_rate=float(anomalous.sum() / max(eligible.sum(), 1)),
         ),
-        validation_note=(
-            f"Retrospective replay · healthy holdout {evaluation['healthy_exceedance']:.1%}; "
-            f"terminal normal block {evaluation['terminal_healthy_exceedance']:.1%}. "
-            "WATCH novelty alone cannot open an investigation. "
-            f"Forward-only reference: {evaluation.get('forward_reference', {}).get('status', 'not recorded')}."
-        ),
+        validation_note=validation_note(evaluation),
     )

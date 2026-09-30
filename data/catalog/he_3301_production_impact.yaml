@@ -1,0 +1,7 @@
+policy_id: he-3301-production-impact-v1
+baseline_selection: PRE_OUTAGE_OPERATING
+pre_trip_load_window_hours: 24
+plant_rate_tolerance_tph: 1.0
+minimum_comparable_samples: 168
+high_confidence_samples: 720
+source_reference: he_production:Sheet2:HE3301_FEED; median ON observations before the May outage at comparable plant load. No February production observations exist; this is an operating baseline, not a pre-signal healthy baseline.

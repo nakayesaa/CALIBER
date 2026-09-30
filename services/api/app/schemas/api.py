@@ -46,7 +46,7 @@ class AssetSummary(APIModel):
 
 
 class ProductionBaseline(APIModel):
-    method: Literal["CONTEXTUAL_HEALTHY_MEDIAN"]
+    method: Literal["CONTEXTUAL_HEALTHY_MEDIAN", "PRE_OUTAGE_OPERATING_MEDIAN"]
     expected_feed_tph: float
     representative_plant_rate_tph: float
     plant_rate_tolerance_tph: float
@@ -67,6 +67,8 @@ class ProductionImpact(APIModel):
     expected_feed_tonnes: float
     estimated_shortfall_tonnes: float
     baseline: ProductionBaseline
+    reported_downtime_hours: float | None = None
+    reported_production_loss_tonnes: float | None = None
 
 
 class AssetOverview(APIModel):
@@ -83,14 +85,18 @@ class TelemetryPoint(APIModel):
     timestamp: AwareDatetime
     operating_mode: str
     run_status: str
-    radial_vibration_micron: float
-    water_in_oil_ppm: float
-    lube_oil_pressure_barg: float
-    bearing_metal_temperature_degc: float
-    feed_rate_tph: float
-    discharge_pressure_barg: float
-    motor_current_a: float
-    plant_rate_tph: float
+    radial_vibration_micron: float | None = None
+    water_in_oil_ppm: float | None = None
+    lube_oil_pressure_barg: float | None = None
+    bearing_metal_temperature_degc: float | None = None
+    tube_dp: float | None = None
+    heat_duty: float | None = None
+    cold_outlet_temp: float | None = None
+    heavy_ends: float | None = None
+    feed_rate_tph: float | None = None
+    discharge_pressure_barg: float | None = None
+    motor_current_a: float | None = None
+    plant_rate_tph: float | None = None
     anomaly_score: float | None
     anomaly_threshold: float
     is_anomaly: bool
@@ -105,6 +111,7 @@ class TelemetrySeries(APIModel):
     total_points: int
     returned_points: int
     points: list[TelemetryPoint]
+    validation_note: str | None = None
 
 
 class PlantRateDailyPoint(APIModel):

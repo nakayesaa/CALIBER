@@ -157,13 +157,18 @@ class BackendService:
 
         return bundle.model_copy(update={"analytics": hourly_analytics(self.root, bundle)})
 
-    def traceability_claim(self, trace_id: str) -> TraceClaim:
+    def traceability_claim(self, trace_id: str, asset_id: str = "asset-ko-3201") -> TraceClaim:
+        repository = self._repository_for_asset(asset_id)
         alert = max(
-            self.repository.list_alerts(),
+            repository.list_alerts(),
             key=lambda candidate: candidate.highest_severity_rank,
         )
         impact = self._production_impact(alert.asset_id, alert)
         effectiveness = self.effectiveness_review(alert.asset_id)
+        if repository is self.he_repository:
+            from services.api.app.services.he_traceability import he_traceability_claim
+
+            return he_traceability_claim(self.root, repository, trace_id, alert, impact, effectiveness)
         return self.traceability.claim(trace_id, alert, impact, effectiveness)
 
     def effectiveness_review(self, asset_id: str) -> EffectivenessReview | None:
@@ -450,12 +455,11 @@ class BackendService:
     ) -> ProductionImpact | None:
         if alert is None:
             return None
-        if self._repository_for_asset(asset_id) is self.he_repository:
-            return None
+        repository = self._repository_for_asset(asset_id)
         policy = load_production_impact_policy(
-            self.root / "data/catalog/ko_3201_production_impact.yaml"
+            self.root / f"data/catalog/{repository.asset_key}_production_impact.yaml"
         )
-        return self.repository.production_impact(asset_id, alert, policy)
+        return repository.production_impact(asset_id, alert, policy)
 
     def _prepared_workflow(self, alert_id: str) -> PreparedWorkflow:
         generation_config = load_generation_config(
