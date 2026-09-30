@@ -14,6 +14,8 @@
 .equipment-series svg { display:block;width:100%;height:auto;min-height:170px; }.equipment-series svg text { font-size:13px;fill:#71766c; }
 .equipment-chart-grid { stroke:#e7ebe4; }.equipment-chart-line { fill:none;stroke:#386344;stroke-width:3;pointer-events:none; }.equipment-chart-limit { stroke:#bf7161;stroke-dasharray:5 5;pointer-events:none; }.equipment-chart-cursor { stroke:#526452;stroke-dasharray:3 3;pointer-events:none; }
 .equipment-chart-point { fill:#386344;pointer-events:none; }
+.equipment-chart-anchor { fill:#fff;stroke:#386344;stroke-width:2; }
+.equipment-window-drivers { margin-top:24px; }.equipment-window-readings { margin-top:18px; }.equipment-window-readings summary { cursor:pointer; }.equipment-card .equipment-model-note { font-size:14px;color:#62695f;line-height:1.6; }
 .equipment-window { fill:#a7e57e;opacity:.2;cursor:pointer; }.equipment-window.state-high { fill:#e0a355; }.equipment-window.state-critical { fill:#cc625e; }.equipment-window.state-watch { fill:#93b8c3; }.equipment-window:hover { opacity:.4; }
 .equipment-chart-readout { display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;min-height:48px;font-size:13px; }.equipment-chart-readout small { width:100%; }
 .equipment-metric-row,.equipment-recovery-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px; }.equipment-metric-row>div,.equipment-recovery-grid article { border:1px solid var(--equipment-line);background:#f4faef;border-radius:12px;padding:16px; }.equipment-metric-row span,.equipment-recovery-grid span { display:block;font-size:14px;margin-bottom:8px; }.equipment-metric-row strong { font-size:22px; }
