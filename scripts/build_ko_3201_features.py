@@ -45,6 +45,7 @@ GENERATED_AT = datetime.fromisoformat("2026-09-10T00:00:00+07:00")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=REPOSITORY_ROOT)
+    parser.add_argument("--config", type=Path, default=None)
     parser.add_argument(
         "--input",
         type=Path,
@@ -60,11 +61,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_config(root: Path) -> FeaturePipelineConfig:
-    path = root / "data/catalog/ko_3201_feature_config.yaml"
-    return FeaturePipelineConfig.model_validate(
-        yaml.safe_load(path.read_text(encoding="utf-8"))
-    )
+def load_config(root: Path, path: Path | None = None) -> FeaturePipelineConfig:
+    path = path or root / "data/catalog/ko_3201_feature_config.yaml"
+    return FeaturePipelineConfig.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
 def load_scenario_manifest(input_path: Path) -> dict[str, Any]:
@@ -95,9 +94,7 @@ def write_frame(path: Path, frame: pd.DataFrame) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     serialized = frame.copy()
     if pd.api.types.is_datetime64_any_dtype(serialized["timestamp"]):
-        serialized["timestamp"] = serialized["timestamp"].map(
-            lambda value: value.isoformat()
-        )
+        serialized["timestamp"] = serialized["timestamp"].map(lambda value: value.isoformat())
     serialized.to_csv(temporary, index=False)
     temporary.replace(path)
 
@@ -139,6 +136,7 @@ def build_quality_report(
     config: FeaturePipelineConfig,
     result: FeatureBuildResult,
     expected_rows: int,
+    expected_phases: int = 9,
 ) -> FeatureQualityReport:
     table = result.feature_table
     complete = table.loc[table["feature_complete"], result.model_feature_columns]
@@ -155,9 +153,7 @@ def build_quality_report(
         + len(signal.trend_periods)
         for signal in config.condition_signals.values()
     ) + sum(
-        int(signal.include_raw)
-        + len(signal.delta_periods)
-        + len(signal.rolling_windows)
+        int(signal.include_raw) + len(signal.delta_periods) + len(signal.rolling_windows)
         for signal in config.process_signals.values()
     )
     expected_explanation_features = len(config.condition_signals) + 2
@@ -170,9 +166,7 @@ def build_quality_report(
         FeatureQualityCheck(
             name="model_feature_count",
             status=(
-                "PASS"
-                if len(result.model_feature_columns) == expected_model_features
-                else "FAIL"
+                "PASS" if len(result.model_feature_columns) == expected_model_features else "FAIL"
             ),
             actual=len(result.model_feature_columns),
         ),
@@ -180,33 +174,24 @@ def build_quality_report(
             name="explanation_feature_count",
             status=(
                 "PASS"
-                if len(result.explanation_feature_columns)
-                == expected_explanation_features
+                if len(result.explanation_feature_columns) == expected_explanation_features
                 else "FAIL"
             ),
             actual=len(result.explanation_feature_columns),
         ),
         FeatureQualityCheck(
             name="complete_values_are_finite",
-            status=(
-                "PASS"
-                if np.isfinite(complete.to_numpy(dtype=float)).all()
-                else "FAIL"
-            ),
+            status=("PASS" if np.isfinite(complete.to_numpy(dtype=float)).all() else "FAIL"),
             actual=bool(np.isfinite(complete.to_numpy(dtype=float)).all()),
         ),
         FeatureQualityCheck(
             name="labels_excluded_from_model_inputs",
-            status=(
-                "PASS"
-                if not excluded.intersection(result.model_feature_columns)
-                else "FAIL"
-            ),
+            status=("PASS" if not excluded.intersection(result.model_feature_columns) else "FAIL"),
             actual=not bool(excluded.intersection(result.model_feature_columns)),
         ),
         FeatureQualityCheck(
             name="all_scenario_phases_retained",
-            status="PASS" if len(phase_counts) == 9 else "FAIL",
+            status="PASS" if len(phase_counts) == expected_phases else "FAIL",
             actual={str(key): int(value) for key, value in phase_counts.items()},
         ),
     ]
@@ -225,16 +210,15 @@ def run(
     root: Path,
     input_path: Path | None = None,
     output: Path | None = None,
+    config_path: Path | None = None,
 ) -> dict[str, Any]:
     root = root.resolve()
-    input_path = (
-        input_path or root / "data/synthetic/ko_3201/v1/hourly_scenario.csv"
-    ).resolve()
+    input_path = (input_path or root / "data/synthetic/ko_3201/v1/hourly_scenario.csv").resolve()
     output = (output or root / "data/features/ko_3201/v1").resolve()
     if not input_path.is_file():
         raise FileNotFoundError(f"Missing scenario input: {input_path}. Run make scenario.")
 
-    config = load_config(root)
+    config = load_config(root, config_path)
     scenario_manifest = load_scenario_manifest(input_path)
     if scenario_manifest["scenario_id"] != config.input_scenario_id:
         raise ValueError("Feature config and scenario manifest IDs do not match")
@@ -246,6 +230,7 @@ def run(
         config,
         result,
         expected_rows=scenario_manifest["timestamp_count"],
+        expected_phases=scenario_manifest.get("phase_count", 9),
     )
 
     complete = result.feature_table["feature_complete"]
@@ -276,9 +261,9 @@ def run(
 
 def main() -> None:
     args = parse_args()
-    report = run(args.root, args.input, args.output)
+    report = run(args.root, args.input, args.output, args.config)
     print(
-        "KO-3201 features built: "
+        "Equipment features built: "
         f"{report['row_count']:,} rows, "
         f"{report['model_feature_count']} model features, "
         f"{report['training_row_count']:,} training rows."

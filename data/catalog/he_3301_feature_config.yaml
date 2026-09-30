@@ -1,0 +1,51 @@
+pipeline_id: he-3301-hourly-features-v1
+pipeline_version: '1.0.0'
+input_scenario_id: he-3301-six-month-v1
+expected_frequency: 1h
+condition_signals:
+  tube_dp:
+    source_column: tube_dp
+    unit: bar
+    direction_of_concern: HIGH
+    alarm_limit: 0.6
+    trip_limit: 0.9
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+  heat_duty:
+    source_column: heat_duty
+    unit: '% design'
+    direction_of_concern: LOW
+    alarm_limit: 90
+    trip_limit: 70
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+  cold_outlet_temp:
+    source_column: cold_outlet_temp
+    unit: degC
+    direction_of_concern: LOW
+    alarm_limit: 110
+    trip_limit: 95
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+  heavy_ends:
+    source_column: heavy_ends
+    unit: '%'
+    direction_of_concern: HIGH
+    alarm_limit: 1.5
+    trip_limit: 2.4
+    delta_periods: [1]
+    rolling_windows: [6, 24]
+    trend_periods: [6]
+process_signals: {}
+eligibility:
+  training_operating_modes: [RUNNING_STEADY]
+  scoring_operating_modes: [RUNNING_STEADY]
+  required_run_status: 'ON'
+  training_requires_source_eligibility: true
+  training_requires_below_alarm: true
+output:
+  metadata_columns: [timestamp, scenario_id, operating_mode, condition_source_type, process_source_type, run_status, training_eligible]
+  label_columns: [scenario_phase, health_state, event_marker]

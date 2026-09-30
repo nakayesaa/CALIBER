@@ -89,8 +89,6 @@ class FeaturePipelineConfig(FeatureConfigModel):
     def validate_signal_sets(self) -> FeaturePipelineConfig:
         if not self.condition_signals:
             raise ValueError("At least one condition signal is required")
-        if not self.process_signals:
-            raise ValueError("At least one process signal is required")
         source_columns = [
             signal.source_column
             for signal in [*self.condition_signals.values(), *self.process_signals.values()]
