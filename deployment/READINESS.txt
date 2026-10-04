@@ -8,9 +8,9 @@ Case files are bundled using authenticated AES 256 GCM encryption. The encryptio
 
 Render configuration
 One Docker web service named iris-prototype in Singapore
-Starter compute plan with one worker
-One GB persistent disk mounted at /var/data
-Base hosting estimate USD 7.25 per month before applicable usage charges
+Free compute plan with one worker
+Ephemeral demo data at /tmp/iris-data. Workflow changes reset after sleep, restart, or redeploy.
+User selected free hosting and accepted sleep and workflow reset. No paid resources are authorized.
 No paid service has been created
 
 Required secret files
@@ -31,14 +31,14 @@ Persistent state survived reconstructing the application
 
 Remaining cloud verification
 Build the Docker image on Render
-Verify the disk is attached before sharing the URL
+Confirm the app boots correctly from the encrypted demo seed
 Verify public HTTPS login and all six workspaces
-Restart the hosted service and verify workflow retention
+Restart the hosted service and verify the demo seed is restored
 Check memory usage and response time during the judging flow
 No Docker engine was available locally, so a local container build was not performed
 
 Recovery
 Redeploy the previous known working code commit using the same encrypted bundle
-For data recovery use Render disk snapshots after suspending the service
+The free deployment restores the encrypted seed after a restart. Runtime workflow changes are temporary.
 An automated reset is deferred. Restoring the demonstration seed requires stopping the application and backing up the volume first.
 Avoid changing bundle keys or encrypted data until an explicit migration has been reviewed
