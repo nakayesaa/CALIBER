@@ -20,6 +20,9 @@ class Participant(CoordinationModel):
     display_name: str
     role: Literal["OPERATOR", "SUPERVISOR", "ENGINEER", "MANAGER"]
     owner_roles: list[str] = Field(default_factory=list)
+    plant_ids: list[str] = Field(default_factory=list)
+    scopes: list[str] = Field(default_factory=list)
+    asset_ids: list[str] = Field(default_factory=list)
 
 
 class WorkflowSession(CoordinationModel):

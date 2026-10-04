@@ -1,0 +1,44 @@
+IRIS competition prototype deployment
+
+The release branch contains a snapshot of the current application and an isolated deployment layer. The original working tree has not been edited.
+
+The prototype serves the frontend and API from one origin. Six password protected demo accounts map to server verified participants. Browser role switching is disabled. Session cookies are secure, HttpOnly, and expire after eight hours. API responses require authentication and are not cached. Mutations require the configured public origin.
+
+Case files are bundled using authenticated AES 256 GCM encryption. The encryption key, session signing key, account hashes, and generated passwords are stored outside Git in a private local directory. Source data is not included as plaintext in the release. The application initializes data once on a persistent disk and refuses to overwrite an existing dataset with a different bundle.
+
+Render configuration
+One Docker web service named iris-prototype in Singapore
+Starter compute plan with one worker
+One GB persistent disk mounted at /var/data
+Base hosting estimate USD 7.25 per month before applicable usage charges
+No paid service has been created
+
+Required secret files
+iris-bundle-key
+iris-demo-accounts.json
+iris-session-secret
+
+Validation
+23 frontend tests passed and the production build passed
+Backend regression suite passed with some existing optional tests skipped
+11 focused authentication and encrypted bundle tests passed
+Lint and medium severity security scan passed
+Independent security and permission review found no blockers
+Six account browser smoke tests passed with no JavaScript errors
+Unauthenticated API access was rejected
+Identity spoofing was rejected
+Persistent state survived reconstructing the application
+
+Remaining cloud verification
+Build the Docker image on Render
+Verify the disk is attached before sharing the URL
+Verify public HTTPS login and all six workspaces
+Restart the hosted service and verify workflow retention
+Check memory usage and response time during the judging flow
+No Docker engine was available locally, so a local container build was not performed
+
+Recovery
+Redeploy the previous known working code commit using the same encrypted bundle
+For data recovery use Render disk snapshots after suspending the service
+An automated reset is deferred. Restoring the demonstration seed requires stopping the application and backing up the volume first.
+Avoid changing bundle keys or encrypted data until an explicit migration has been reviewed

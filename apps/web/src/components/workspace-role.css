@@ -1,0 +1,18 @@
+.workspace-role-trigger { cursor:pointer;font-family:inherit; }
+.workspace-role-trigger:focus-visible { outline:2px solid #527a3d;outline-offset:3px; }
+.workspace-role-menu { position:fixed;inset:auto auto 72px 86px;margin:0;width:310px;max-width:calc(100vw - 40px);padding:10px;box-sizing:border-box;border:1px solid #dfe5dc;border-radius:14px;background:#fff;color:#1a1a1a;box-shadow:0 12px 40px #0a0a0a1a; }
+.workspace-role-menu header { display:grid;gap:6px;padding:12px;margin-bottom:4px;border-bottom:1px solid #e8e8e8; }
+.workspace-role-menu header span { font-size:12px;color:#6b6b6b; }
+.workspace-role-menu header strong { font-size:14px;font-weight:600; }
+.workspace-role-menu > button { display:grid;gap:5px;width:100%;padding:13px 12px;border:0;border-radius:9px;background:white;text-align:left;color:inherit;font:inherit;cursor:pointer; }
+.workspace-role-menu > button strong { font-size:16px;font-weight:700; }
+.workspace-role-menu > button span { font-size:13px;line-height:1.5;color:#6b6b6b; }
+.workspace-role-menu > button[aria-pressed=true] { background:#eaf7e3; }
+.workspace-role-menu > button:hover { background:#f3f6f1; }
+.workspace-role-menu > button:focus-visible { outline:2px solid #527a3d;outline-offset:-2px; }
+@media(max-width:650px) { .workspace-role-menu { left:20px;bottom:70px; } }
+@media(max-width:560px) {
+  .app-shell .rail { display:flex;position:fixed;inset:auto auto 16px 16px;width:40px;height:auto;min-height:0;padding:0;border:0;background:transparent;z-index:20;overflow:visible; }
+  .app-shell .rail > .brand,.app-shell .rail > nav { display:none; }
+}
+@media print { .workspace-role-menu { display:none!important; } }

@@ -51,19 +51,20 @@ export interface FollowUpAction {
 }
 
 // Hourly variation keeps each daily mean unchanged, so charts and summaries agree.
-function hourlyTrend(values: readonly number[], amplitude: number) {
-  return values.flatMap((value, day) => Array.from({ length: 24 }, (_, hour) => value + amplitude * (Math.sin(hour * Math.PI / 12) + 0.35 * Math.sin(hour * Math.PI / 3 + day))));
+function hourlyTrend(values: readonly number[], amplitude: number, phase = 0) {
+  return values.flatMap((value, day) => Array.from({ length: 24 }, (_, hour) => value + amplitude * (Math.sin(hour * Math.PI / 12 + phase) + 0.35 * Math.sin(hour * Math.PI / 3 + day + phase))));
 }
 
 export const plantScenarios: readonly PlantPerformance[] = ([
   { id: 'ARP', assets: 1, production: [81, 83, 82, 79, 80, 84, 83], energy: [3.1, 3.08, 3.09, 3.22, 3.18, 3.1, 3.06], emissions: [0.21, 0.21, 0.22, 0.23, 0.22, 0.21, 0.21], attention: [0, 0, 0, 1, 1, 0, 0], downtime: [0, 0, 0, 2, 0, 0, 0] },
-  { id: 'ZCU', assets: 2, production: [56, 55, 54, 52, 49, 17, 21], energy: [4.2, 4.22, 4.3, 4.45, 4.7, 5.1, 4.95], emissions: [0.32, 0.32, 0.33, 0.34, 0.36, 0.39, 0.38], attention: [0, 0, 1, 1, 2, 2, 1], downtime: [0, 0, 0, 0, 0, 17, 15] },
+  // Emissions assume a changing fuel/process mix, with transient exposure on 29 Apr.
+  { id: 'ZCU', assets: 2, production: [56, 55, 54, 52, 49, 17, 21], energy: [4.2, 4.22, 4.3, 4.45, 4.7, 5.1, 4.95], emissions: [0.32, 0.318, 0.328, 0.354, 0.348, 0.412, 0.38], attention: [0, 0, 1, 1, 2, 2, 1], downtime: [0, 0, 0, 0, 0, 17, 15] },
   { id: 'NUP', assets: 1, production: [72, 73, 74, 73, 71, 72, 74], energy: [2.8, 2.79, 2.76, 2.8, 2.9, 2.88, 2.83], emissions: [0.19, 0.19, 0.18, 0.19, 0.2, 0.2, 0.19], attention: [0, 0, 0, 0, 1, 0, 0], downtime: [0, 0, 0, 0, 0, 0, 0] },
   { id: 'OPP', assets: 1, production: [96, 95, 94, 93, 95, 97, 96], energy: [3.4, 3.42, 3.48, 3.5, 3.43, 3.4, 3.39], emissions: [0.24, 0.24, 0.25, 0.25, 0.24, 0.24, 0.24], attention: [0, 0, 1, 1, 0, 0, 0], downtime: [0, 0, 1, 0, 0, 0, 0] },
 ] satisfies Omit<PlantPerformance, 'trends'>[]).map((plant) => ({ ...plant, trends: {
   production: hourlyTrend(plant.production, 0.7),
   energy: hourlyTrend(plant.energy, 0.025),
-  emissions: hourlyTrend(plant.emissions, 0.002),
+  emissions: hourlyTrend(plant.emissions, 0.003, Math.PI / 2),
 } }));
 
 const operatingIssues: readonly OperatingIssue[] = [

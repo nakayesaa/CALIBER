@@ -38,6 +38,16 @@ test('hourly demo trends retain daily means and unique timestamps', () => {
   }
 });
 
+test('emissions scenario stays positive and differs from energy while retaining disruption and recovery', () => {
+  const plant = plantScenarios.find(plant => plant.id === 'ZCU');
+  assert.ok(plant.trends.emissions.every(value => value > 0));
+  assert.ok(plant.energy[4] > plant.energy[3]);
+  assert.ok(plant.emissions[4] < plant.emissions[3]);
+  assert.ok(plant.emissions[5] > plant.emissions[4]);
+  assert.ok(plant.emissions[6] < plant.emissions[5]);
+  assert.notEqual(plant.trends.energy[0] - plant.energy[0], plant.trends.emissions[0] - plant.emissions[0]);
+});
+
 test('performance insight states direction without inventing a root cause', () => {
   assert.match(performanceInsight('ZCU', 25, 50), /50.0% below/);
   assert.match(performanceInsight('ARP', 55, 50), /10.0% above/);

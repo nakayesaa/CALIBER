@@ -25,6 +25,7 @@ from services.api.app.schemas.api import (
     SystemStatus,
     TelemetrySeries,
 )
+from services.api.app.schemas.case_packet import CasePacket, CasePacketCreate, CasePacketRecord
 from services.api.app.schemas.coordination import (
     AssignmentInput,
     AssignmentResponse,
@@ -37,6 +38,20 @@ from services.api.app.schemas.coordination import (
 from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.effectiveness import EffectivenessReview
 from services.api.app.schemas.equipment import EquipmentInvestigation
+from services.api.app.schemas.equipment_review import (
+    EquipmentEvidence,
+    EquipmentEvidencePoint,
+    EquipmentMonitoringAsset,
+    EquipmentReport,
+    EquipmentReportCreate,
+    EquipmentReportResponse,
+)
+from services.api.app.schemas.gm_review import GmDecisionInput, GmReport, GmSubmission
+from services.api.app.schemas.production_review import (
+    ProductionReport,
+    ProductionReportCreate,
+    ProductionReportResponse,
+)
 from services.api.app.schemas.rca import RCAGenerationConfig, RCARecord, RCAStatus
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
 from services.api.app.schemas.traceability import (
@@ -44,6 +59,7 @@ from services.api.app.schemas.traceability import (
     DataSourceSummary,
     TraceClaim,
 )
+from services.api.app.services import gm_review, scope_verification
 from services.api.app.services.actions.workflow import (
     build_action_plan,
     load_action_policy,
@@ -67,6 +83,7 @@ from services.api.app.services.demo.prepared_workflow import build_prepared_work
 from services.api.app.services.driver_analysis import DriverAnalysisService
 from services.api.app.services.effectiveness import build_effectiveness_review
 from services.api.app.services.equipment_traceability import equipment_source_details
+from services.api.app.services.file_io import atomic_write_json
 from services.api.app.services.he_repository import HE3301ArtifactRepository
 from services.api.app.services.production_impact import load_production_impact_policy
 from services.api.app.services.rca.case_assessment import assess_case, load_case_policy
@@ -104,6 +121,7 @@ class BackendService:
         self.provider_factory = provider_factory or OpenAIRCAProvider
         self.traceability = TraceabilityService(self.root)
         self.driver_analysis_service = DriverAnalysisService(self.root)
+        # ponytail: one API process; transactional storage is required before multiple workers.
         self._mutation_lock = threading.RLock()
         load_dotenv(self.root / ".env", override=False)
 
@@ -339,6 +357,146 @@ class BackendService:
     def case_review(self, alert_id: str) -> CaseReview:
         return self._repository_for_alert(alert_id).case_review(alert_id)
 
+    def equipment_monitoring(self, person: Participant) -> list[EquipmentMonitoringAsset]:
+        require_role(person, "OPERATOR")
+        if "EQUIPMENT" not in person.scopes:
+            raise PermissionError("Equipment monitoring requires the equipment scope")
+        return [
+            EquipmentMonitoringAsset.model_validate(self.asset_overview(asset.asset_id).model_dump(exclude={"production_impact"}))
+            for asset in self.list_assets()
+            if asset.asset_id in person.asset_ids and asset.plant_id in person.plant_ids
+        ]
+
+    def operator_equipment_evidence(self, asset_id: str, person: Participant) -> EquipmentEvidence:
+        assigned = {item.asset.asset_id for item in self.equipment_monitoring(person)}
+        if asset_id not in assigned:
+            raise PermissionError("Equipment is outside your assigned asset scope")
+        alerts = self.list_alerts(asset_id)
+        if not alerts:
+            raise ArtifactNotFoundError("No recorded alert evidence is available")
+        alert = max(alerts, key=lambda item: (item.highest_severity_rank, item.opened_at))
+        return self.equipment_review_evidence(asset_id, alert.alert_id)
+
+    def equipment_review_evidence(self, asset_id: str, alert_id: str) -> EquipmentEvidence:
+        detail = self.alert_detail(alert_id)
+        alert = detail.alert
+        if alert.asset_id != asset_id:
+            raise ValueError("Alert does not belong to the selected equipment")
+        as_of = datetime.fromisoformat(alert.peak_score_at)
+        start = datetime.fromisoformat(alert.first_signal_at)
+        series = self.telemetry(asset_id, start.isoformat(), as_of.isoformat(), 10000)
+        if not series.points or series.total_points != series.returned_points:
+            raise ValueError("Complete equipment evidence is required for this window")
+        progress = self.investigation_evidence(alert_id, as_of)
+        fields = set(EquipmentEvidencePoint.model_fields)
+        highest = max(series.points, key=lambda point: point.severity_rank)
+        return EquipmentEvidence(
+            alert={"alert_id": alert.alert_id, "asset_id": asset_id,
+                   "first_signal_at": alert.first_signal_at, "opened_at": alert.opened_at,
+                   "highest_severity": highest.decision_state, "highest_severity_rank": highest.severity_rank},
+            as_of=as_of, window_start=start, window_end=as_of,
+            points=[EquipmentEvidencePoint.model_validate(point.model_dump(include=fields)) for point in series.points],
+            transitions=[item for item in detail.state_transitions if datetime.fromisoformat(item.timestamp) <= as_of],
+            drivers=self.driver_analysis(alert_id, as_of),
+            events=[event for event in progress.events if event.kind != "ACTION"],
+            explanations=progress.explanations, validation_note=series.validation_note,
+        )
+
+    def verification_reports(self, scope: Literal["PRODUCTION", "EQUIPMENT"], person: Participant) -> list[ProductionReport | EquipmentReport]:
+        reports = [
+            scope_verification.load_report(self.root, path.stem)
+            for path in (self.root / f"data/actions/{scope.lower()}-reports").glob(f"{scope.lower()}-*.json")
+        ]
+        return sorted(
+            (report for report in reports if scope_verification.can_read(report, person)),
+            key=lambda report: report.created_at, reverse=True,
+        )
+
+    def verification_report(self, report_id: str, scope: Literal["PRODUCTION", "EQUIPMENT"], person: Participant) -> ProductionReport | EquipmentReport:
+        if not report_id.startswith(f"{scope.lower()}-"):
+            raise ArtifactNotFoundError("Report not found in the requested scope")
+        report = scope_verification.load_report(self.root, report_id)
+        if not scope_verification.can_read(report, person):
+            raise PermissionError("This report is outside your assigned scope")
+        return report
+
+    def create_verification_report(self, data: ProductionReportCreate | EquipmentReportCreate, person: Participant) -> ProductionReport | EquipmentReport:
+        with self._mutation_lock:
+            return scope_verification.create_report(self, data, person, self._aware_time(None))
+
+    def case_packets(self, person: Participant) -> list[CasePacket]:
+        if person.role != 'SUPERVISOR':
+            raise PermissionError('Case packets are available to their supervisor')
+        with self._mutation_lock:
+            records = [CasePacketRecord.model_validate_json(path.read_text()) for path in (self.root / 'data/actions/case-packets').glob('case-*.json')]
+            return [scope_verification.packet_view(self.root, record) for record in sorted(records, key=lambda item: item.created_at, reverse=True) if record.created_by == person.person_id]
+
+    def case_packet(self, case_id: str, person: Participant, require_ready: bool = False) -> CasePacket:
+        with self._mutation_lock:
+            packet = scope_verification.packet_view(self.root, scope_verification.packet_record(self.root, case_id, person))
+            if require_ready and not packet.can_escalate:
+                raise ValueError(packet.summary)
+            return packet
+
+    def create_case_packet(self, data: CasePacketCreate, person: Participant) -> CasePacket:
+        with self._mutation_lock:
+            return scope_verification.create_packet(self, data, person, self._aware_time(None))
+
+    def gm_reports(self, person: Participant) -> list[GmReport]:
+        with self._mutation_lock:
+            reports = [GmReport.model_validate_json(path.read_text()) for path in (self.root / 'data/actions/gm-reports').glob('gm-*.json')]
+            return sorted((report for report in reports if gm_review.can_read(report, person)), key=lambda report: report.submitted_at, reverse=True)
+
+    def gm_report(self, report_id: str, person: Participant) -> GmReport:
+        with self._mutation_lock:
+            return gm_review.read_report(self.root, report_id, person)
+
+    def gm_actions(self, report_id: str, person: Participant) -> list[ActionPlan]:
+        with self._mutation_lock:
+            report = gm_review.read_report(self.root, report_id, person)
+            return [plan for plan in self._repository_for_alert(report.alert_id).list_action_plans(report.alert_id) if plan.gm_report_id == report_id]
+
+    def assign_gm_action(self, report_id: str, source_action_id: str, data: AssignmentInput, person: Participant) -> ActionPlan:
+        with self._mutation_lock:
+            return gm_review.assign(self, report_id, source_action_id, data, person, self._aware_time(None))
+
+    def assigned_actions(self, person: Participant) -> list[ActionPlan]:
+        require_role(person, 'OPERATOR', 'ENGINEER')
+        with self._mutation_lock:
+            result = []
+            for repository in self._repositories():
+                for alert in repository.list_alerts():
+                    for plan in repository.list_action_plans(alert.alert_id):
+                        actions = [action for action in plan.actions if action.assignment and action.assignment.person_id == person.person_id]
+                        if actions:
+                            result.append(plan.model_copy(update={'actions': actions}))
+            return result
+
+    def submit_to_gm(self, case_id: str, data: GmSubmission, person: Participant) -> GmReport:
+        with self._mutation_lock:
+            return gm_review.submit(self, case_id, data, person, self._aware_time(None))
+
+    def decide_gm_report(self, report_id: str, data: GmDecisionInput, person: Participant) -> GmReport:
+        with self._mutation_lock:
+            changed = gm_review.decide(gm_review.read_report(self.root, report_id, person), data, person, self._aware_time(None))
+            atomic_write_json(gm_review.report_path(self.root, report_id), changed)
+            return changed
+
+    def send_verification_report(self, report_id: str, scope: Literal["PRODUCTION", "EQUIPMENT"], revision: int, person: Participant) -> ProductionReport | EquipmentReport:
+        with self._mutation_lock:
+            report = self.verification_report(report_id, scope, person)
+            changed = scope_verification.send(report, revision, person, self._aware_time(None))
+            atomic_write_json(scope_verification.report_path(self.root, report_id), changed)
+            return changed
+
+    def respond_verification_report(self, report_id: str, scope: Literal["PRODUCTION", "EQUIPMENT"], data: ProductionReportResponse | EquipmentReportResponse, person: Participant) -> ProductionReport | EquipmentReport:
+        with self._mutation_lock:
+            changed = scope_verification.respond(
+                self.verification_report(report_id, scope, person), data, person, self._aware_time(None),
+            )
+            atomic_write_json(scope_verification.report_path(self.root, report_id), changed)
+            return changed
+
     def submit_cross_check(
         self, alert_id: str, data: CrossCheckInput, person: Participant
     ) -> CaseReview:
@@ -368,8 +526,16 @@ class BackendService:
         def change(action: ActionItem, plan: ActionPlan) -> ActionItem:
             if action.revision != expected_revision:
                 raise ValueError("Action changed; reload before recording a decision")
-            rca = self._require_rca_id(plan.rca_id)
-            require_verified(self.case_review(plan.alert_id))
+            if plan.gm_report_id:
+                report = gm_review.validate_execution(self.root, plan, person)
+                rca = report.rca
+                if rca is None:
+                    raise ValueError('The authorized report has no RCA evidence')
+                if status == ActionStatus.APPROVED:
+                    raise ValueError('Authorize proposed work through GM assignment')
+            else:
+                rca = self._require_rca_id(plan.rca_id)
+                require_verified(self.case_review(plan.alert_id))
             if status in {ActionStatus.APPROVED, ActionStatus.REJECTED}:
                 require_role(person, "SUPERVISOR")
             action = record_execution_evidence(
@@ -388,11 +554,15 @@ class BackendService:
                 self._aware_time(occurred_at),
             )
 
-        return self._change_action(action_id, change)
+        return self._execution_response(self._change_action(action_id, change), person)
 
     def delegate_action(
         self, action_id: str, data: AssignmentInput, person: Participant
     ) -> ActionPlan:
+        plan = self._action_plan_for_item(action_id)
+        if plan.gm_report_id:
+            action = next(action for action in plan.actions if action.action_id == action_id)
+            return self.assign_gm_action(plan.gm_report_id, action.source_action_id, data, person)
         return self._change_action(
             action_id,
             lambda action, plan: assign_action(
@@ -403,12 +573,20 @@ class BackendService:
     def respond_to_action(
         self, action_id: str, data: AssignmentResponse, person: Participant
     ) -> ActionPlan:
-        return self._change_action(
+        def respond(action: ActionItem, plan: ActionPlan) -> ActionItem:
+            if plan.gm_report_id:
+                gm_review.validate_execution(self.root, plan, person)
+            return respond_to_assignment(action, data, person, self._aware_time(None))
+        return self._execution_response(self._change_action(
             action_id,
-            lambda action, _plan: respond_to_assignment(
-                action, data, person, self._aware_time(None)
-            ),
-        )
+            respond,
+        ), person)
+
+    @staticmethod
+    def _execution_response(plan: ActionPlan, person: Participant) -> ActionPlan:
+        if plan.gm_report_id and person.role in {'OPERATOR', 'ENGINEER'}:
+            return plan.model_copy(update={'actions': [action for action in plan.actions if action.assignment and action.assignment.person_id == person.person_id]})
+        return plan
 
     def _change_action(
         self, action_id: str, change: Callable[[ActionItem, ActionPlan], ActionItem]

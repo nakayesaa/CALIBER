@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: iris-prototype
+    runtime: docker
+    plan: starter
+    region: singapore
+    branch: deploy/iris-prototype
+    autoDeployTrigger: off
+    healthCheckPath: /health
+    disk:
+      name: iris-workflow
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: IRIS_DATA_ROOT
+        value: /var/data/iris
+      - key: IRIS_DEMO_ACCOUNTS_FILE
+        value: /etc/secrets/iris-demo-accounts.json
+      - key: IRIS_SESSION_SECRET_FILE
+        value: /etc/secrets/iris-session-secret
+      - key: IRIS_BUNDLE_KEY_FILE
+        value: /etc/secrets/iris-bundle-key

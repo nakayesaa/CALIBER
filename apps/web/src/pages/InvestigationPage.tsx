@@ -14,7 +14,7 @@ import { alertDetectionWindow, selectTelemetryWindow, timeWindowHours } from '..
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
 
-const storySteps = ['Detection', 'Variables', 'Probable RCA', 'CA/PA'];
+const storySteps = ['Detection', 'Variables', 'Probable RCA', 'Scope verification'];
 
 interface InvestigationData {
   detail: AlertDetail;
@@ -23,9 +23,9 @@ interface InvestigationData {
   driverAnalysis: DriverAnalysis;
 }
 
-async function loadInvestigation(assetId: string): Promise<InvestigationData> {
+async function loadInvestigation(assetId: string, alertId?: string): Promise<InvestigationData> {
   const [alerts, system] = await Promise.all([api.alerts(assetId), api.status()]);
-  const alert = alerts[0];
+  const alert = alertId ? alerts.find(item => item.alert_id === alertId) : alerts[0];
   if (!alert) throw new Error('No problem is available for investigation');
 
   const [detail, driverAnalysis] = await Promise.all([
@@ -41,7 +41,7 @@ async function loadInvestigation(assetId: string): Promise<InvestigationData> {
   return { detail, telemetry, system, driverAnalysis };
 }
 
-export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { onNavigate: (page: PageId) => void; assetId?: string }) {
+export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, alertId: selectedAlertId }: { onNavigate: (page: PageId, assetId?: string, alertId?: string) => void; assetId?: string; alertId?: string }) {
   const equipment = equipmentPresentation(assetId);
   const signalDefinitions = [
     ...conditionSignalsFor(assetId).map((signal) => ({ ...signal, source: 'Equipment Performance · Condition History' })),
@@ -53,7 +53,7 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { 
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [replayAt, setReplayAt] = useState<string | null>(null);
   const [replayPlaying, setReplayPlaying] = useState(false);
-  const resource = useApiResource(`problem-investigation:${assetId}`, () => loadInvestigation(assetId));
+  const resource = useApiResource(`problem-investigation:${assetId}:${selectedAlertId ?? ''}`, () => loadInvestigation(assetId, selectedAlertId));
   const alertId = resource.data?.detail.alert.alert_id;
   const evidenceResource = useApiResource<InvestigationEvidenceProgress | null>(
     `${alertId ?? ''}:${replayAt ?? ''}`,
@@ -198,7 +198,7 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { 
           <h3>{causeTitle}</h3>
           <p>{progress?.summary ?? 'Reviewing the condition evidence available at this time.'}</p>
           <div><strong>{causeReported ? 'Case interpretation' : 'What remains unverified'}</strong><p>{causeReported ? hypothesis?.rationale : assetId === 'asset-he-3301' ? 'Deposits and their origin require bundle inspection and feed evidence. Pressure-drop and heat-duty trends alone cannot distinguish fouling from changed operating conditions.' : 'The source of water entry and bearing condition require lab and inspection evidence. The current signal pattern alone cannot prove the physical cause.'}</p></div>
-          {causeReported && <div className="rca-workflow-controls"><div><span>Decision workflow</span><strong>{detail.rca ? humanize(detail.rca.status) : 'Draft preview'}</strong></div><div>{!detail.rca && <button disabled={workflowBusy} onClick={createDraft}>Create reviewable draft</button>}<button onClick={() => onNavigate('actions')}>Open cross-check and authorization</button></div>{workflowError && <p role="alert">{workflowError}</p>}</div>}
+          {causeReported && <div className="rca-workflow-controls"><div><span>Decision workflow</span><strong>{detail.rca ? humanize(detail.rca.status) : 'Draft preview'}</strong></div><div>{!detail.rca && <button disabled={workflowBusy} onClick={createDraft}>Create reviewable draft</button>}<button onClick={() => openStep(3)}>Next: Scope verification</button></div>{workflowError && <p role="alert">{workflowError}</p>}</div>}
         </article>
         <article className="cause-evidence panel">
           <header><span>Model contribution at replay time</span><strong>{replayDriver?.contributions.length ?? '—'} condition drivers</strong></header>
@@ -210,15 +210,23 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { 
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 3}>
+      <article className="leading-cause panel">
+        <span>Next step · Supervisor</span><h3>Verify equipment and production evidence</h3>
+        <p>Prepare both scope reports for {equipment.tag} and this alert. Operators verify their own evidence; then submit the verified case packet to GM.</p>
+        <p>Equipment + production verification → GM approval → CA/PA assignment → execution and effectiveness review.</p>
+        <button className="story-next" onClick={() => onNavigate('delegation', assetId, alert.alert_id)}>Prepare scope reports <Icon name="arrow"/></button>
+      </article>
       {!repairReported && <p className="evidence-replay-notice panel">Follow-up record is available once the evidence replay reaches the repair entry. Return to Probable RCA to continue the replay.</p>}
       {repairReported && <>
       <div className="investigation-section-trace"><TraceButton traceId="capa-plan">View CA/PA sources and lineage</TraceButton></div>
-      <div className="investigation-action-list panel">
+      <details className="panel"><summary>CA/PA proposal · assignment follows GM approval</summary>
+      <div className="investigation-action-list">
         <header><span>Priority and action</span><span>Owner</span><span>Status</span><span>Due date</span></header>
         {actions.map((action) => {
-          return <div key={action.action_id}><div><span>{humanize(action.priority)}</span><strong>{action.title}</strong><p>{action.effectiveness_check}</p></div><strong>{action.assignment?.person_id ?? action.owner_role}</strong><div className="action-workflow-state"><span className={`action-state ${action.status.toLowerCase()}`}>{humanize(action.status)}</span><button onClick={() => onNavigate('actions')}>Open action record</button></div><time>{formatDate(action.due_date)}</time></div>;
+          return <div key={action.action_id}><div><span>{humanize(action.priority)}</span><strong>{action.title}</strong><p>{action.effectiveness_check}</p></div><strong>{action.owner_role}</strong><div className="action-workflow-state"><span>Proposal</span></div><time>{formatDate(action.due_date)}</time></div>;
         })}
       </div>
+      </details>
       {workflowError && <p className="workflow-error">{workflowError}</p>}
       </>}
     </section>
@@ -227,7 +235,7 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { 
       <button className="story-previous" disabled={activeStep === 0} onClick={() => openStep(Math.max(0, activeStep - 1))}><Icon name="arrow"/> Previous</button>
       {activeStep < storySteps.length - 1
         ? <button className="story-next" onClick={() => openStep(Math.min(storySteps.length - 1, activeStep + 1))}>Next: {storySteps[activeStep + 1]} <Icon name="arrow"/></button>
-        : <button className="story-next" onClick={() => onNavigate('actions')}>Open action tracker <Icon name="arrow"/></button>}
+        : <button className="story-next" onClick={() => onNavigate('delegation', assetId, alert.alert_id)}>Next: Prepare scope reports <Icon name="arrow"/></button>}
     </footer>
   </div>;
 }
