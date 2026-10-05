@@ -13,4 +13,3 @@ Latest demo: https://iris-production-cfe2.up.railway.app
 | `gm` | `gma` |
 | `maintenance` | `maintenancea` |
 
-These are shared demo accounts only. Please do not enter sensitive information. Demo changes may reset after a restart or redeployment.
