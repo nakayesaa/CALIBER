@@ -42,6 +42,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
+    if (response.status === 401 && import.meta.env.VITE_DEMO_AUTH === 'true') {
+      window.dispatchEvent(new Event('iris-session-expired'));
+    }
     const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(payload?.detail ?? `Request failed with status ${response.status}`);
   }
