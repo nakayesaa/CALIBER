@@ -1,7 +1,12 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api/v1';
+import type { ProductionReport, ProductionReviewDecision } from './productionReview';
+import type { EquipmentCheck, EquipmentEvidence, EquipmentMonitoringAsset, EquipmentReport } from './equipmentReview';
+import type { CasePacket } from './equipmentReview';
+import type { GmReport } from './gmReview';
 
 import type {
   ActionPlan,
+  ActionAssignmentInput,
   ActionStatus,
   CaseReview,
   ExecutionEvidenceInput,
@@ -25,6 +30,7 @@ import type {
 export * from './apiContracts';
 
 let workflowPerson: string | null = null;
+let workflowSelection = 0;
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -42,15 +48,56 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export async function selectWorkflowSession(personId?: string): Promise<WorkflowSession> {
+  const selection = ++workflowSelection;
+  const session = await request<WorkflowSession>('/workflow/session');
+  if (selection !== workflowSelection || !session.can_switch || !personId || personId === session.current.person_id) return session;
+  const previous = workflowPerson;
+  workflowPerson = personId;
+  try { return await request<WorkflowSession>('/workflow/session'); }
+  catch (error) { if (selection === workflowSelection) workflowPerson = previous; throw error; }
+}
+
 export const api = {
-  setWorkflowPerson: (personId: string | null) => { workflowPerson = personId; },
+  assignedActions: () => request<ActionPlan[]>('/workflow/assigned-actions'),
+  gmActionPlans: (reportId: string) => request<ActionPlan[]>(`/workflow/gm-reports/${encodeURIComponent(reportId)}/actions`),
+  assignGmAction: (reportId: string, sourceActionId: string, data: ActionAssignmentInput) =>
+    request<ActionPlan>(`/workflow/gm-reports/${encodeURIComponent(reportId)}/actions/${encodeURIComponent(sourceActionId)}/assignment`, { method: 'POST', body: JSON.stringify(data) }),
+  casePacket: (caseId: string) => request<CasePacket>(`/workflow/case-packets/${encodeURIComponent(caseId)}`),
+  gmReports: () => request<GmReport[]>('/workflow/gm-reports'),
+  gmReport: (reportId: string) => request<GmReport>(`/workflow/gm-reports/${encodeURIComponent(reportId)}`),
+  submitToGm: (caseId: string, data: { recipient_id: string; note: string }) =>
+    request<GmReport>(`/workflow/case-packets/${encodeURIComponent(caseId)}/submit-to-gm`, { method: 'POST', body: JSON.stringify(data) }),
+  decideGmReport: (reportId: string, data: { decision: 'APPROVED' | 'RETURNED'; expected_revision: number; note: string }) =>
+    request<GmReport>(`/workflow/gm-reports/${encodeURIComponent(reportId)}/decision`, { method: 'POST', body: JSON.stringify(data) }),
+  casePackets: () => request<CasePacket[]>('/workflow/case-packets'),
+  createCasePacket: (data: { request_id: string; equipment_report_id: string; production_report_id: string }) =>
+    request<CasePacket>('/workflow/case-packets', { method: 'POST', body: JSON.stringify(data) }),
+  equipmentMonitoring: () => request<EquipmentMonitoringAsset[]>('/workflow/equipment-monitoring'),
+  operatorEquipmentEvidence: (assetId: string) => request<EquipmentEvidence>(`/workflow/equipment-monitoring/${encodeURIComponent(assetId)}`),
+  equipmentReports: () => request<EquipmentReport[]>('/workflow/equipment-reports'),
+  equipmentReport: (reportId: string) => request<EquipmentReport>(`/workflow/equipment-reports/${encodeURIComponent(reportId)}`),
+  createEquipmentReport: (data: { request_id: string; asset_id: string; alert_id: string; recipient_id: string; due_at: string; note: string }) =>
+    request<EquipmentReport>('/workflow/equipment-reports', { method: 'POST', body: JSON.stringify(data) }),
+  sendEquipmentReport: (reportId: string, revision: number) =>
+    request<EquipmentReport>(`/workflow/equipment-reports/${encodeURIComponent(reportId)}/send`, { method: 'POST', body: JSON.stringify({ expected_revision: revision }) }),
+  respondEquipmentReport: (reportId: string, data: { decision: ProductionReviewDecision; note: string; attested: boolean; expected_revision: number; checks: EquipmentCheck[]; human_context: string }) =>
+    request<EquipmentReport>(`/workflow/equipment-reports/${encodeURIComponent(reportId)}/response`, { method: 'POST', body: JSON.stringify(data) }),
+  productionReports: () => request<ProductionReport[]>('/workflow/production-reports'),
+  productionReport: (reportId: string) => request<ProductionReport>(`/workflow/production-reports/${encodeURIComponent(reportId)}`),
+  createProductionReport: (data: { request_id: string; asset_id: string; recipient_id: string; due_at: string; note: string; alert_id?: string }) =>
+    request<ProductionReport>('/workflow/production-reports', { method: 'POST', body: JSON.stringify(data) }),
+  sendProductionReport: (reportId: string, revision: number) =>
+    request<ProductionReport>(`/workflow/production-reports/${encodeURIComponent(reportId)}/send`, { method: 'POST', body: JSON.stringify({ expected_revision: revision }) }),
+  respondProductionReport: (reportId: string, data: { decision: ProductionReviewDecision; note: string; attested: boolean; expected_revision: number }) =>
+    request<ProductionReport>(`/workflow/production-reports/${encodeURIComponent(reportId)}/response`, { method: 'POST', body: JSON.stringify(data) }),
   workflowSession: () => request<WorkflowSession>('/workflow/session'),
   caseReview: (alertId: string) => request<CaseReview>(`/alerts/${alertId}/cross-check`),
   submitCrossCheck: (alertId: string, data: { note: string; references: string[]; human_context: string; expected_revision: number }) =>
     request<CaseReview>(`/alerts/${alertId}/cross-check`, { method: 'POST', body: JSON.stringify(data) }),
   reviewCrossCheck: (alertId: string, data: { decision: 'VERIFIED' | 'CHANGES_REQUESTED'; note: string; expected_revision: number }) =>
     request<CaseReview>(`/alerts/${alertId}/cross-check/review`, { method: 'POST', body: JSON.stringify(data) }),
-  assignAction: (actionId: string, data: { person_id: string; due_date: string; expected_status: ActionStatus; expected_assigned_to: string | null; expected_revision: number; note: string }) =>
+  assignAction: (actionId: string, data: ActionAssignmentInput) =>
     request<ActionPlan>(`/actions/${actionId}/assignment`, { method: 'POST', body: JSON.stringify(data) }),
   respondToAssignment: (actionId: string, data: { decision: 'ACCEPT' | 'BLOCK'; note: string; expected_revision: number }) =>
     request<ActionPlan>(`/actions/${actionId}/assignment/response`, { method: 'POST', body: JSON.stringify(data) }),

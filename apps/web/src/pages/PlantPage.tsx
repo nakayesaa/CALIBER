@@ -4,13 +4,13 @@ import type { PageId } from '../components/AppShell';
 import { ActionReportDialog } from '../components/ActionReportDialog';
 import { Icon } from '../components/Icon';
 import { SimilarIncidentPreview } from '../components/SimilarIncidentPreview';
-import { MetricSourceDisclosure } from '../components/MetricSourceDisclosure';
 import { api } from '../lib/api';
 import type { PlantRateSeries } from '../lib/apiContracts';
 import { PRIMARY_ASSET_ID } from '../lib/appConfig';
 import { plantScenarios, performanceInsight, selectActionReport, selectPlantOverview, type FollowUpAction, type PlantId, type PlantPerformance } from '../lib/plantOverviewDemoData';
 import { metricSources, operatingBrief, performanceWindow, resourcePerformance, type MetricSource, type OverviewDays } from '../lib/plantPerformance';
 import { useApiResource, type ResourceState } from '../lib/useApiResource';
+import '../plant-immediate-action.css';
 
 function shortDate(date: string): string {
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
@@ -30,10 +30,10 @@ function TrendLine({ values, labels, label, unit = 't/h', showPoints = false, re
   </svg>;
 }
 
-function ChartCard({ eyebrow, title, value, note, children, source, className = '' }: { eyebrow: string; title: string; value: string; note: string; children: ReactNode; source: MetricSource; className?: string }) {
+function ChartCard({ eyebrow, title, value, note, children, className = '' }: { eyebrow: string; title: string; value: string; note: string; children: ReactNode; source: MetricSource; className?: string }) {
   return <section className={`portfolio-card portfolio-metric ${className}`}>
     <header><div><span>{eyebrow}</span><h2>{title}</h2></div><strong>{value}</strong></header>
-    {children}<footer>{note}</footer><MetricSourceDisclosure title={title} source={source} />
+    {children}<footer>{note}</footer>
   </section>;
 }
 
@@ -110,7 +110,6 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
   const [selectedPlant, setSelectedPlant] = useState<PlantId>('ZCU');
   const [query, setQuery] = useState('');
   const [windowDays, setWindowDays] = useState<OverviewDays>(7);
-  const [plannedRate, setPlannedRate] = useState('');
   const [reportActionId, setReportActionId] = useState<string | null>(null);
   const plantRate = useApiResource(PRIMARY_ASSET_ID, () => api.plantRate(PRIMARY_ASSET_ID));
   const equipment = useApiResource('plant-equipment', () => api.assets());
@@ -119,9 +118,9 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
   const { plants: visiblePlants, actions, issues } = overview;
   const plant = visiblePlants[0];
   const window = performanceWindow(plant, plantRate.data, windowDays);
-  const metrics = resourcePerformance(plant, plantRate.data, windowDays, plannedRate.trim() ? Number(plannedRate) : undefined);
+  const metrics = resourcePerformance(plant, plantRate.data, windowDays);
   const { attention, downtime } = window;
-  const sources = metricSources(plant, window, plantRate.data, actions.length, plannedRate.trim() ? Number(plannedRate) : undefined);
+  const sources = metricSources(plant, window, plantRate.data, actions.length);
   const visibleIssues = issues.filter((item) => `${item.tag} ${item.title} ${item.plant} ${item.owner}`.toLowerCase().includes(query.trim().toLowerCase()));
   const actionCounts = actionStates.map((status) => actions.filter((action) => action.status === status).length);
   const overdue = actions.filter((action) => action.overdue).length;
@@ -135,16 +134,14 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
     </header>
 
     <nav className="portfolio-plant-filter" aria-label="Select plant">
-      {plantScenarios.map((plant) => <button key={plant.id} className={selectedPlant === plant.id ? 'active' : ''} aria-pressed={selectedPlant === plant.id} onClick={() => { setSelectedPlant(plant.id); setPlannedRate(''); }}>{plant.id} <small>{String(plant.assets).padStart(2, '0')}</small></button>)}
+      {plantScenarios.map((plant) => <button key={plant.id} className={selectedPlant === plant.id ? 'active' : ''} aria-pressed={selectedPlant === plant.id} onClick={() => setSelectedPlant(plant.id)}>{plant.id} <small>{String(plant.assets).padStart(2, '0')}</small></button>)}
     </nav>
 
     <section className="portfolio-shift-brief" aria-label="Operating brief">
-      <div><span className="portfolio-section-kicker">Operating brief</span><h2>{brief.title}</h2><p>{brief.summary}</p><p className="portfolio-brief-next">{brief.next}</p></div>
+      <div><span className="portfolio-section-kicker">Operating brief</span><p>{brief.summary}</p><p className="portfolio-brief-next">{brief.next}</p></div>
       <div className="portfolio-brief-stat"><strong>{attention.at(-1)}<small> / {overview.assetCount}</small></strong><span>assets flagged now</span></div>
       <div className="portfolio-brief-stat"><strong>{overdue}</strong><span>overdue actions</span></div>
     </section>
-
-    <div className="portfolio-section-heading"><span>01 · Performance</span><p>Read production alongside resource efficiency.</p></div>
 
     <div className="portfolio-dashboard portfolio-performance-grid">
       <PlantRateCard plant={plant} window={window} metrics={metrics} resource={plantRate} source={sources.production} />
@@ -152,12 +149,8 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
       <IntensityCard plant={plant} window={window} metrics={metrics} metric="emissions" source={sources.emissions} />
     </div>
 
-    <section className="portfolio-card portfolio-forecast" aria-label="Energy forecast"><div><span className="portfolio-section-kicker">Next 24 hours · energy forecast</span><h2>{formatted(metrics.forecast, 'GJ')}</h2><p>Constant-load estimate: assumed rate × 24 Apr reference intensity × 24 hours.</p></div><label>Assumed plant rate ({window.productionUnit})<input type="number" min="0" step="0.1" value={plannedRate} placeholder={metrics.currentRate?.toFixed(2) ?? 'Unavailable'} onChange={(event) => setPlannedRate(event.target.value)} /></label><div><strong>{formatted(metrics.forecastLow, 'GJ')}–{formatted(metrics.forecastHigh, 'GJ')}</strong><p>±10% planning range, not a statistical interval. Default rate: latest daily mean; adjust for the operating plan.</p></div></section>
-    <MetricSourceDisclosure title="Energy forecast" source={sources.forecast} />
-
     <aside className="portfolio-output-context" aria-label="Plant performance insight"><span className="portfolio-section-kicker">Performance insight</span><p>{performanceInsight(selectedPlant, metrics.currentRate, metrics.referenceRate, window.productionUnit)} <small>{zcuSource ? 'Reference: 1–7 Apr observed mean, screening context only.' : 'Reference: 24 Apr scenario daily mean.'}</small></p></aside>
 
-    <div className="portfolio-section-heading"><span>02 · Operating exceptions</span><p>Locate equipment exposure and follow-up gaps.</p></div>
     <div className="portfolio-dashboard portfolio-performance-grid">
       <ChartCard source={sources.attention} eyebrow="Equipment condition" title="Assets needing attention" value={`${attention.at(-1)} / ${overview.assetCount}`} note={`Current attention flags among monitored assets.${zcuSource ? ' Click 30 Apr to open KO-3201.' : ''}`}>
         <DailyBars values={attention} days={window.days} label="Assets needing attention by day" kind="condition" drilldown={zcuSource ? { day: '30 Apr', asset: 'KO-3201', onClick: () => onNavigate('overview') } : undefined} />
@@ -172,11 +165,13 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
       </ChartCard>
     </div>
 
-    <div className="portfolio-section-heading"><span>03 · Decisions & ownership</span><p>Start with the highest priority, then track the response.</p></div>
-    <section className="portfolio-card" aria-label="Integrated equipment evidence">
-      <header><div><span>Equipment evidence</span><h2>Investigate {selectedPlant} equipment</h2><p>Open each asset's own observed period. Plant-rate records remain source-specific.</p></div></header>
-      {equipment.error ? <p role="alert">{equipment.error}</p> : equipment.data?.filter((asset) => asset.plant_name.includes(selectedPlant)).map((asset) => <button key={asset.asset_id} onClick={() => navigate('overview', asset.asset_id)}>{asset.tag} · {asset.name} <Icon name="arrow" /></button>)}
-      <button onClick={() => onNavigate('assets')}>All equipment <Icon name="arrow" /></button>
+    <section className="portfolio-card portfolio-immediate-action" aria-labelledby="portfolio-immediate-action-title">
+      <div><h2 id="portfolio-immediate-action-title">Immediate action</h2><p>Review {selectedPlant} equipment evidence.</p></div>
+      <div className="portfolio-immediate-action-links" role="group" aria-label={`${selectedPlant} equipment investigations`}>
+        {equipment.loading && <span role="status">Loading equipment…</span>}
+        {equipment.error ? <span role="alert">{equipment.error}</span> : equipment.data?.filter((asset) => asset.plant_id === selectedPlant).map((asset) => <button key={asset.asset_id} type="button" title={asset.name} aria-label={`Open ${asset.tag} overview`} onClick={() => navigate('overview', asset.asset_id)}>{asset.tag}<Icon name="arrow" /></button>)}
+        <button className="portfolio-immediate-action-all" type="button" onClick={() => onNavigate('assets')}>All equipment <Icon name="arrow" /></button>
+      </div>
     </section>
     <section className="portfolio-card portfolio-issue-list" aria-labelledby="portfolio-issues-title">
       <header><div><span>Problem tank</span><h2 id="portfolio-issues-title">What needs a decision?</h2><p>Current scenario issues, ordered by severity. Expand to read the supporting rationale.</p></div><button onClick={() => onNavigate('problems')}>Problem tank <Icon name="arrow" /></button></header>

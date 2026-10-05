@@ -23,6 +23,7 @@ from services.api.app.schemas.api import (
     SystemStatus,
     TelemetrySeries,
 )
+from services.api.app.schemas.case_packet import CasePacket, CasePacketCreate
 from services.api.app.schemas.coordination import (
     AssignmentInput,
     AssignmentResponse,
@@ -35,6 +36,20 @@ from services.api.app.schemas.coordination import (
 from services.api.app.schemas.driver_analysis import DriverAnalysis
 from services.api.app.schemas.effectiveness import EffectivenessReview
 from services.api.app.schemas.equipment import EquipmentInvestigation
+from services.api.app.schemas.equipment_review import (
+    EquipmentEvidence,
+    EquipmentMonitoringAsset,
+    EquipmentReport,
+    EquipmentReportCreate,
+    EquipmentReportResponse,
+)
+from services.api.app.schemas.gm_review import GmDecisionInput, GmReport, GmSubmission
+from services.api.app.schemas.production_review import (
+    ProductionReport,
+    ProductionReportCreate,
+    ProductionReportResponse,
+    ProductionReportSend,
+)
 from services.api.app.schemas.rca import RCARecord
 from services.api.app.schemas.retrieval import IncidentRetrievalResult
 from services.api.app.schemas.traceability import (
@@ -93,6 +108,252 @@ def get_workflow_participant(
 
 
 WorkflowParticipant = Annotated[Participant, Depends(get_workflow_participant)]
+
+
+def get_report_reader(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+    x_caliber_person: Annotated[str | None, Header(max_length=160)] = None,
+) -> Participant:
+    if request.app.state.write_authorizer.mode == WriteMode.BEARER:
+        request.app.state.write_authorizer.authorize(authorization)
+    return selected_participant(request, x_caliber_person)
+
+
+ReportReader = Annotated[Participant, Depends(get_report_reader)]
+
+
+@router.get('/workflow/case-packets', response_model=list[CasePacket], tags=['workflow'])
+def case_packets(backend: Backend, person: ReportReader) -> list[CasePacket]:
+    try:
+        return backend.case_packets(person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+
+@router.post('/workflow/case-packets', response_model=CasePacket, status_code=201, tags=['workflow'])
+def create_case_packet(payload: CasePacketCreate, backend: Backend, person: WorkflowParticipant) -> CasePacket:
+    try:
+        return backend.create_case_packet(payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get('/workflow/case-packets/{case_id}', response_model=CasePacket, tags=['workflow'])
+def case_packet(case_id: str, backend: Backend, person: ReportReader) -> CasePacket:
+    try:
+        return backend.case_packet(case_id, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.post('/workflow/case-packets/{case_id}/readiness', response_model=CasePacket, tags=['workflow'])
+def case_packet_readiness(case_id: str, backend: Backend, person: WorkflowParticipant) -> CasePacket:
+    try:
+        return backend.case_packet(case_id, person, require_ready=True)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.post('/workflow/case-packets/{case_id}/submit-to-gm', response_model=GmReport, status_code=201, tags=['workflow'])
+def submit_to_gm(case_id: str, payload: GmSubmission, backend: Backend, person: WorkflowParticipant) -> GmReport:
+    try:
+        return backend.submit_to_gm(case_id, payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get('/workflow/gm-reports', response_model=list[GmReport], tags=['workflow'])
+def gm_reports(backend: Backend, person: ReportReader) -> list[GmReport]:
+    return backend.gm_reports(person)
+
+
+@router.get('/workflow/assigned-actions', response_model=list[ActionPlan], tags=['workflow'])
+def assigned_actions(backend: Backend, person: ReportReader) -> list[ActionPlan]:
+    try:
+        return backend.assigned_actions(person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+
+@router.get('/workflow/gm-reports/{report_id}/actions', response_model=list[ActionPlan], tags=['workflow'])
+def gm_actions(report_id: str, backend: Backend, person: ReportReader) -> list[ActionPlan]:
+    try:
+        return backend.gm_actions(report_id, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.post('/workflow/gm-reports/{report_id}/actions/{source_action_id}/assignment', response_model=ActionPlan, tags=['workflow'])
+def assign_gm_action(report_id: str, source_action_id: str, payload: AssignmentInput, backend: Backend, person: WorkflowParticipant) -> ActionPlan:
+    try:
+        return backend.assign_gm_action(report_id, source_action_id, payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get('/workflow/gm-reports/{report_id}', response_model=GmReport, tags=['workflow'])
+def gm_report(report_id: str, backend: Backend, person: ReportReader) -> GmReport:
+    try:
+        return backend.gm_report(report_id, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.post('/workflow/gm-reports/{report_id}/decision', response_model=GmReport, tags=['workflow'])
+def decide_gm_report(report_id: str, payload: GmDecisionInput, backend: Backend, person: WorkflowParticipant) -> GmReport:
+    try:
+        return backend.decide_gm_report(report_id, payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get("/workflow/production-reports", response_model=list[ProductionReport], tags=["workflow"])
+def production_reports(backend: Backend, person: ReportReader) -> list[ProductionReport]:
+    return backend.verification_reports("PRODUCTION", person)
+
+
+@router.post("/workflow/production-reports", response_model=ProductionReport, status_code=201, tags=["workflow"])
+def create_production_report(payload: ProductionReportCreate, backend: Backend, person: WorkflowParticipant) -> ProductionReport:
+    try:
+        return backend.create_verification_report(payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get("/workflow/production-reports/{report_id}", response_model=ProductionReport, tags=["workflow"])
+def production_report(report_id: str, backend: Backend, person: ReportReader) -> ProductionReport:
+    try:
+        return backend.verification_report(report_id, "PRODUCTION", person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.post("/workflow/production-reports/{report_id}/send", response_model=ProductionReport, tags=["workflow"])
+def send_production_report(report_id: str, payload: ProductionReportSend, backend: Backend, person: WorkflowParticipant) -> ProductionReport:
+    try:
+        return backend.send_verification_report(report_id, "PRODUCTION", payload.expected_revision, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.post("/workflow/production-reports/{report_id}/response", response_model=ProductionReport, tags=["workflow"])
+def respond_production_report(report_id: str, payload: ProductionReportResponse, backend: Backend, person: WorkflowParticipant) -> ProductionReport:
+    try:
+        return backend.respond_verification_report(report_id, "PRODUCTION", payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get("/workflow/equipment-monitoring", response_model=list[EquipmentMonitoringAsset], tags=["workflow"])
+def equipment_monitoring(backend: Backend, person: ReportReader) -> list[EquipmentMonitoringAsset]:
+    try:
+        return backend.equipment_monitoring(person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+
+@router.get("/workflow/equipment-monitoring/{asset_id}", response_model=EquipmentEvidence, tags=["workflow"])
+def operator_equipment_evidence(asset_id: str, backend: Backend, person: ReportReader) -> EquipmentEvidence:
+    try:
+        return backend.operator_equipment_evidence(asset_id, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get("/workflow/equipment-reports", response_model=list[EquipmentReport], tags=["workflow"])
+def equipment_reports(backend: Backend, person: ReportReader) -> list[EquipmentReport]:
+    return backend.verification_reports("EQUIPMENT", person)
+
+
+@router.post("/workflow/equipment-reports", response_model=EquipmentReport, status_code=201, tags=["workflow"])
+def create_equipment_report(payload: EquipmentReportCreate, backend: Backend, person: WorkflowParticipant) -> EquipmentReport:
+    try:
+        return backend.create_verification_report(payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.get("/workflow/equipment-reports/{report_id}", response_model=EquipmentReport, tags=["workflow"])
+def equipment_report(report_id: str, backend: Backend, person: ReportReader) -> EquipmentReport:
+    try:
+        return backend.verification_report(report_id, "EQUIPMENT", person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+
+
+@router.post("/workflow/equipment-reports/{report_id}/send", response_model=EquipmentReport, tags=["workflow"])
+def send_equipment_report(report_id: str, payload: ProductionReportSend, backend: Backend, person: WorkflowParticipant) -> EquipmentReport:
+    try:
+        return backend.send_verification_report(report_id, "EQUIPMENT", payload.expected_revision, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
+
+
+@router.post("/workflow/equipment-reports/{report_id}/response", response_model=EquipmentReport, tags=["workflow"])
+def respond_equipment_report(report_id: str, payload: EquipmentReportResponse, backend: Backend, person: WorkflowParticipant) -> EquipmentReport:
+    try:
+        return backend.respond_verification_report(report_id, "EQUIPMENT", payload, person)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise not_found(error) from error
+    except ValueError as error:
+        raise conflict(error) from error
 
 
 @router.get("/workflow/session", response_model=WorkflowSession, tags=["workflow"])

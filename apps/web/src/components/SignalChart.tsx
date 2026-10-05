@@ -9,6 +9,7 @@ export type SignalField = keyof Pick<TelemetryPoint,
   'tube_dp' | 'heat_duty' | 'cold_outlet_temp' | 'heavy_ends'>;
 
 export type ChartWindowTone = 'signal' | 'warning' | 'high' | 'critical' | 'closed' | 'focus';
+type ChartPoint = Pick<TelemetryPoint, 'timestamp' | 'run_status'> & Partial<Pick<TelemetryPoint, SignalField | 'decision_state'>>;
 
 export interface ChartTimeWindow extends TimeWindow {
   id: string;
@@ -33,7 +34,7 @@ const signalMetadata: Record<SignalField, { label: string; unit: string }> = {
 };
 
 interface SignalChartProps {
-  points: TelemetryPoint[];
+  points: ChartPoint[];
   field: SignalField;
   threshold?: number;
   highlightTimestamp?: string;
@@ -116,14 +117,14 @@ export function SignalChart({ points, field, threshold, highlightTimestamp, high
       {hoveredPoint && hoveredCoordinate && <div className={`chart-tooltip${hoveredCoordinate.x > 72 ? ' align-right' : hoveredCoordinate.x < 28 ? ' align-left' : ''}`} style={{ left: `${hoveredCoordinate.x}%`, top: `${Math.min(82, Math.max(12, hoveredCoordinate.y))}%` }}>
         <time>{formatTimestamp(hoveredPoint.timestamp)}</time>
         <strong>{hoveredPoint[field] == null ? 'Unavailable' : formatValue(Number(hoveredPoint[field]))} {signalMetadata[field].unit}</strong>
-        <span>{signalMetadata[field].label}{field === 'anomaly_score' ? ` · ${formatDecisionState(hoveredPoint.decision_state)}` : showRunStatus ? ` · ${hoveredPoint.run_status}` : ''}</span>
+        <span>{signalMetadata[field].label}{field === 'anomaly_score' && hoveredPoint.decision_state ? ` · ${formatDecisionState(hoveredPoint.decision_state)}` : showRunStatus ? ` · ${hoveredPoint.run_status}` : ''}</span>
         {hoveredWindow && <span className="chart-window-label">{hoveredWindow.label}{onWindowSelect ? ' · Click for evidence' : ''}</span>}
       </div>}
     </div>
   );
 }
 
-function runStatusRanges(points: TelemetryPoint[]): Array<{ start: number; width: number }> {
+function runStatusRanges(points: ChartPoint[]): Array<{ start: number; width: number }> {
   const ranges: Array<{ start: number; width: number }> = [];
   let rangeStart: number | null = null;
   points.forEach((point, index) => {
@@ -138,7 +139,7 @@ function runStatusRanges(points: TelemetryPoint[]): Array<{ start: number; width
   return ranges;
 }
 
-function pointIndexWithinRange(points: TelemetryPoint[], timestamp: string): number | null {
+function pointIndexWithinRange(points: ChartPoint[], timestamp: string): number | null {
   const target = new Date(timestamp).getTime();
   if (target < new Date(points[0].timestamp).getTime() || target > new Date(points.at(-1)!.timestamp).getTime()) return null;
   let nearest = 0;
@@ -154,7 +155,7 @@ function pointIndexWithinRange(points: TelemetryPoint[], timestamp: string): num
 }
 
 function visibleWindowCoordinates(
-  points: TelemetryPoint[],
+  points: ChartPoint[],
   coordinates: Array<{ x: number; y: number }>,
   window: TimeWindow,
 ): { start: number; end: number } | null {

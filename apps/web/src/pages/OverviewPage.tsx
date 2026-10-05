@@ -111,7 +111,7 @@ export function OverviewPage({ onNavigate, assetId = PRIMARY_ASSET_ID }: { onNav
   return <div className="overview-dashboard">
     <header className="overview-heading">
       <div><span>Manufacturing performance</span><h1>Reliability overview</h1></div>
-      <div><button onClick={() => onNavigate('investigation')}>Open investigation <Icon name="arrow"/></button></div>
+      <div><button onClick={() => onNavigate('delegation')}>Request scope verification</button><button onClick={() => onNavigate('investigation')}>Open investigation <Icon name="arrow"/></button></div>
     </header>
 
     <section className="overview-main-grid">

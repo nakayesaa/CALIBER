@@ -1,0 +1,92 @@
+.gm-decision-panel {
+  margin-top: 20px;
+}
+.gm-decision-panel fieldset {
+  display: grid;
+  gap: 16px;
+  border: 0;
+  padding: 0;
+  margin: 16px 0 0;
+  min-width: 0;
+}
+.gm-decision-panel label {
+  display: grid;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 650;
+}
+.gm-decision-panel select,
+.gm-decision-panel textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #cdd8c7;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+  font: inherit;
+}
+.gm-decision-panel .production-submit {
+  width: auto;
+  justify-self: start;
+  min-width: 170px;
+}
+.gm-hypothesis {
+  border-bottom: 1px solid #e8e8e8;
+  padding: 8px 0 16px;
+  margin-bottom: 12px;
+}
+.gm-review-page .production-document h4 {
+  font-size: 17px;
+  margin: 14px 0 8px;
+}
+.gm-review-page details summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 15px;
+}
+.gm-review-page .production-document .capa-report-section p {
+  overflow-wrap: anywhere;
+}
+.gm-review-page button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.gm-review-page .production-request-status.returned,
+.case-packet .production-request-status.returned {
+  color: #96463b;
+  background: #fbefec;
+}
+.gm-review-page .scope-return-link:focus-visible,
+.gm-review-page select:focus-visible {
+  outline: 2px solid #527a3d;
+  outline-offset: 3px;
+}
+.gm-task-list { border: 0; padding: 0; margin: 0; min-width: 0; }
+.gm-task { padding: 20px 0; border-top: 1px solid #e8e8e8; }
+.gm-task header { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+.gm-task h3 { margin: 6px 0; font-size: 20px; }
+.gm-task-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.gm-task-instruction { grid-column: 1 / -1; }
+.assigned-task-group fieldset { border: 0; padding: 0; min-width: 0; }
+.assigned-task-group > p { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .gm-task-form { grid-template-columns: 1fr; }
+  .gm-task header { flex-wrap: wrap; }
+}
+@media print {
+  .gm-assignment-panel { display: none !important; }
+  .gm-decision-panel {
+    display: none !important;
+  }
+  .gm-review-page .production-document details:not([open]) > :not(summary) {
+    display: block !important;
+  }
+  .gm-review-page .production-document details::details-content {
+    content-visibility: visible !important;
+  }
+  .gm-review-page .production-document details summary {
+    display: none;
+  }
+}

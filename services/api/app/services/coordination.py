@@ -18,6 +18,23 @@ from services.api.app.schemas.coordination import (
 
 # These are demo identities, not a company employee directory.
 PARTICIPANTS = [
+    *[
+        Participant(
+            person_id=f"demo-equipment-{name}", display_name=f"ZCU equipment operator · {tag}",
+            role="OPERATOR", plant_ids=["ZCU"], scopes=["EQUIPMENT"], asset_ids=[f"asset-{tag.lower()}"],
+        )
+        for name, tag in (("ko", "KO-3201"), ("he", "HE-3301"))
+    ],
+    *[
+        Participant(
+            person_id=f"demo-production-{plant.lower()}",
+            display_name=f"{plant} production operator",
+            role="OPERATOR",
+            plant_ids=[plant],
+            scopes=["PRODUCTION"],
+        )
+        for plant in ("ARP", "ZCU", "NUP", "OPP")
+    ],
     Participant(person_id="demo-operator", display_name="Demo OP-01 · Operator", role="OPERATOR"),
     Participant(
         person_id="demo-supervisor",
@@ -93,6 +110,14 @@ def assign_action(
 ) -> ActionItem:
     require_role(person, "SUPERVISOR")
     require_verified(case)
+    return assign_authorized_action(action, data, person, now)
+
+
+def assign_authorized_action(
+    action: ActionItem, data: AssignmentInput, person: Participant, now: datetime
+) -> ActionItem:
+    """Assign work after the caller has checked its persisted authorization."""
+    require_role(person, "SUPERVISOR")
     current_owner = action.assignment.person_id if action.assignment else None
     revision = action.assignment.revision if action.assignment else 0
     if (

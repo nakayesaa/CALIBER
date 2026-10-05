@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 
 import { api, type ActionItem, type AlertDetail, type CaseReview, type ExecutionEvidenceInput, type RequirementCheck, type WorkflowSession } from '../lib/api';
 import { formatDate, humanize } from '../lib/format';
@@ -17,14 +17,12 @@ function text(data: FormData, name: string) {
 }
 
 export function CoordinationPanel({ detail, onChange, refreshing = false }: { detail: AlertDetail; onChange: () => void; refreshing?: boolean }) {
-  const [personId, setPersonId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const resource = useApiResource(`coordination-${detail.alert.alert_id}-${personId}`, async () => {
+  const resource = useApiResource(`coordination-${detail.alert.alert_id}`, async () => {
     const [session, review] = await Promise.all([api.workflowSession(), api.caseReview(detail.alert.alert_id)]);
     return { session, review };
   });
-  useEffect(() => () => api.setWorkflowPerson(null), []);
 
   async function run(command: () => Promise<unknown>) {
     if (busy) return;
@@ -46,9 +44,7 @@ export function CoordinationPanel({ detail, onChange, refreshing = false }: { de
   const supervisor = session.current.role === 'SUPERVISOR';
   return <section className="coordination-panel">
     <header><div><span>{detail.alert.asset_id.replace('asset-', '').toUpperCase()} · Human decision record</span><h2>Validate, delegate, verify</h2><p>Cross-check the issue before authorizing work. Track the named owner and evidence through closure.</p></div>
-      {session.can_switch ? <label>Local demo role<select aria-label="Local demo role" disabled={busy || resource.loading || refreshing} value={session.current.person_id} onChange={(event) => { api.setWorkflowPerson(event.target.value); setPersonId(event.target.value); setError(null); }}>
-        {session.participants.map((person) => <option value={person.person_id} key={person.person_id}>{person.display_name}</option>)}
-      </select></label> : <p>{session.current.display_name} · {humanize(session.current.role)}</p>}
+      <p>{session.current.display_name} · {humanize(session.current.role)}</p>
     </header>
     <p className="coordination-sop">Emergency response follows the site SOP immediately. This record tracks review and follow-up; it does not authorize equipment operation.</p>
     {error && <div><p role="alert" className="workflow-error">{error}</p><button disabled={busy || refreshing} onClick={() => { resource.reload(); onChange(); setError(null); }}>Reload current record</button></div>}
@@ -107,7 +103,7 @@ function CrossCheckForm({ review, session, run }: { review: CaseReview; session:
   </details>;
 }
 
-function ActionWork({ action, session, verified, run }: { action: ActionItem; session: WorkflowSession; verified: boolean; run: RunCommand }) {
+export function ActionWork({ action, session, verified, run, defaultOpen = false }: { action: ActionItem; session: WorkflowSession; verified: boolean; run: RunCommand; defaultOpen?: boolean }) {
   const supervisor = session.current.role === 'SUPERVISOR';
   const own = action.assignment?.person_id === session.current.person_id;
   const ready = own && action.assignment?.accepted_at && !action.assignment.blocked_reason;
@@ -116,7 +112,7 @@ function ActionWork({ action, session, verified, run }: { action: ActionItem; se
   const reviewer = supervisor && !own && action.status === 'EFFECTIVENESS_REVIEW';
   const execution = ready && ['APPROVED', 'IN_PROGRESS'].includes(action.status);
   const owner = session.participants.find((person) => person.person_id === action.assignment?.person_id);
-  return <details className="coordination-record">
+  return <details className="coordination-record" open={defaultOpen || undefined}>
     <summary><strong>{humanize(action.action_type)} · {action.title}</strong><span>{humanize(action.status)}</span></summary>
     <p>{action.guidance}</p><p><strong>{owner?.display_name ?? `Unassigned · ${action.owner_role}`}</strong> · Due {formatDate(action.due_date)}</p>
     {action.assignment && <p>{action.assignment.blocked_reason ? `Blocked: ${action.assignment.blocked_reason}` : action.assignment.accepted_at ? 'Assignment accepted' : 'Awaiting PIC acceptance'}</p>}

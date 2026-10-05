@@ -9,6 +9,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from services.api.app.schemas.coordination import (
     ActionAssignment,
     ExecutionEvidence,
+    Identifier,
     RequirementCheck,
 )
 from services.api.app.schemas.rca import CauseCategory
@@ -102,6 +103,7 @@ class ActionStatusTransition(ActionModel):
 
 
 class ActionItem(ActionModel):
+    source_action_id: Identifier | None = None
     revision: int = Field(default=0, ge=0)
     action_id: str
     template_id: str
@@ -128,6 +130,7 @@ class ActionItem(ActionModel):
 
 
 class ActionPlan(ActionModel):
+    gm_report_id: Identifier | None = None
     plan_id: str
     rca_id: str
     alert_id: str

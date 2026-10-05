@@ -246,6 +246,7 @@ export type ActionType = 'CONTAINMENT' | 'CORRECTIVE' | 'PREVENTIVE';
 export type ActionStatus = 'PROPOSED' | 'APPROVED' | 'IN_PROGRESS' | 'EFFECTIVENESS_REVIEW' | 'CLOSED' | 'REJECTED';
 
 export interface ActionItem {
+  source_action_id?: string | null;
   revision?: number;
   action_id: string;
   action_type: ActionType;
@@ -279,6 +280,9 @@ export interface WorkflowParticipant {
   display_name: string;
   role: 'OPERATOR' | 'SUPERVISOR' | 'ENGINEER' | 'MANAGER';
   owner_roles: string[];
+  plant_ids: string[];
+  scopes: string[];
+  asset_ids: string[];
 }
 
 export interface WorkflowSession {
@@ -340,6 +344,7 @@ export interface ExecutionEvidence {
 }
 
 export interface ActionPlan {
+  gm_report_id?: string | null;
   plan_id: string;
   rca_id: string;
   alert_id: string;
@@ -347,6 +352,15 @@ export interface ActionPlan {
   selected_cause_category: string;
   status: ActionStatus;
   actions: ActionItem[];
+}
+
+export interface ActionAssignmentInput {
+  person_id: string;
+  due_date: string;
+  expected_status: ActionStatus;
+  expected_assigned_to: string | null;
+  expected_revision: number;
+  note: string;
 }
 
 export interface AlertDetail {
