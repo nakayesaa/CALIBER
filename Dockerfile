@@ -16,4 +16,4 @@ COPY services services
 COPY deployment deployment
 COPY --from=web /build/apps/web/dist apps/web/dist
 EXPOSE 10000
-CMD ["sh", "-c", "exec uvicorn deployment.runtime:create_deployment_app --factory --host 0.0.0.0 --port ${PORT:-10000} --workers 1"]
+CMD ["sh", "-c", "exec uvicorn deployment.railway_app:create_app --factory --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
