@@ -21,8 +21,10 @@ import { AssignedActionsPage } from './pages/AssignedActionsPage';
 import { selectWorkflowSession } from './lib/api';
 import { useApiResource } from './lib/useApiResource';
 import { LoadingState } from './components/ViewState';
+import { FlowTour } from './components/FlowTour';
+import { FLOW_STEPS, type FlowStep } from './lib/flowTour';
 
-const pages: Record<Exclude<PageId, 'assets'>, React.ComponentType<{ assetId?: string; alertId?: string; requestId?: string; personId?: string; onNavigate: (page: PageId, assetId?: string, alertId?: string) => void }>> = {
+const pages: Record<Exclude<PageId, 'assets'>, React.ComponentType<{ assetId?: string; alertId?: string; requestId?: string; personId?: string; guidedStep?: FlowStep; onNavigate: (page: PageId, assetId?: string, alertId?: string) => void }>> = {
   overview: OverviewPage,
   plant: PlantPage,
   problems: ProblemTankPage,
@@ -43,21 +45,34 @@ function routeFromHash() {
   const [path, query] = window.location.hash.slice(1).split('?');
   const params = new URLSearchParams(query);
   const page = path === 'assets' || Object.hasOwn(pages, path) ? path as PageId : 'plant';
-  return { page, assetId: params.get('asset') ?? PRIMARY_ASSET_ID, alertId: params.get('alert'), requestId: params.get('request') ?? undefined, personId: params.get('person') ?? undefined };
+  const requestedStep = Number(params.get('flowStep'));
+  const step = Number.isInteger(requestedStep) && FLOW_STEPS[requestedStep]?.page === page ? requestedStep : Math.max(0, FLOW_STEPS.findIndex(item => item.page === page));
+  return { page, step, assetId: params.get('asset') ?? PRIMARY_ASSET_ID, alertId: params.get('alert'), requestId: params.get('request') ?? undefined, personId: params.get('person') ?? undefined, flow: params.get('flow') === 'ko-3201' };
 }
 
 export function App() {
   const [route, setRoute] = useState(routeFromHash);
+  const [flowStep, setFlowStep] = useState(route.step);
+  useEffect(() => {
+    const start = () => setFlowStep(0);
+    window.addEventListener('iris-flow-start', start);
+    return () => window.removeEventListener('iris-flow-start', start);
+  }, []);
   const personId = route.personId ?? (route.page === 'operator-equipment' ? 'demo-equipment-ko' : 'demo-supervisor');
   const identity = useApiResource(`workspace-session:${personId}`, async () => ({ personId, session: await selectWorkflowSession(personId) }));
   useEffect(() => {
-    const syncPage = () => setRoute(routeFromHash());
+    const syncPage = () => {
+      const next = routeFromHash();
+      setRoute(next);
+      setFlowStep(next.step);
+    };
     window.addEventListener('hashchange', syncPage);
     return () => window.removeEventListener('hashchange', syncPage);
   }, []);
-  const navigate = (page: PageId, assetId = route.assetId, alertId?: string | null) => {
+  const navigate = (page: PageId, assetId = route.assetId, alertId?: string | null, tourStep = flowStep) => {
     const params = new URLSearchParams({ asset: assetId });
     params.set('person', personId);
+    if (route.flow) { params.set('flow', 'ko-3201'); params.set('flowStep', String(tourStep)); }
     const selectedAlert = alertId ?? (assetId === route.assetId ? route.alertId : null);
     if (selectedAlert) params.set('alert', selectedAlert);
     window.location.hash = `${page}?${params}`;
@@ -66,11 +81,28 @@ export function App() {
   if (identity.error) return <div className="production-review-error"><h1>Workspace unavailable</h1><p role="alert">{identity.error}</p><button onClick={identity.reload}>Retry</button></div>;
   if (!identity.data || identity.data.personId !== personId) return <LoadingState/>;
   const session = identity.data.session;
+  const flowActive = route.flow && personId === 'demo-supervisor';
+  const exitFlow = () => {
+    const [page, query = ''] = window.location.hash.slice(1).split('?');
+    const params = new URLSearchParams(query);
+    params.delete('flow');
+    params.delete('flowStep');
+    window.location.hash = `${page}?${params}`;
+    setRoute(routeFromHash());
+    window.setTimeout(() => document.querySelector<HTMLElement>('.demo-session button')?.focus(), 0);
+  };
+  const moveFlow = (direction: number) => {
+    const next = flowStep + direction;
+    if (next >= FLOW_STEPS.length) { exitFlow(); return; }
+    const alert = document.querySelector<HTMLElement>('[data-flow="ko-3201-problem"]')?.dataset.alertId;
+    setFlowStep(next);
+    navigate(FLOW_STEPS[next].page, 'asset-ko-3201', alert ?? route.alertId, next);
+  };
   const switchRole = (person: string, page: PageId, asset: string) => {
     window.location.hash = `${page}?${new URLSearchParams({ asset, person })}`;
   };
   const content = route.page === 'assets'
     ? <EquipmentIndexPage onSelect={(assetId) => navigate('overview', assetId)}/>
-    : (() => { const Page = pages[route.page as Exclude<PageId, 'assets'>]; return <Page key={`${route.assetId}:${route.requestId ?? ''}:${route.personId ?? ''}`} assetId={route.assetId} alertId={route.alertId ?? undefined} requestId={route.requestId} personId={route.personId} onNavigate={navigate}/>; })();
-  return <TraceabilityProvider key={route.assetId} assetId={route.assetId}><AppShell activePage={route.page} assetId={route.assetId} session={session} onSwitchRole={switchRole} onNavigate={navigate}>{content}</AppShell></TraceabilityProvider>;
+    : (() => { const Page = pages[route.page as Exclude<PageId, 'assets'>]; return <Page key={`${route.assetId}:${route.requestId ?? ''}:${route.personId ?? ''}`} assetId={route.assetId} alertId={route.alertId ?? undefined} requestId={route.requestId} personId={route.personId} guidedStep={flowActive ? FLOW_STEPS[flowStep] : undefined} onNavigate={navigate}/>; })();
+  return <TraceabilityProvider key={route.assetId} assetId={route.assetId}><div data-flow-app inert={flowActive}><AppShell activePage={route.page} assetId={route.assetId} session={session} onSwitchRole={switchRole} onNavigate={navigate}>{content}</AppShell></div>{flowActive && <FlowTour index={flowStep} page={route.page} onNext={() => moveFlow(1)} onBack={() => moveFlow(-1)} onExit={exitFlow} />}</TraceabilityProvider>;
 }

@@ -1,0 +1,19 @@
+.flow-tour-layer{position:fixed;inset:0;z-index:10000;font-family:Manrope,sans-serif}
+.flow-tour-shield{position:absolute;inset:0;pointer-events:auto;touch-action:none}
+.flow-tour-spotlight{position:fixed;border:2px solid #ace57d;border-radius:14px;box-shadow:0 0 0 9999px rgba(15,27,25,.72),0 0 24px rgba(172,229,125,.25);pointer-events:none}
+.flow-tour-waiting-mask{position:absolute;inset:0;background:rgba(15,27,25,.72);pointer-events:none}
+.flow-tour-card{position:fixed;width:min(360px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;background:#fff;color:#162722;border:1px solid #dfe8df;border-radius:22px;padding:24px;box-shadow:0 20px 70px #0004;box-sizing:border-box}
+.flow-tour-top{display:flex;align-items:center;justify-content:space-between;color:#587057;font-size:11px;font-weight:800;letter-spacing:.13em}
+.flow-tour-top button{border:0;background:#f1f5ee;border-radius:50%;width:30px;height:30px;font-size:22px;color:#3d5743;cursor:pointer}
+.flow-tour-counter{font-size:11px;color:#6a786d;margin:14px 0 8px}
+.flow-tour-card h2{font-size:23px;line-height:1.25;margin:0 0 12px;letter-spacing:-.6px}
+.flow-tour-card p:not(.flow-tour-counter){font-size:13px;line-height:1.7;margin:0 0 18px;color:#53625a}
+.flow-tour-card .flow-tour-status{background:#f3f6ee;padding:10px;border-radius:8px}
+.flow-tour-progress{display:flex;gap:5px;margin:22px 0}
+.flow-tour-progress span{height:4px;flex:1;background:#e9eee6;border-radius:4px}.flow-tour-progress .active{background:#92cc68}
+.flow-tour-card footer{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.flow-tour-card footer button{font:inherit;font-size:12px;border:1px solid #e1e8dd;padding:10px 12px;border-radius:11px;background:#fff;cursor:pointer}
+.flow-tour-card footer button[data-flow-next]{background:#ace57d;border-color:#ace57d;font-weight:700;color:#172b13}
+.flow-tour-card button:disabled{opacity:.5;cursor:wait}.flow-tour-card button:focus-visible{outline:3px solid #3872a7;outline-offset:3px}
+.demo-session .demo-flow-button{background:#ace57d;color:#172b13;padding:7px 12px;border-radius:8px}
+.demo-session .demo-flow-button:hover{background:#98d96a}

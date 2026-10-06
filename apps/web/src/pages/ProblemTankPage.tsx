@@ -51,7 +51,7 @@ export function ProblemTankPage({ onNavigate }: { onNavigate: (page: PageId, ass
         const { actionPlans: plans } = workflowView(detail);
         const actions = plans.flatMap((plan) => plan.actions);
         const closedActions = actions.filter((action) => action.status === 'CLOSED').length;
-        return <button key={alert.alert_id} className="problem-list-row" onClick={() => onNavigate('investigation', alert.asset_id, alert.alert_id)}>
+        return <button key={alert.alert_id} data-flow={alert.asset_id === 'asset-ko-3201' ? 'ko-3201-problem' : undefined} data-alert-id={alert.alert_id} className="problem-list-row" onClick={() => onNavigate('investigation', alert.asset_id, alert.alert_id)}>
           <div className="problem-list-identity">
             <span className="problem-priority">{String(index + 1).padStart(2, '0')}</span>
             <div><strong>{asset?.name ?? alert.asset_id}</strong><p>{alert.alert_id} · {asset?.tag} · {humanize(alert.primary_driver.replaceAll('.', '_'))}</p></div>

@@ -63,6 +63,7 @@ export function AppShell({ activePage, assetId, onNavigate, children, session, o
             {visibleNavigation.map((item) => (
               <button
                 key={item.id}
+                data-flow={item.id === 'problems' ? 'problems-nav' : undefined}
                 className={`nav-btn${activePage === item.id || (activePage === 'overview' && item.id === 'assets') || (activePage === 'investigation' && item.id === 'problems') || (activePage === 'rca-investigation' && item.id === 'rca') || (activePage === 'equipment-review' && item.id === 'operator-equipment') ? ' active' : ''}`}
                 aria-label={item.label}
                 title={item.label}

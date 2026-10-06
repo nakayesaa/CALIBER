@@ -13,6 +13,7 @@ import { formatDate, formatDateTime, formatSignal, humanize } from '../lib/forma
 import { alertDetectionWindow, selectTelemetryWindow, timeWindowHours } from '../lib/timeWindow';
 import { useApiResource } from '../lib/useApiResource';
 import { workflowView } from '../lib/workflowView';
+import type { FlowStep } from '../lib/flowTour';
 
 const storySteps = ['Detection', 'Variables', 'Probable RCA', 'Scope verification'];
 
@@ -41,7 +42,7 @@ async function loadInvestigation(assetId: string, alertId?: string): Promise<Inv
   return { detail, telemetry, system, driverAnalysis };
 }
 
-export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, alertId: selectedAlertId }: { onNavigate: (page: PageId, assetId?: string, alertId?: string) => void; assetId?: string; alertId?: string }) {
+export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, alertId: selectedAlertId, guidedStep }: { onNavigate: (page: PageId, assetId?: string, alertId?: string) => void; assetId?: string; alertId?: string; guidedStep?: FlowStep }) {
   const equipment = equipmentPresentation(assetId);
   const signalDefinitions = [
     ...conditionSignalsFor(assetId).map((signal) => ({ ...signal, source: 'Equipment Performance · Condition History' })),
@@ -68,14 +69,43 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, aler
   const progress = evidenceResource.data?.as_of === replayAt ? evidenceResource.data : null;
 
   useEffect(() => {
+    if (!guidedStep) return;
+    setActiveStep(guidedStep.tab ?? 0);
+    setReplayPlaying(false);
+    if (guidedStep.field) setSelectedField(guidedStep.field);
+  }, [guidedStep]);
+
+  useEffect(() => {
+    if (!guidedStep?.stage || !resource.data) return;
+    let cancelled = false;
+    const target = guidedStep.stage;
+    const openingTime = resource.data.detail.alert.opened_at;
+    const id = resource.data.detail.alert.alert_id;
+    async function seekEvidence() {
+      let at = openingTime;
+      while (!cancelled) {
+        const evidence = await api.investigationEvidence(id, at);
+        if (cancelled) return;
+        if (evidence.stage === target || !evidence.next_event_at) { setReplayAt(at); return; }
+        if (Date.parse(evidence.next_event_at) <= Date.parse(at)) throw new Error('Evidence replay did not advance');
+        at = evidence.next_event_at;
+      }
+    }
+    void seekEvidence().catch(error => { if (!cancelled) setWorkflowError(error instanceof Error ? error.message : 'Evidence replay unavailable'); });
+    return () => { cancelled = true; };
+  }, [guidedStep, resource.data]);
+
+  const guidedEvidenceReady = !guidedStep?.stage || progress?.stage === guidedStep.stage;
+
+  useEffect(() => {
     if (resource.data && replayAt === null) setReplayAt(resource.data.detail.alert.opened_at);
   }, [resource.data, replayAt]);
 
   useEffect(() => {
-    if (!replayPlaying || activeStep !== 2 || !progress?.next_event_at) return;
+    if (guidedStep || !replayPlaying || activeStep !== 2 || !progress?.next_event_at) return;
     const timer = window.setTimeout(() => setReplayAt(progress.next_event_at), 2200);
     return () => window.clearTimeout(timer);
-  }, [replayPlaying, activeStep, progress]);
+  }, [replayPlaying, activeStep, progress, guidedStep]);
 
   if (resource.loading) return <LoadingState/>;
   if (resource.error || !resource.data) return <ErrorState message={resource.error ?? 'Investigation data unavailable'}/>;
@@ -130,7 +160,7 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, aler
   return <div className="investigation-page">
     <button className="investigation-back" onClick={() => onNavigate('problems')}><Icon name="arrow"/> Back to Problem Tank</button>
 
-    <header className="investigation-heading">
+    <header className="investigation-heading" data-flow="investigation-heading">
       <div>
         <span className="investigation-case-id">Priority 01 · {alert.alert_id}</span>
         <h1>{equipment.tag} equipment degradation</h1>
@@ -145,12 +175,12 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, aler
 
     <section className="investigation-section" hidden={activeStep !== 0}>
       <div className="investigation-hero-grid">
-        <article className="degradation-chart panel">
+        <article className="degradation-chart panel" data-flow="detection-chart">
           <header><div><span>Anomaly trajectory</span><h3>From first signal to warning</h3></div><div><span>Alert peak</span><strong>{formatSignal(alert.peak_anomaly_score)}</strong><TraceButton traceId="health-trajectory">View sources</TraceButton></div></header>
           <div className="degradation-chart-canvas"><SignalChart points={telemetry.points} field="anomaly_score" threshold={opening.anomaly_threshold} highlightWindow={detectionWindow}/></div>
           <div className="degradation-dates"><span>{formatDateTime(detectionWindow.start)} · first signal</span><span>{formatSignal(timeWindowHours(detectionWindow))} h · evidence window</span><span>{formatDateTime(detectionWindow.end)} · warning</span></div>
         </article>
-        <article className="investigation-facts panel">
+        <article className="investigation-facts panel" data-flow="detection-facts">
           <div><span>Severity</span><strong>{humanize(alert.highest_severity)}</strong></div>
           <div><span>Alert opened</span><strong>{formatDateTime(alert.opened_at)}</strong></div>
           <div><span>Persistence</span><strong>{Math.round(alert.duration_hours).toLocaleString()} hours</strong></div>
@@ -165,7 +195,7 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, aler
         <nav aria-label="Investigated variables">
           {signalDefinitions.map((signal) => { const contribution = contributionForField(driverAnalysis, signal.field); const value = latestPoint?.[signal.field]; return <button key={signal.field} className={selectedSignal.field === signal.field ? 'active' : ''} onClick={() => setSelectedField(signal.field)}><span>{signal.label}</span><strong>{contribution ? `${formatSignal(contribution.contribution_percent)}%` : typeof value === 'number' ? formatSignal(value) : '—'} <small>{contribution ? 'contribution' : signal.unit}</small></strong><i>{signal.source}</i></button>; })}
         </nav>
-        <div className="investigation-signal-chart">
+        <div className="investigation-signal-chart" data-flow={selectedField === guidedStep?.field ? 'variable-chart' : undefined}>
           <header><div><span>{selectedSignal.label}</span><h3>Degradation-window trend</h3></div><div><span>Window peak</span><strong>{selectedValues.length ? formatSignal(Math.max(...selectedValues)) : '—'} {selectedSignal.unit}</strong></div></header>
           <SignalChart points={detectionPoints} field={selectedSignal.field} highlightWindow={detectionWindow}/>
           <div className="investigation-trace-footer"><p>Source: {selectedSignal.source}</p><TraceButton traceId={operatingSignalsFor(assetId).some((signal) => signal.field === selectedSignal.field) ? 'production-shortfall' : 'condition-insights'}>Inspect lineage</TraceButton></div>
@@ -174,7 +204,7 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, aler
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 2}>
-      <div className="evidence-replay panel">
+      <div className="evidence-replay panel" data-flow={guidedEvidenceReady ? 'evidence-replay' : undefined}>
         <div className="evidence-replay-heading">
           <div><span>Evidence replay · {formatDateTime(replayAt ?? alert.opened_at)}</span><strong>{humanize(progress?.stage ?? 'Probable')}</strong></div>
           <div className="evidence-replay-controls">
@@ -193,14 +223,14 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, aler
         <small className="evidence-replay-note">Times are recorded event times from the RCA; document ingestion times were not supplied.</small>
       </div>
       <div className="rca-story-grid">
-        <article className="leading-cause panel">
+        <article className="leading-cause panel" data-flow={guidedEvidenceReady ? 'leading-cause' : undefined}>
           <header className="investigation-trace-heading"><span>{causeReported ? 'RCA-reported cause' : 'Leading hypothesis'}</span>{causeReported && <TraceButton traceId="rca-indication">View evidence sources</TraceButton>}</header>
           <h3>{causeTitle}</h3>
           <p>{progress?.summary ?? 'Reviewing the condition evidence available at this time.'}</p>
           <div><strong>{causeReported ? 'Case interpretation' : 'What remains unverified'}</strong><p>{causeReported ? hypothesis?.rationale : assetId === 'asset-he-3301' ? 'Deposits and their origin require bundle inspection and feed evidence. Pressure-drop and heat-duty trends alone cannot distinguish fouling from changed operating conditions.' : 'The source of water entry and bearing condition require lab and inspection evidence. The current signal pattern alone cannot prove the physical cause.'}</p></div>
           {causeReported && <div className="rca-workflow-controls"><div><span>Decision workflow</span><strong>{detail.rca ? humanize(detail.rca.status) : 'Draft preview'}</strong></div><div>{!detail.rca && <button disabled={workflowBusy} onClick={createDraft}>Create reviewable draft</button>}<button onClick={() => openStep(3)}>Next: Scope verification</button></div>{workflowError && <p role="alert">{workflowError}</p>}</div>}
         </article>
-        <article className="cause-evidence panel">
+        <article className="cause-evidence panel" data-flow={guidedEvidenceReady && replayDriver ? 'cause-evidence' : undefined}>
           <header><span>Model contribution at replay time</span><strong>{replayDriver?.contributions.length ?? '—'} condition drivers</strong></header>
           {replayDriver?.contributions.map((driver, index) => <div key={driver.driver_name}><span>{String(index + 1).padStart(2, '0')}</span><p>{humanize(driver.signal_key)}</p><strong>{formatSignal(driver.contribution_percent)}%</strong></div>)}
           {replayDriverResource.error && <p className="workflow-error">{replayDriverResource.error}</p>}
@@ -210,7 +240,7 @@ export function InvestigationPage({ onNavigate, assetId = PRIMARY_ASSET_ID, aler
     </section>
 
     <section className="investigation-section" hidden={activeStep !== 3}>
-      <article className="leading-cause panel">
+      <article className="leading-cause panel" data-flow={guidedEvidenceReady ? 'scope-handoff' : undefined}>
         <span>Next step · Supervisor</span><h3>Verify equipment and production evidence</h3>
         <p>Prepare both scope reports for {equipment.tag} and this alert. Operators verify their own evidence; then submit the verified case packet to GM.</p>
         <p>Equipment + production verification → GM approval → CA/PA assignment → execution and effectiveness review.</p>

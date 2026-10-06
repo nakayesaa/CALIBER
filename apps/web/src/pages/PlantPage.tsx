@@ -128,7 +128,7 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
   const actionReport = reportActionId ? selectActionReport(selectedPlant, reportActionId) : undefined;
 
   return <div className="portfolio-page">
-    <header className="portfolio-heading">
+    <header className="portfolio-heading" data-flow="plant-overview">
       <div><span>Manufacturing performance</span><h1>Plant overview</h1><p>Understand the shift. Find the exception. Follow it through.</p></div>
       <div className="portfolio-period"><strong>{shortDate(window.start)}–30 Apr 2026 · WIB</strong><label>Shared chart window <select value={windowDays} onChange={(event) => setWindowDays(Number(event.target.value) as OverviewDays)}><option value={1}>1 day</option><option value={3}>3 days</option><option value={7}>7 days</option></select></label></div>
     </header>
@@ -174,7 +174,7 @@ export function PlantPage({ onNavigate: navigate }: { onNavigate: (page: PageId,
       </div>
     </section>
     <section className="portfolio-card portfolio-issue-list" aria-labelledby="portfolio-issues-title">
-      <header><div><span>Problem tank</span><h2 id="portfolio-issues-title">What needs a decision?</h2><p>Current scenario issues, ordered by severity. Expand to read the supporting rationale.</p></div><button onClick={() => onNavigate('problems')}>Problem tank <Icon name="arrow" /></button></header>
+      <header><div><span>Problem tank</span><h2 id="portfolio-issues-title">What needs a decision?</h2><p>Current scenario issues, ordered by severity. Expand to read the supporting rationale.</p></div><button data-flow="problems-entry" onClick={() => onNavigate('problems')}>Problem tank <Icon name="arrow" /></button></header>
       <div className="portfolio-issue-tools"><label><Icon name="search"/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search equipment or issue" aria-label="Search equipment or issue"/></label><span>{visibleIssues.length} {visibleIssues.length === 1 ? 'result' : 'results'}</span></div>
       <div className="portfolio-issue-rows">{visibleIssues.map((item) => <details className="portfolio-operating-issue" key={item.id}>
         <summary><span className={`portfolio-status ${item.severity.toLowerCase()}`}>{item.severity}</span><span><strong>{item.tag} <small>· {item.plant}</small></strong><span>{item.title}</span></span><span className="portfolio-issue-owner">{item.owner}</span><span className="portfolio-disclosure" aria-hidden="true">+</span></summary>
