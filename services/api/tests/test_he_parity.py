@@ -60,6 +60,8 @@ def test_he_hourly_telemetry_preserves_may_only_operation_and_dated_impact(he_cl
 
 
 def test_he_baseline_responds_to_pre_outage_observations_not_recovery_data():
+    if not (ROOT / "data/normalized/he_3301/equipment.json").is_file():
+        pytest.skip("Private HE canonical fixture is unavailable in this checkout")
     repository = HE3301ArtifactRepository(ROOT)
     operation = repository._operation_frame()
     operation["operating_mode"] = "RUNNING_STEADY"

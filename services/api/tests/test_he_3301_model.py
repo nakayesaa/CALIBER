@@ -92,6 +92,8 @@ def test_blocked_preflight_enforces_configuration_contract(tmp_path, change, exp
         "data/features/he_3301/v1/feature_table.csv", "data/features/he_3301/v1/feature_manifest.json",
         "data/features/he_3301/v1/feature_quality_report.json",
     ]
+    if any(not (root / relative).is_file() for relative in paths[2:]):
+        pytest.skip("Private HE training fixtures are unavailable in this checkout")
     for relative in paths:
         path = tmp_path / relative
         path.parent.mkdir(parents=True, exist_ok=True)

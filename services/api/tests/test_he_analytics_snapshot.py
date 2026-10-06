@@ -66,6 +66,8 @@ def test_retired_snapshot_rejects_changed_evidence_without_using_current_source(
 
 def test_hourly_read_model_keeps_null_scores_and_separate_recovery(tmp_path):
     root = Path(__file__).parents[3]
+    if not (root / "data/normalized/he_3301/equipment.json").is_file():
+        pytest.skip("Private HE canonical fixture is unavailable in this checkout")
     bundle = load_he_3301(root)
     directory, source = snapshot(tmp_path)
     timestamps = ["2026-05-23T00:00:00+07:00", "2026-05-23T01:00:00+07:00", "2026-05-23T02:00:00+07:00"]
