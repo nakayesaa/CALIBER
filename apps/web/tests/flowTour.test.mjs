@@ -20,3 +20,29 @@ test('KO-3201 Flow follows monitoring, prioritized alert, then investigation wit
     assert.ok(box.top >= 12 && box.top + 240 <= 788);
   }
 });
+
+test('each supported role has its own read-only Flow and keeps its assigned asset', async () => {
+  const source = readFileSync(new URL('../src/lib/flowTour.ts', import.meta.url), 'utf8');
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
+  const { flowForPerson, flowHash } = await import(`data:text/javascript,${encodeURIComponent(js)}`);
+  for (const [person, page, asset] of [
+    ['demo-supervisor', 'plant', 'asset-ko-3201'],
+    ['demo-equipment-ko', 'operator-equipment', 'asset-ko-3201'],
+    ['demo-equipment-he', 'operator-equipment', 'asset-he-3301'],
+    ['demo-production-zcu', 'production-review', 'asset-ko-3201'],
+    ['demo-manager', 'gm-review', 'asset-ko-3201'],
+  ]) {
+    const flow = flowForPerson(person);
+    assert.ok(flow.steps.length >= 6);
+    assert.equal(flow.steps[0].page, page);
+    const [path, query] = flowHash(person).split('?');
+    const params = new URLSearchParams(query);
+    assert.equal(path, page);
+    assert.equal(params.get('asset'), asset);
+    assert.equal(params.get('flow'), flow.id);
+    assert.equal(params.get('person'), person);
+    assert.equal(params.get('flowStep'), '0');
+  }
+  assert.equal(flowForPerson('demo-maintenance'), null);
+  assert.equal(flowForPerson('unknown'), null);
+});

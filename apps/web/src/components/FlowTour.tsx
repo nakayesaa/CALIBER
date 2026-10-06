@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { cardPosition, FLOW_STEPS } from '../lib/flowTour';
+import { cardPosition, type FlowDefinition } from '../lib/flowTour';
 import './flow-tour.css';
 
-export function FlowTour({ index, page, onNext, onBack, onExit }: { index: number; page: string; onNext: () => void; onBack: () => void; onExit: () => void }) {
-  const step = FLOW_STEPS[index];
+export function FlowTour({ index, page, flow, onNext, onBack, onExit }: { index: number; page: string; flow: FlowDefinition; onNext: () => void; onBack: () => void; onExit: () => void }) {
+  const step = flow.steps[index];
   const dialog = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<DOMRect | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -67,12 +67,12 @@ export function FlowTour({ index, page, onNext, onBack, onExit }: { index: numbe
     {box && <div className="flow-tour-spotlight" aria-hidden="true" style={{ left: box.left - 6, top: box.top - 6, width: box.width + 12, height: box.height + 12 }} />}
     {!box && <div className="flow-tour-waiting-mask" aria-hidden="true" />}
     <div ref={dialog} className="flow-tour-card" role="dialog" aria-modal="true" aria-labelledby="flow-tour-title" aria-describedby="flow-tour-description" style={position}>
-      <div className="flow-tour-top"><span>FLOW · KO-3201</span><button type="button" onClick={onExit} aria-label="Exit Flow tour">×</button></div>
-      <p className="flow-tour-counter">Step {index + 1} of {FLOW_STEPS.length} · Guided walkthrough</p>
+      <div className="flow-tour-top"><span>FLOW · {flow.label}</span><button type="button" onClick={onExit} aria-label="Exit Flow tour">×</button></div>
+      <p className="flow-tour-counter">Step {index + 1} of {flow.steps.length} · Guided walkthrough</p>
       <h2 id="flow-tour-title">{step.title}</h2>
       <p id="flow-tour-description">{step.text}</p>
       {!box && <p className="flow-tour-status" role="status">{waiting ? 'This view is not ready. You can exit, check the connection, and start Flow again.' : 'Waiting for the view to load…'}</p>}
-      <div className="flow-tour-progress" aria-hidden="true">{FLOW_STEPS.map((_, i) => <span key={i} className={i <= index ? 'active' : ''} />)}</div>
+      <div className="flow-tour-progress" aria-hidden="true">{flow.steps.map((_, i) => <span key={i} className={i <= index ? 'active' : ''} />)}</div>
       <footer><button type="button" onClick={index ? onBack : onExit}>{index ? 'Back' : 'Exit tour'}</button><button type="button" data-flow-next disabled={!box} onClick={onNext}>{step.next} <span aria-hidden="true">→</span></button></footer>
     </div>
   </div>;

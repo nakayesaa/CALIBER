@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import './demo-access.css';
-import { flowHash } from './lib/flowTour';
+import { flowForPerson, flowHash } from './lib/flowTour';
 import './components/flow-tour.css';
 
 type Identity = { person_id: string; username: string };
@@ -89,7 +89,8 @@ export function DemoAccess({ children }: { children: ReactNode }) {
     } catch { setError('Unable to sign out. Please try again.'); }
     finally { setBusy(false); }
   }
-  if (identity) return <><div className="demo-session"><span>{identity.username}</span>{homePage(identity) === 'plant' && <button className="demo-flow-button" type="button" disabled={busy} onClick={() => { window.dispatchEvent(new Event('iris-flow-start')); window.location.hash = flowHash(identity.person_id); }}>Flow · KO-3201</button>}<button type="button" disabled={busy} onClick={() => void logout()}>{busy ? 'Signing out…' : 'Sign out'}</button>{error && <span role="alert">{error}</span>}</div>{children}</>;
+  const flow = identity ? flowForPerson(identity.person_id) : null;
+  if (identity) return <><div className="demo-session"><span>{identity.username}</span>{flow && <button className="demo-flow-button" type="button" disabled={busy} onClick={() => { window.dispatchEvent(new Event('iris-flow-start')); window.location.hash = flowHash(identity.person_id); }}>Flow · {flow.label}</button>}<button type="button" disabled={busy} onClick={() => void logout()}>{busy ? 'Signing out…' : 'Sign out'}</button>{error && <span role="alert">{error}</span>}</div>{children}</>;
   return <main className="demo-access"><section className="demo-access-card" aria-labelledby="demo-access-title">
     <div className="demo-access-brand"><span aria-hidden="true" className="demo-access-mark">I</span><span>IRIS</span></div>
     <p className="demo-access-eyebrow">Competition prototype</p>

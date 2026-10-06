@@ -3,6 +3,8 @@ import { GmCaseReport, type GmCaseEvidence } from '../components/GmCaseReport';
 import { equipmentDate } from '../components/EquipmentVerificationReport';
 import { LoadingState } from '../components/ViewState';
 import { GmActionAssignments } from '../components/GmActionAssignments';
+import { GmFlowReference } from '../components/GmFlowReference';
+import type { FlowStep } from '../lib/flowTour';
 import { api, selectWorkflowSession } from '../lib/api';
 import { gmReportLink, gmStatusLabel } from '../lib/gmReview';
 import { useApiResource } from '../lib/useApiResource';
@@ -13,12 +15,15 @@ import '../gm-review.css';
 export function GmReviewPage({
   requestId,
   personId,
+  guidedStep,
 }: {
   requestId?: string;
   personId?: string;
+  guidedStep?: FlowStep;
 }) {
+  const guidedDetail = Boolean(guidedStep && !['[data-flow="gm-heading"]', '[data-flow="gm-inbox"]'].includes(guidedStep.selector));
   const resource = useApiResource(
-    `gm-review:${requestId ?? 'inbox'}:${personId ?? ''}`,
+    `gm-review:${requestId ?? 'inbox'}:${personId ?? ''}:${guidedDetail ? 'flow-detail' : 'normal'}`,
     async () => {
       const session = await selectWorkflowSession(personId);
       if (!['MANAGER', 'SUPERVISOR'].includes(session.current.role))
@@ -53,15 +58,20 @@ export function GmReviewPage({
         }
       } else if (requestId)
         throw new Error('Open a case packet or management report.');
+      else if (guidedDetail && reports.length) {
+        const candidates = [...reports].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at));
+        const selected = candidates.find((item) => item.asset.asset_id === 'asset-ko-3201') ?? candidates[0];
+        report = await api.gmReport(selected.report_id);
+      }
       const executionPlans = report ? await api.gmActionPlans(report.report_id) : [];
-      return { session, reports, report, preview, executionPlans };
+      return { session, reports, report, preview, executionPlans, guidedDetail };
     },
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
-  if (!resource.data)
-    return resource.loading ? (
+  if (!resource.data || resource.data.guidedDetail !== guidedDetail)
+    return resource.loading || !resource.error ? (
       <LoadingState />
     ) : (
       <div className="production-review-error">
@@ -141,7 +151,7 @@ export function GmReviewPage({
 
   return (
     <div className="decision-workspace production-review-page gm-review-page">
-      <header className="decision-workspace-heading">
+      <header className="decision-workspace-heading" data-flow="gm-heading">
         <div>
           <span>
             {supervisor ? 'Supervisor' : 'General Manager'} · Case review
@@ -176,7 +186,7 @@ export function GmReviewPage({
         </div>
       )}
       {!evidence ? (
-        <section className="production-review-card production-delegation-list">
+        <section className="production-review-card production-delegation-list" data-flow="gm-inbox">
           <header>
             <h2>Case reports</h2>
             <button onClick={resource.reload} disabled={resource.loading}>
@@ -252,6 +262,7 @@ export function GmReviewPage({
           <section
             className="production-review-card gm-decision-panel"
             aria-label="Management handoff"
+            data-flow="gm-decision"
           >
             {preview ? (
               <>
@@ -371,8 +382,13 @@ export function GmReviewPage({
               </a>
             )}
           </section>
+          {guidedStep && <section className="production-review-card" data-flow="gm-handoff">
+            <h2>Decision to accountable follow-up</h2>
+            <p>Approval records the management decision. The supervisor separately assigns an owner, deadline, guidance, and evidence requirements. Returned cases need revision before proceeding; no work is assigned automatically.</p>
+          </section>}
         </>
       )}
+      {!evidence && guidedDetail && <GmFlowReference />}
     </div>
   );
 }

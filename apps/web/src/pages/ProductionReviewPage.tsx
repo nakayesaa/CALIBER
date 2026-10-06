@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { FlowStep } from '../lib/flowTour';
 import type { PageId } from '../components/AppShell';
 import { SignalChart } from '../components/SignalChart';
 import { ProductionVerificationReport } from '../components/ProductionVerificationReport';
@@ -35,7 +36,7 @@ async function loadReview(assetId: string, requestId?: string, personId?: string
   return report ? { overview, report, record: null, session: null } : null;
 }
 
-export function ProductionReviewPage({ assetId = PRIMARY_ASSET_ID, requestId, personId, onNavigate }: { assetId?: string; requestId?: string; personId?: string; onNavigate: (page: PageId) => void }) {
+export function ProductionReviewPage({ assetId = PRIMARY_ASSET_ID, requestId, personId, onNavigate, guidedStep }: { assetId?: string; requestId?: string; personId?: string; guidedStep?: FlowStep; onNavigate: (page: PageId) => void }) {
   const resource = useApiResource(`production-review:${assetId}:${requestId ?? ''}:${personId ?? ''}`, () => loadReview(assetId, requestId, personId));
   const [signal, setSignal] = useState<'feed_rate_tph' | 'plant_rate_tph'>('feed_rate_tph');
   const [recordPage, setRecordPage] = useState(0);
@@ -71,24 +72,24 @@ export function ProductionReviewPage({ assetId = PRIMARY_ASSET_ID, requestId, pe
   }
 
   return <div className="decision-workspace production-review-page">
-    <header className="decision-workspace-heading">
+    <header data-flow="production-heading" className="decision-workspace-heading">
       <div><span>{session ? humanize(session.current.role) : 'Production operator'} · {report.scope}</span><h1>Production evidence review</h1><p>Review your section of the supervisor's report before it goes to the GM.</p></div>
       <div><b>{record ? humanize(record.status) : 'Simulation preview'}</b>{record && session?.can_switch && session.current.role === 'OPERATOR' ? <a className="scope-return-link" href={`#delegation?${new URLSearchParams({ asset: record.asset.asset_id, person: record.created_by })}`}>Return to case packet</a> : <button onClick={() => onNavigate(record ? 'delegation' : 'overview')}>{record ? 'Back to requests' : 'Exit preview'}</button>}</div>
     </header>
 
-    <ProductionVerificationReport report={report} asset={overview.asset} review={receipt}/>
+    <div data-flow="production-report"><ProductionVerificationReport report={report} asset={overview.asset} review={receipt}/></div>
 
     <div className="production-evidence-heading"><h2>Supporting evidence</h2><p>Inspect the records behind report {report.reportId} · v{report.version}, then record your scope decision.</p></div>
 
     <div className="production-review-grid">
       <div className="production-review-evidence">
-        <article className="production-review-card">
+        <article data-flow="production-operating" className="production-review-card">
           <header><div><span>01 · Operating evidence</span><h2>Before, during, and after the interruption</h2></div>{!record && <TraceButton traceId="production-shortfall">View sources</TraceButton>}</header>
           <p className="production-context">{overview.asset.tag} equipment feed and {overview.asset.plant_id} plant rate are separate measures. The shaded window marks the sampled equipment outage.</p>
           <nav className="overview-signal-mode" aria-label="Production chart variable"><button className={signal === 'feed_rate_tph' ? 'active' : ''} onClick={() => setSignal('feed_rate_tph')}>Equipment feed</button><button className={signal === 'plant_rate_tph' ? 'active' : ''} onClick={() => setSignal('plant_rate_tph')}>Plant rate</button></nav>
           <div className="production-review-chart"><SignalChart points={report.points} field={signal} threshold={signal === 'feed_rate_tph' ? baseline.expected_feed_tph : undefined} highlightWindow={window} showRunStatus yPaddingRatio={0.12}/></div>
           <footer className="production-chart-legend"><span>{signal === 'feed_rate_tph' ? 'Reference line: expected feed baseline' : 'Plant rate: operating context, not equipment output'}</span><span>{formatDateTime(impact.window_start)} → {formatDateTime(impact.window_end)}</span></footer>
-          <div className="production-review-metrics">
+          <div data-flow="production-metrics" className="production-review-metrics">
             <Metric label="Actual outage feed" value={formatSignal(impact.actual_feed_tonnes)} unit="tonnes"/>
             <Metric label="Expected outage feed" value={formatSignal(impact.expected_feed_tonnes)} unit="tonnes"/>
             <Metric label="Estimated shortfall" value={formatSignal(impact.estimated_shortfall_tonnes)} unit="tonnes"/>
@@ -101,7 +102,7 @@ export function ProductionReviewPage({ assetId = PRIMARY_ASSET_ID, requestId, pe
           <header><div><span>02 · Report section</span><h2>What you are being asked to verify</h2></div><span className="production-version">Report v{report.version}</span></header>
           <blockquote>{report.statement}</blockquote>
           <p className="production-context">{report.response}</p>
-          <details className="production-review-details"><summary>Baseline and calculation</summary><dl>
+          <details open={guidedStep?.expand ? true : undefined} className="production-review-details"><summary>Baseline and calculation</summary><dl>
             <div><dt>Baseline policy</dt><dd>{baseline.method === 'PRE_OUTAGE_OPERATING_MEDIAN' ? 'Pre-outage operating median' : 'Contextual healthy median'}</dd></div>
             <div><dt>Expected feed</dt><dd>{formatSignal(baseline.expected_feed_tph, 2)} t/h</dd></div>
             <div><dt>Comparable plant load</dt><dd>{formatSignal(baseline.representative_plant_rate_tph)} ± {formatSignal(baseline.plant_rate_tolerance_tph)} t/h</dd></div>
@@ -113,7 +114,7 @@ export function ProductionReviewPage({ assetId = PRIMARY_ASSET_ID, requestId, pe
         </article>
 
         <article className="production-review-card">
-          <details className="production-review-details production-records"><summary>03 · Supporting records <span>{report.points.length} observations</span></summary>
+          <details data-flow="production-records" open={guidedStep?.expand ? true : undefined} className="production-review-details production-records"><summary>03 · Supporting records <span>{report.points.length} observations</span></summary>
             <p>{record ? 'Records frozen when the supervisor prepared this report.' : 'Evidence loaded for this preview.'} Compare run status and readings against the shaded outage window.</p>
             <div className="production-record-table"><table><thead><tr><th>Timestamp · WIB</th><th>Equipment feed · t/h</th><th>Plant rate · t/h</th><th>Run status</th></tr></thead><tbody>{rows.map((point) => <tr key={point.timestamp}><td>{formatDateTime(point.timestamp)}</td><td>{point.feed_rate_tph == null ? 'Unavailable' : formatSignal(point.feed_rate_tph, 2)}</td><td>{point.plant_rate_tph == null ? 'Unavailable' : formatSignal(point.plant_rate_tph, 2)}</td><td><span className={`production-run-status ${point.run_status.toLowerCase()}`}>{point.run_status}</span></td></tr>)}</tbody></table></div>
             <footer className="production-record-pagination"><span>Page {recordPage + 1} of {Math.max(totalPages, 1)}</span><div><button disabled={recordPage === 0} onClick={() => setRecordPage((page) => page - 1)}>Previous</button><button disabled={recordPage + 1 >= totalPages} onClick={() => setRecordPage((page) => page + 1)}>Next</button></div></footer>
@@ -123,7 +124,7 @@ export function ProductionReviewPage({ assetId = PRIMARY_ASSET_ID, requestId, pe
       </div>
 
       <aside className="production-review-sidebar">
-        <article className="production-review-card production-decision-card">
+        <article data-flow="production-decision" className="production-review-card production-decision-card">
           <header><div><span>Your review</span><h2>Production scope decision</h2></div><span className="production-version">v{report.version}</span></header>
           {saveError && <div role="alert"><p>{saveError}</p><button onClick={resource.reload}>Reload current report</button></div>}
           {receipt ? <div className="production-decision-receipt" role="status"><span>{record ? 'Decision saved' : 'Preview decision recorded'}</span><h3>{decisions.find((item) => item.value === receipt.decision)?.label}</h3><p>{receipt.note}</p><dl><div><dt>Report</dt><dd>{report.reportId} · v{report.version}</dd></div><div><dt>Recorded</dt><dd>{formatDateTime(receipt.at)}</dd></div></dl><p>{record ? 'The supervisor can now read your production verification and note.' : 'Shown to the supervisor in this simulation. No backend approval was changed.'}</p>{record && session?.can_switch && session.current.role === 'OPERATOR' && <a className="scope-return-link" href={`#delegation?${new URLSearchParams({ asset: record.asset.asset_id, person: record.created_by })}`}>Return to case packet</a>}{!record && <button onClick={() => { setReceipt(null); setNote(''); setChecked(false); setDecision('APPROVED'); }}>Reset simulation</button>}</div>
@@ -138,7 +139,7 @@ export function ProductionReviewPage({ assetId = PRIMARY_ASSET_ID, requestId, pe
               <p className="production-decision-boundary">Your decision covers production evidence only. Equipment and planning approvals are separate; GM submission remains the supervisor's responsibility.</p>
             </fieldset></form>}
         </article>
-        <div className="production-review-snapshot"><span>Evidence snapshot</span><p>{record ? 'The report and evidence are saved as one fixed version. Your verification is retained after reload.' : 'The report stays unchanged while you review it. Decisions on this preview reset when you leave or reload.'}</p></div>
+        <div data-flow="production-boundary" className="production-review-snapshot"><span>Evidence snapshot</span><p>{record ? 'The report and evidence are saved as one fixed version. Your verification is retained after reload.' : 'The report stays unchanged while you review it. Decisions on this preview reset when you leave or reload.'}</p></div>
       </aside>
     </div>
   </div>;

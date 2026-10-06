@@ -67,7 +67,7 @@ export function GmCaseReport({
         </p>
       </Section>
       <Section number="2" title="Verified evidence and operational impact">
-        <div className="action-report-production">
+        <div className="action-report-production" data-flow="gm-equipment">
           <table>
             <thead>
               <tr>
@@ -98,7 +98,7 @@ export function GmCaseReport({
           {equipmentDate(impact.window_start)} to{' '}
           {equipmentDate(impact.window_end)}.
         </p>
-        <div className="action-report-production">
+        <div className="action-report-production" data-flow="gm-production">
           <table>
             <thead>
               <tr>
@@ -153,7 +153,7 @@ export function GmCaseReport({
           Source: {impact.baseline.source_reference}
         </p>
       </Section>
-      <Section number="3" title="RCA indication and remaining questions">
+      <div data-flow="gm-rca"><Section number="3" title="RCA indication and remaining questions">
         {rca?.generation.hypotheses.length ? (
           rca.generation.hypotheses.map((hypothesis) => (
             <div className="gm-hypothesis" key={hypothesis.hypothesis_id}>
@@ -196,8 +196,8 @@ export function GmCaseReport({
           Data verification confirms the scope records. It does not establish
           that an RCA hypothesis is proven.
         </p>
-      </Section>
-      <Section number="4" title="Proposed follow-up actions">
+      </Section></div>
+      <div data-flow="gm-actions"><Section number="4" title="Proposed follow-up actions">
         {actions.length ? (
           <div className="action-report-production">
             <table>
@@ -240,7 +240,7 @@ export function GmCaseReport({
           approach. Named assignment, work authorization and execution remain
           separate steps.
         </p>
-      </Section>
+      </Section></div>
       <Section number="5" title="Scope verification and source records">
         {[equipment, production].map((report) => (
           <div key={report.report_id}>
