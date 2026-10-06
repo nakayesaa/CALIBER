@@ -39,7 +39,7 @@ def client(tmp_path, monkeypatch):
     def health():
         return {"ok": True}
 
-    from app.demo_auth import install_demo_auth
+    from services.api.app.demo_auth import install_demo_auth
 
     install_demo_auth(app)
     with TestClient(app, base_url="https://testserver") as test_client:
@@ -89,7 +89,7 @@ def test_csrf_logout_and_invalid_credentials(client):
 def test_expiration_and_account_invalidation(client, monkeypatch):
     c, accounts, record = client
     assert login(c).status_code == 200
-    import app.demo_auth as auth
+    import services.api.app.demo_auth as auth
 
     now = auth.time.time()
     monkeypatch.setattr(auth.time, "time", lambda: now + 28801)
@@ -137,7 +137,7 @@ def test_tampering_csrf_and_removed_account(client):
 
 
 def test_requires_secret(monkeypatch):
-    from app.demo_auth import install_demo_auth
+    from services.api.app.demo_auth import install_demo_auth
 
     monkeypatch.delenv("IRIS_SESSION_SECRET", raising=False)
     with pytest.raises(ValueError, match="IRIS_SESSION_SECRET"):
